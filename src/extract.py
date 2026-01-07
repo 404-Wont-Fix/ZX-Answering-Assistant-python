@@ -287,6 +287,176 @@ class Extractor:
         
         return None
 
+    def get_chapter_list(self, class_id: str, max_retries: int = 3) -> Optional[List[Dict]]:
+        """
+        从GetChapterEvaluationByClassID API获取章节列表
+        
+        Args:
+            class_id: 班级ID
+            max_retries: 最大重试次数，默认为3
+            
+        Returns:
+            Optional[List[Dict]]: 章节列表，如果失败则返回None
+        """
+        if not self.access_token:
+            print("❌ 未登录，无法获取章节列表")
+            return None
+        
+        for attempt in range(max_retries):
+            try:
+                url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetChapterEvaluationByClassID?classID={class_id}"
+                headers = {
+                    "accept": "application/json, text/plain, */*",
+                    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                    "authorization": f"Bearer {self.access_token}",
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "priority": "u=1, i",
+                    "referer": "https://admin.cqzuxia.com/",
+                    "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": '"Windows"',
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-origin",
+                    "sec-gpc": "1",
+                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+                }
+                
+                if attempt > 0:
+                    print(f"正在重试获取章节列表... (第{attempt + 1}次)")
+                else:
+                    print("正在获取章节列表...")
+                
+                response = requests.get(url, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == 0:
+                        chapter_list = data.get("data", [])
+                        print(f"✅ 成功获取 {len(chapter_list)} 个章节")
+                        return chapter_list
+                    else:
+                        print(f"❌ API返回错误：{data.get('msg', '未知错误')}")
+                        return None
+                else:
+                    print(f"❌ 请求失败，状态码：{response.status_code}")
+                    print(f"响应内容：{response.text[:200]}")
+                    return None
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求超时，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print("❌ 请求超时，请检查网络连接")
+                    return None
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 连接错误，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 连接错误：{str(e)}")
+                    return None
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求异常，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 请求异常：{str(e)}")
+                    return None
+            except Exception as e:
+                print(f"❌ 获取章节列表异常：{str(e)}")
+                return None
+        
+        return None
+
+    def get_knowledge_list(self, class_id: str, max_retries: int = 3) -> Optional[List[Dict]]:
+        """
+        从GetEvaluationKnowledgeSummaryByClass API获取知识点列表
+        
+        Args:
+            class_id: 班级ID
+            max_retries: 最大重试次数，默认为3
+            
+        Returns:
+            Optional[List[Dict]]: 知识点列表，如果失败则返回None
+        """
+        if not self.access_token:
+            print("❌ 未登录，无法获取知识点列表")
+            return None
+        
+        for attempt in range(max_retries):
+            try:
+                url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass?classID={class_id}"
+                headers = {
+                    "accept": "application/json, text/plain, */*",
+                    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                    "authorization": f"Bearer {self.access_token}",
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "priority": "u=1, i",
+                    "referer": "https://admin.cqzuxia.com/",
+                    "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": '"Windows"',
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-origin",
+                    "sec-gpc": "1",
+                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+                }
+                
+                if attempt > 0:
+                    print(f"正在重试获取知识点列表... (第{attempt + 1}次)")
+                else:
+                    print("正在获取知识点列表...")
+                
+                response = requests.get(url, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("code") == 0:
+                        knowledge_list = data.get("data", [])
+                        print(f"✅ 成功获取 {len(knowledge_list)} 个知识点")
+                        return knowledge_list
+                    else:
+                        print(f"❌ API返回错误：{data.get('msg', '未知错误')}")
+                        return None
+                else:
+                    print(f"❌ 请求失败，状态码：{response.status_code}")
+                    print(f"响应内容：{response.text[:200]}")
+                    return None
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求超时，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print("❌ 请求超时，请检查网络连接")
+                    return None
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 连接错误，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 连接错误：{str(e)}")
+                    return None
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求异常，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 请求异常：{str(e)}")
+                    return None
+            except Exception as e:
+                print(f"❌ 获取知识点列表异常：{str(e)}")
+                return None
+        
+        return None
+
     def select_class(self, class_list: List[Dict]) -> Optional[Dict]:
         """
         让用户选择班级
@@ -306,7 +476,7 @@ class Extractor:
             class_name = cls.get("className", "")
             class_id = cls.get("id", "")
             stats = cls.get("stats", 0)
-            print(f"{i}. {class_name} (ID: {class_id})")
+            print(f"{i}. {class_name} (ClassID: {class_id})")
         print("0. 取消")
         
         while True:
@@ -383,16 +553,78 @@ class Extractor:
         if not course_list:
             return None
         
-        # 9. 打印班级和课程信息
+        # 9. 获取章节列表
+        chapter_list = self.get_chapter_list(class_id)
+        if not chapter_list:
+            return None
+        
+        # 10. 获取知识点列表
+        knowledge_list = self.get_knowledge_list(class_id)
+        if not knowledge_list:
+            return None
+        
+        # 11. 按课程分组章节
+        course_chapters = {}
+        for chapter in chapter_list:
+            course_id = chapter.get("courseID", "")
+            if course_id not in course_chapters:
+                course_chapters[course_id] = []
+            course_chapters[course_id].append(chapter)
+        
+        # 12. 按章节分组知识点
+        chapter_knowledges = {}
+        for knowledge in knowledge_list:
+            chapter_id = knowledge.get("ChapterID", "")
+            if chapter_id not in chapter_knowledges:
+                chapter_knowledges[chapter_id] = []
+            chapter_knowledges[chapter_id].append(knowledge)
+        
+        # 13. 打印班级和课程信息
         print("\n" + "="*50)
         print("✅ 题目提取完成")
         print("="*50)
         print(f"班级名称：{class_name}")
-        print(f"班级ID：{class_id}")
-        print("\n课程列表：")
+        print(f"班级ID (ClassID)：{class_id}")
+        print(f"\n课程及章节列表：")
+        
         for i, course in enumerate(course_list, 1):
-            print(f"{i}. {course.get('courseName', '未知课程')} (ID: {course.get('courseID', 'N/A')})")
+            course_id = course.get("courseID", "")
+            course_name = course.get("courseName", "未知课程")
+            print(f"\n{i}. {course_name} (courseID: {course_id})")
             print(f"   知识点总数: {course.get('knowledgeSum', 0)}, 已完成: {course.get('shulian', 0)}")
+            
+            # 显示该课程的章节
+            if course_id in course_chapters:
+                chapters = course_chapters[course_id]
+                print(f"   章节数量: {len(chapters)}")
+                for j, chapter in enumerate(chapters, 1):
+                    chapter_id = chapter.get("chapterID", "")
+                    chapter_title = chapter.get("chapterTitle", "")
+                    chapter_content = chapter.get("chapterContent", "")
+                    knowledge_count = chapter.get("knowledgeCount", 0)
+                    complet_count = chapter.get("completCount", 0)
+                    pass_count = chapter.get("passCount", 0)
+                    
+                    print(f"   [{j}] {chapter_title} - {chapter_content} (ChapterID: {chapter_id})")
+                    print(f"       知识点: {knowledge_count}, 完成: {complet_count}, 通过: {pass_count}")
+                    
+                    # 显示该章节的知识点
+                    if chapter_id in chapter_knowledges:
+                        knowledges = chapter_knowledges[chapter_id]
+                        print(f"       知识点列表:")
+                        for k, knowledge in enumerate(knowledges, 1):
+                            knowledge_id = knowledge.get("KnowledgeID", "")
+                            knowledge_name = knowledge.get("Knowledge", "")
+                            order_number = knowledge.get("OrderNumber", 0)
+                            k_complet_count = knowledge.get("completCount", 0)
+                            k_pass_count = knowledge.get("passCount", 0)
+                            
+                            print(f"       [{k}] {knowledge_name} (KnowledgeID: {knowledge_id}, 顺序: {order_number}, 完成: {k_complet_count}, 通过: {k_pass_count})")
+                    else:
+                        print("       暂无知识点信息")
+            else:
+                print("   暂无章节信息")
+        
         print("="*50)
         
         return class_id
