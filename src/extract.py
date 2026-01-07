@@ -7,6 +7,7 @@ from playwright.sync_api import sync_playwright
 from typing import Optional, List, Dict
 import time
 import requests
+import asyncio
 
 
 class Extractor:
@@ -14,6 +15,7 @@ class Extractor:
     
     def __init__(self):
         self.access_token = None
+        self.playwright = None
         self.browser = None
         self.context = None
         self.page = None
@@ -32,9 +34,16 @@ class Extractor:
         try:
             print("正在启动浏览器进行登录...")
             
+            # 检查是否有正在运行的asyncio事件循环
+            try:
+                loop = asyncio.get_running_loop()
+                has_loop = True
+            except RuntimeError:
+                has_loop = False
+            
             # 使用playwright启动浏览器
-            p = sync_playwright().start()
-            self.browser = p.chromium.launch(headless=False)
+            self.playwright = sync_playwright().start()
+            self.browser = self.playwright.chromium.launch(headless=False)
             
             # 创建浏览器上下文
             self.context = self.browser.new_context(
@@ -193,6 +202,91 @@ class Extractor:
             except ValueError:
                 print("❌ 请输入数字")
     
+    def get_course_list(self, class_id: str, max_retries: int = 3) -> Optional[List[Dict]]:
+        """
+        从GetEvaluationSummaryByClassID API获取课程列表
+        
+        Args:
+            class_id: 班级ID
+            max_retries: 最大重试次数，默认为3
+            
+        Returns:
+            Optional[List[Dict]]: 课程列表，如果失败则返回None
+        """
+        if not self.access_token:
+            print("❌ 未登录，无法获取课程列表")
+            return None
+        
+        for attempt in range(max_retries):
+            try:
+                url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID?classID={class_id}"
+                headers = {
+                    "accept": "application/json, text/plain, */*",
+                    "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                    "authorization": f"Bearer {self.access_token}",
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "priority": "u=1, i",
+                    "referer": "https://admin.cqzuxia.com/",
+                    "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+                    "sec-ch-ua-mobile": "?0",
+                    "sec-ch-ua-platform": '"Windows"',
+                    "sec-fetch-dest": "empty",
+                    "sec-fetch-mode": "cors",
+                    "sec-fetch-site": "same-origin",
+                    "sec-gpc": "1",
+                    "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+                }
+                
+                if attempt > 0:
+                    print(f"正在重试获取课程列表... (第{attempt + 1}次)")
+                else:
+                    print("正在获取课程列表...")
+                
+                response = requests.get(url, headers=headers, timeout=30)
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    if data.get("success"):
+                        course_list = data.get("data", [])
+                        print(f"✅ 成功获取 {len(course_list)} 门课程")
+                        return course_list
+                    else:
+                        print(f"❌ API返回错误：{data.get('message', '未知错误')}")
+                        return None
+                else:
+                    print(f"❌ 请求失败，状态码：{response.status_code}")
+                    print(f"响应内容：{response.text[:200]}")
+                    return None
+                    
+            except requests.exceptions.Timeout:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求超时，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print("❌ 请求超时，请检查网络连接")
+                    return None
+            except requests.exceptions.ConnectionError as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 连接错误，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 连接错误：{str(e)}")
+                    return None
+            except requests.exceptions.RequestException as e:
+                if attempt < max_retries - 1:
+                    print(f"⚠️ 请求异常，正在重试... ({attempt + 1}/{max_retries})")
+                    time.sleep(2)
+                else:
+                    print(f"❌ 请求异常：{str(e)}")
+                    return None
+            except Exception as e:
+                print(f"❌ 获取课程列表异常：{str(e)}")
+                return None
+        
+        return None
+
     def select_class(self, class_list: List[Dict]) -> Optional[Dict]:
         """
         让用户选择班级
@@ -280,15 +374,25 @@ class Extractor:
             print("❌ 已取消选择")
             return None
         
-        # 7. 打印班级ID
+        # 7. 获取班级ID
         class_id = selected_class.get("id", "")
         class_name = selected_class.get("className", "")
         
+        # 8. 获取课程列表
+        course_list = self.get_course_list(class_id)
+        if not course_list:
+            return None
+        
+        # 9. 打印班级和课程信息
         print("\n" + "="*50)
         print("✅ 题目提取完成")
         print("="*50)
         print(f"班级名称：{class_name}")
         print(f"班级ID：{class_id}")
+        print("\n课程列表：")
+        for i, course in enumerate(course_list, 1):
+            print(f"{i}. {course.get('courseName', '未知课程')} (ID: {course.get('courseID', 'N/A')})")
+            print(f"   知识点总数: {course.get('knowledgeSum', 0)}, 已完成: {course.get('shulian', 0)}")
         print("="*50)
         
         return class_id
@@ -300,6 +404,9 @@ class Extractor:
             self.browser = None
             self.context = None
             self.page = None
+        if self.playwright:
+            self.playwright.stop()
+            self.playwright = None
             print("浏览器已关闭")
 
 
