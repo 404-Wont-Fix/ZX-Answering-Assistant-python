@@ -56,3 +56,6 @@ Thumbs.db
 htmlcov/
 CLAUDE.md
 .trae/documents/plan_20260107_074914.md
+output/*
+账号密码
+.gitignore
