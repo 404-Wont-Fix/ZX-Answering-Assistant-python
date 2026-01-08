@@ -3,10 +3,9 @@
 用于将提取的题目数据导出为JSON文件
 """
 
-import json
 from typing import Dict, List, Optional
-from pathlib import Path
 from datetime import datetime
+from src.file_handler import FileHandler
 
 
 class DataExporter:
@@ -19,8 +18,10 @@ class DataExporter:
         Args:
             output_dir: 输出目录，默认为"output"
         """
-        self.output_dir = Path(output_dir)
-        self.output_dir.mkdir(exist_ok=True)
+        self.output_dir = output_dir
+        self.file_handler = FileHandler()
+        # 确保输出目录存在
+        self.file_handler.create_directory(output_dir)
         
     def export_to_json(self, data: Dict, filename: Optional[str] = None) -> str:
         """
@@ -43,14 +44,16 @@ class DataExporter:
             filename += ".json"
         
         # 构建完整的文件路径
-        file_path = self.output_dir / filename
+        file_path = f"{self.output_dir}/{filename}"
         
-        # 写入JSON文件
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        # 使用文件处理器写入JSON文件
+        success = self.file_handler.write_json(data, file_path, indent=2)
         
-        print(f"✅ 数据已成功导出到：{file_path}")
-        return str(file_path)
+        if success:
+            print(f"✅ 数据已成功导出到：{file_path}")
+            return file_path
+        else:
+            raise Exception("导出文件失败")
     
     def export_data(self, extracted_data: Dict, filename: Optional[str] = None) -> str:
         """

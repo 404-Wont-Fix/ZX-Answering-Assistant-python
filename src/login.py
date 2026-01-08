@@ -18,6 +18,14 @@ def get_access_token() -> Optional[str]:
     try:
         print("正在启动浏览器进行登录...")
         
+        # 获取用户输入的用户名和密码
+        username = input("请输入账户：").strip()
+        password = input("请输入密码：").strip()
+        
+        if not username or not password:
+            print("❌ 用户名或密码不能为空")
+            return None
+        
         # 使用playwright启动浏览器
         with sync_playwright() as p:
             # 启动浏览器（显示浏览器窗口）
@@ -41,10 +49,10 @@ def get_access_token() -> Optional[str]:
                 page.wait_for_selector("input[placeholder='请输入账户']", timeout=10000)
                 
                 # 输入用户名
-                page.fill("input[placeholder='请输入账户']", "wx2022")
+                page.fill("input[placeholder='请输入账户']", username)
                 
                 # 输入密码
-                page.fill("input[placeholder='请输入密码']", "123456")
+                page.fill("input[placeholder='请输入密码']", password)
                 
                 # 点击登录按钮
                 page.click("button:has-text('登录')")
