@@ -3,20 +3,20 @@
 用于获取系统的access_token
 """
 
-from playwright.sync_api import sync_playwright
-from typing import Optional
-import time
+import requests
+from typing import Optional, Dict
+from urllib.parse import quote
 
 
-def get_access_token() -> Optional[str]:
+def get_access_token() -> Optional[Dict]:
     """
-    使用Playwright模拟浏览器登录获取access_token
+    使用API接口获取access_token
     
     Returns:
-        Optional[str]: 获取到的access_token，如果失败则返回None
+        Optional[Dict]: 获取到的token信息字典，包含access_token、expires_in、token_type等，如果失败则返回None
     """
     try:
-        print("正在启动浏览器进行登录...")
+        print("正在获取access_token...")
         
         # 获取用户输入的用户名和密码
         username = input("请输入账户：").strip()
@@ -26,66 +26,65 @@ def get_access_token() -> Optional[str]:
             print("❌ 用户名或密码不能为空")
             return None
         
-        # 使用playwright启动浏览器
-        with sync_playwright() as p:
-            # 启动浏览器（显示浏览器窗口）
-            browser = p.chromium.launch(headless=False)
+        # API接口地址
+        url = "https://ai.cqzuxia.com/connect/token"
+        
+        # 请求头
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+            "content-type": "application/x-www-form-urlencoded",
+            "dnt": "1",
+            "origin": "https://ai.cqzuxia.com",
+            "priority": "u=1, i",
+            "referer": "https://ai.cqzuxia.com/",
+            "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "sec-gpc": "1",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
+        }
+        
+        # 请求参数
+        data = {
+            "username": username,
+            "password": password,
+            "code": "2341",
+            "vid": "",
+            "client_id": "43215cdff2d5407f8af074d2d7e589ee",
+            "client_secret": "DBqEL1YfBmKgT9O491J1YnYoq84lYtB/LwMabAS2JEqa8I+r3z1VrDqymjisqJn3",
+            "grant_type": "password",
+            "tenant_id": "32"
+        }
+        
+        # 发送POST请求
+        response = requests.post(url, headers=headers, data=data, timeout=10)
+        
+        # 检查响应状态码
+        if response.status_code == 200:
+            # 解析JSON响应
+            result = response.json()
             
-            try:
-                # 创建浏览器上下文
-                context = browser.new_context(
-                    viewport={'width': 1920, 'height': 1080},
-                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
-                )
-                
-                # 创建页面
-                page = context.new_page()
-                
-                # 打开登录页面
-                login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
-                page.goto(login_url)
-                
-                # 等待页面加载完成
-                page.wait_for_selector("input[placeholder='请输入账户']", timeout=10000)
-                
-                # 输入用户名
-                page.fill("input[placeholder='请输入账户']", username)
-                
-                # 输入密码
-                page.fill("input[placeholder='请输入密码']", password)
-                
-                # 点击登录按钮
-                page.click("button:has-text('登录')")
-                
-                # 等待登录成功（URL变化或页面元素出现）
-                try:
-                    # 等待登录成功，最多等待15秒
-                    page.wait_for_url("**/", timeout=15000)
-                    
-                    # 等待页面加载完成，确保cookies已经设置
-                    time.sleep(2)
-                    
-                    # 获取所有cookies
-                    cookies = context.cookies()
-                    
-                    # 查找包含access_token的cookie
-                    access_token = None
-                    for cookie in cookies:
-                        if cookie["name"] == "smartedu.admin.token":
-                            access_token = cookie["value"]
-                            break
-                    
-                    if access_token:
-                        return access_token
-                    else:
-                        print("登录成功，但未找到access_token cookie")
-                        return None
-                except Exception as e:
-                    print(f"登录过程中发生错误：{str(e)}")
-                    return None
-            finally:
-                # 关闭浏览器
-                browser.close()
+            # 检查是否包含access_token
+            if "access_token" in result:
+                return result
+            else:
+                print(f"❌ 响应中未找到access_token：{result}")
+                return None
+        else:
+            print(f"❌ 请求失败，状态码：{response.status_code}")
+            print(f"响应内容：{response.text}")
+            return None
+            
+    except requests.exceptions.Timeout:
+        print("❌ 请求超时，请检查网络连接")
+        return None
+    except requests.exceptions.RequestException as e:
+        print(f"❌ 请求异常：{str(e)}")
+        return None
     except Exception as e:
-        print(f"Playwright登录异常：{str(e)}")
+        print(f"❌ 获取access_token失败：{str(e)}")
         return None

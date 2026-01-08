@@ -32,17 +32,34 @@ def main():
         if choice == "1":
             # 调用开始答题功能
             print("开始答题功能")
-            print("1. 批量答题")
-            print("2. 单个课程答题")
-            print("3. 题库导入")
-            print("4. 返回")
+            print("1. 获取access_token")
+            print("2. 批量答题")
+            print("3. 单个课程答题")
+            print("4. 题库导入")
+            print("5. 返回")
             sub_choice = input("请选择：")
             
             if sub_choice == "1":
-                print("批量答题功能")
+                # 获取access_token
+                token_info = get_access_token()
+                if token_info:
+                    print(f"\n✅ 获取access_token成功！")
+                    print(f"access_token: {token_info.get('access_token', '')}")
+                    print(f"token类型: {token_info.get('token_type', '')}")
+                    print(f"有效期: {token_info.get('expires_in', 0)}秒 ({token_info.get('expires_in', 0) // 3600}小时)")
+                    print(f"refresh_token: {token_info.get('refresh_token', '')}")
+                    print(f"scope: {token_info.get('scope', '')}")
+                else:
+                    print(f"\n❌ 获取access_token失败！")
             elif sub_choice == "2":
-                print("单个课程答题功能")
+                # 批量答题功能
+                print("批量答题功能")
+                print("此功能尚未实现")
             elif sub_choice == "3":
+                # 单个课程答题功能
+                print("单个课程答题功能")
+                print("此功能尚未实现")
+            elif sub_choice == "4":
                 # 题库导入功能
                 print("题库导入功能")
                 file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
@@ -90,7 +107,7 @@ def main():
                     print(importer.format_output())
                 else:
                     print("❌ 题库导入失败")
-            elif "4" == input("请选择："):
+            elif sub_choice == "5":
                 print("返回主菜单")
                 continue
             else:
@@ -106,13 +123,14 @@ def main():
             choice2 = input("请选择：")
             if choice2 == "1":
                 # 获取access_token
-                print("正在获取access_token...")
-                access_token = get_access_token()
-                if access_token:
+                token_info = get_access_token()
+                if token_info:
                     print(f"\n✅ 获取access_token成功！")
-                    print(f"access_token: {access_token}")
-                    print(f"token类型: Bearer")
-                    print(f"有效期: 5小时 (18000秒)")
+                    print(f"access_token: {token_info.get('access_token', '')}")
+                    print(f"token类型: {token_info.get('token_type', '')}")
+                    print(f"有效期: {token_info.get('expires_in', 0)}秒 ({token_info.get('expires_in', 0) // 3600}小时)")
+                    print(f"refresh_token: {token_info.get('refresh_token', '')}")
+                    print(f"scope: {token_info.get('scope', '')}")
                 else:
                     print(f"\n❌ 获取access_token失败！")
             elif choice2 == "2":
