@@ -33,7 +33,7 @@ def main():
         if choice == "1":
             # 调用开始答题功能
             print("开始答题功能")
-            print("1. 批量答题")
+            print("1. 开始答题")
             print("2. 获取access_token")
             print("3. 单个课程答题")
             print("4. 题库导入")
@@ -41,7 +41,7 @@ def main():
             sub_choice = input("请选择：")
             
             if sub_choice == "1":
-                # 批量答题 - 获取token并打印课程列表
+                # 批量答题 - 获取token并显示课程列表
                 print("正在获取学生端access_token...")
                 access_token = get_student_access_token()
                 if access_token:
@@ -54,20 +54,102 @@ def main():
                     print("\n正在获取课程列表...")
                     courses = get_student_courses(access_token)
                     if courses:
-                        # 遍历每个课程，获取未完成的知识点
+                        # 遍历每个课程，获取未完成的知识点以确定完成情况
+                        print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                        print("📚 课程列表")
+                        print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+                        courses_with_status = []
                         for course in courses:
                             course_id = course.get('courseID')
                             course_name = course.get('courseName', 'N/A')
+                            teacher_name = course.get('teacherName', 'N/A')
+                            class_name = course.get('className', 'N/A')
 
+                            # 获取未完成的知识点
+                            uncompleted_chapters = []
                             if course_id:
-                                print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-                                print(f"📖 课程: {course_name}")
-                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-
                                 uncompleted_chapters = get_uncompleted_chapters(access_token, course_id)
 
-                                if uncompleted_chapters is not None and len(uncompleted_chapters) == 0:
-                                    print("✅ 该课程已全部完成！")
+                            # 判断完成状态
+                            if uncompleted_chapters is not None and len(uncompleted_chapters) == 0:
+                                completion_status = "✅ 已完成"
+                                uncompleted_count = 0
+                            elif uncompleted_chapters is not None:
+                                completion_status = f"⏳ 未完成 ({len(uncompleted_chapters)} 个知识点)"
+                                uncompleted_count = len(uncompleted_chapters)
+                            else:
+                                completion_status = "❓ 状态未知"
+                                uncompleted_count = -1
+
+                            courses_with_status.append({
+                                'course': course,
+                                'course_id': course_id,
+                                'course_name': course_name,
+                                'teacher_name': teacher_name,
+                                'class_name': class_name,
+                                'completion_status': completion_status,
+                                'uncompleted_count': uncompleted_count,
+                                'uncompleted_chapters': uncompleted_chapters
+                            })
+
+                        # 显示课程列表
+                        for i, course_info in enumerate(courses_with_status, 1):
+                            print(f"{i}. 【{course_info['course_name']}】")
+                            print(f"   👤 指导老师: {course_info['teacher_name']}")
+                            print(f"   🏫 班级: {course_info['class_name']}")
+                            print(f"   📊 完成情况: {course_info['completion_status']}")
+                            print()
+
+                        # 让用户选择查看具体课程
+                        while True:
+                            choice_input = input("请输入课程编号查看详情（输入0返回）: ").strip()
+                            if choice_input == "0":
+                                print("返回上级菜单")
+                                break
+
+                            try:
+                                choice_idx = int(choice_input) - 1
+                                if 0 <= choice_idx < len(courses_with_status):
+                                    selected_course = courses_with_status[choice_idx]
+                                    print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                    print(f"📖 课程详情: {selected_course['course_name']}")
+                                    print(f"👤 指导老师: {selected_course['teacher_name']}")
+                                    print(f"🏫 班级: {selected_course['class_name']}")
+                                    print(f"📊 完成情况: {selected_course['completion_status']}")
+                                    print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+                                    # 显示未完成的知识点
+                                    if selected_course['uncompleted_count'] == 0:
+                                        print("✅ 该课程已全部完成！")
+                                    elif selected_course['uncompleted_count'] > 0:
+                                        print(f"📝 未完成知识点列表 ({selected_course['uncompleted_count']} 个):\n")
+
+                                        current_chapter = None
+                                        for i, knowledge in enumerate(selected_course['uncompleted_chapters'], 1):
+                                            chapter_id = knowledge['id']
+                                            chapter_title = knowledge['title']
+                                            chapter_content = knowledge['titleContent']
+
+                                            # 如果章节改变，打印章节标题
+                                            if chapter_id != current_chapter:
+                                                if current_chapter is not None:
+                                                    print()  # 章节之间空行
+                                                current_chapter = chapter_id
+                                                chapter_full_name = f"{chapter_title} - {chapter_content}" if chapter_content else chapter_title
+                                                print(f"  📖 {chapter_full_name}")
+                                                print(f"     id: {chapter_id}")
+
+                                            print(f"    {i}. {knowledge['knowledge']}")
+                                            print(f"       id: {knowledge['knowledge_id']}")
+                                    else:
+                                        print("❌ 无法获取未完成知识点列表")
+
+                                    print("\n" + "━" * 40 + "\n")
+                                else:
+                                    print("❌ 无效的选择，请输入1-{}之间的数字".format(len(courses_with_status)))
+                            except ValueError:
+                                print("❌ 请输入有效的数字")
                     else:
                         print(f"\n⚠️ 获取课程列表失败或暂无课程")
                 else:

@@ -61,3 +61,4 @@ output/*
 .gitignore
 签名
 .trae/*
+tests/*

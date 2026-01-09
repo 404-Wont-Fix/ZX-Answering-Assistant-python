@@ -270,29 +270,6 @@ def get_uncompleted_chapters(access_token: str, course_id: str) -> Optional[List
                             'knowledge': knowledge_name
                         })
 
-                # 打印知识点信息到屏幕
-                if not all_knowledges:
-                    print("✅ 没有未完成的知识点")
-                else:
-                    print(f"📝 未完成知识点: {len(all_knowledges)} 个\n")
-
-                    current_chapter = None
-                    for i, knowledge in enumerate(all_knowledges, 1):
-                        chapter_id = knowledge['id']
-                        chapter_title = knowledge['title']
-                        chapter_content = knowledge['titleContent']
-                        # 如果章节改变，打印章节标题
-                        if chapter_id != current_chapter:
-                            if current_chapter is not None:
-                                print()  # 章节之间空行
-                            current_chapter = chapter_id
-                            chapter_full_name = f"{chapter_title} - {chapter_content}" if chapter_content else chapter_title
-                            print(f"  📖 {chapter_full_name}")
-                            print(f"     id: {chapter_id}")
-
-                        print(f"    {i}. {knowledge['knowledge']}")
-                        print(f"       id: {knowledge['knowledge_id']}")
-
                 return all_knowledges
 
             except json.JSONDecodeError as e:
@@ -379,18 +356,6 @@ def get_student_courses(access_token: str) -> Optional[List[Dict]]:
                 else:
                     logger.error(f"未知的数据格式: {type(data)}")
                     return None
-
-                # 打印课程信息到屏幕
-                if not courses:
-                    print("❌ 未找到任何课程")
-                else:
-                    print(f"📚 课程列表 (共 {len(courses)} 门):\n")
-
-                    for i, course in enumerate(courses, 1):
-                        course_name = course.get('courseName', 'N/A')
-                        class_name = course.get('className', 'N/A')
-                        teacher_name = course.get('teacherName', 'N/A')
-                        print(f"{i}. 【{course_name}】({class_name}) - {teacher_name}")
 
                 return courses
 
