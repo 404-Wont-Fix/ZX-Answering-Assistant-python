@@ -12,7 +12,7 @@ sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
-from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters
+from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -96,8 +96,8 @@ def main():
                         # 显示课程列表
                         for i, course_info in enumerate(courses_with_status, 1):
                             print(f"{i}. 【{course_info['course_name']}】")
+                            print(f"   🆔 课程ID: {course_info['course_id']}")
                             print(f"   👤 指导老师: {course_info['teacher_name']}")
-                            print(f"   🏫 班级: {course_info['class_name']}")
                             print(f"   📊 完成情况: {course_info['completion_status']}")
                             print()
 
@@ -114,8 +114,8 @@ def main():
                                     selected_course = courses_with_status[choice_idx]
                                     print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
                                     print(f"📖 课程详情: {selected_course['course_name']}")
+                                    print(f"🆔 课程ID: {selected_course['course_id']}")
                                     print(f"👤 指导老师: {selected_course['teacher_name']}")
-                                    print(f"🏫 班级: {selected_course['class_name']}")
                                     print(f"📊 完成情况: {selected_course['completion_status']}")
                                     print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
@@ -145,7 +145,42 @@ def main():
                                     else:
                                         print("❌ 无法获取未完成知识点列表")
 
-                                    print("\n" + "━" * 40 + "\n")
+                                    # 询问用户是否开始答题
+                                    while True:
+                                        confirm = input("\n是否开始答题该课程？(yes/no): ").strip().lower()
+                                        if confirm in ['yes', 'y', '是']:
+                                            print(f"\n🚀 开始答题：{selected_course['course_name']}")
+                                            print(f"📖 正在打开答题页面...")
+                                            print(f"🆔 课程ID: {selected_course['course_id']}")
+                                            print("=" * 50)
+
+                                            # 使用已登录的浏览器导航到答题页面
+                                            success = navigate_to_course(selected_course['course_id'])
+
+                                            if success:
+                                                print("✅ 已在浏览器中打开答题页面")
+                                            else:
+                                                print("❌ 打开答题页面失败")
+                                                print("提示: 浏览器可能未初始化，请确保已登录")
+
+                                            print("=" * 50 + "\n")
+                                            break
+                                        elif confirm in ['no', 'n', '否']:
+                                            print("返回课程列表\n")
+                                            # 重新显示课程列表
+                                            print("\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                            print("📚 课程列表")
+                                            print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
+
+                                            for i, course_info in enumerate(courses_with_status, 1):
+                                                print(f"{i}. 【{course_info['course_name']}】")
+                                                print(f"   🆔 课程ID: {course_info['course_id']}")
+                                                print(f"   👤 指导老师: {course_info['teacher_name']}")
+                                                print(f"   📊 完成情况: {course_info['completion_status']}")
+                                                print()
+                                            break
+                                        else:
+                                            print("❌ 请输入 yes 或 no")
                                 else:
                                     print("❌ 无效的选择，请输入1-{}之间的数字".format(len(courses_with_status)))
                             except ValueError:
@@ -272,6 +307,8 @@ def main():
         elif choice == "4":
             # 退出系统
             print("退出系统，再见！")
+            # 关闭浏览器
+            close_browser()
             break
         else:
             print("无效的选择，请重新输入")
