@@ -26,25 +26,30 @@ logger = logging.getLogger(__name__)
 def get_student_access_token(username: str = None, password: str = None) -> Optional[str]:
     """
     使用Playwright模拟浏览器登录获取学生端access_token
-    
+
     Args:
-        username: 学生账户，如果为None则使用默认账户
-        password: 学生密码，如果为None则使用默认密码
-        
+        username: 学生账户，如果为None则询问用户输入
+        password: 学生密码，如果为None则询问用户输入
+
     Returns:
         Optional[str]: 获取到的access_token，如果失败则返回None
     """
     try:
-        # 默认学生账户信息
-        default_username = "530627200608120055"
-        default_password = "120055"
-        
-        # 使用默认账户或用户输入的账户
-        student_username = username if username else default_username
-        student_password = password if password else default_password
-        
+        # 如果没有提供用户名和密码，则询问用户
+        if username is None:
+            username = input("请输入学生账户: ").strip()
+            if not username:
+                print("❌ 账户不能为空")
+                return None
+
+        if password is None:
+            password = input("请输入学生密码: ").strip()
+            if not password:
+                print("❌ 密码不能为空")
+                return None
+
         logger.info("正在启动浏览器进行学生端登录...")
-        logger.info(f"使用账户: {student_username}")
+        logger.info(f"使用账户: {username}")
         
         # 存储获取到的access_token
         access_token = None
@@ -97,11 +102,11 @@ def get_student_access_token(username: str = None, password: str = None) -> Opti
                 
                 # 输入用户名
                 logger.info("正在输入用户名...")
-                page.fill("input[placeholder='请输入账户']", student_username)
-                
+                page.fill("input[placeholder='请输入账户']", username)
+
                 # 输入密码
                 logger.info("正在输入密码...")
-                page.fill("input[placeholder='请输入密码']", student_password)
+                page.fill("input[placeholder='请输入密码']", password)
 
                 # 等待一下，确保输入完成
                 time.sleep(0.5)
@@ -188,6 +193,128 @@ def get_student_access_token_with_credentials() -> Optional[str]:
     return get_student_access_token(username, password)
 
 
+def get_uncompleted_chapters(access_token: str, course_id: str) -> Optional[List[Dict]]:
+    """
+    使用access_token和课程ID获取未完成的知识点列表
+
+    Args:
+        access_token: 学生端的access_token
+        course_id: 课程ID
+
+    Returns:
+        Optional[List[Dict]]: 未完成的知识点列表，如果失败则返回None
+    """
+    try:
+        logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
+
+        # API端点
+        url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
+
+        # 请求头
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "authorization": f"Bearer {access_token}",
+            "priority": "u=1, i",
+            "referer": "https://ai.cqzuxia.com/",
+            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+        }
+
+        logger.info(f"发送请求到: {url}")
+
+        # 发送GET请求
+        response = requests.get(url, headers=headers, timeout=30)
+
+        # 检查响应状态
+        if response.status_code == 200:
+            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
+
+            try:
+                data = response.json()
+
+                # 检查返回的数据结构
+                if isinstance(data, dict):
+                    # 如果返回的是字典，提取data字段
+                    if "data" in data and data.get("success"):
+                        chapters_data = data["data"]
+                    else:
+                        logger.error(f"API返回错误: {data}")
+                        return None
+                else:
+                    logger.error(f"未知的数据格式: {type(data)}")
+                    return None
+
+                # 解析嵌套的章节-知识点结构
+                all_knowledges = []
+                for chapter in chapters_data:
+                    chapter_id = chapter.get('id', 'N/A')
+                    chapter_title = chapter.get('title', 'N/A')
+                    chapter_content = chapter.get('titleContent', '')
+
+                    knowledge_list = chapter.get('knowledgeList', [])
+                    for knowledge in knowledge_list:
+                        knowledge_id = knowledge.get('id', 'N/A')
+                        knowledge_name = knowledge.get('knowledge', 'N/A')
+
+                        all_knowledges.append({
+                            'id': chapter_id,
+                            'title': chapter_title,
+                            'titleContent': chapter_content,
+                            'knowledge_id': knowledge_id,
+                            'knowledge': knowledge_name
+                        })
+
+                # 打印知识点信息到屏幕
+                if not all_knowledges:
+                    print("✅ 没有未完成的知识点")
+                else:
+                    print(f"📝 未完成知识点: {len(all_knowledges)} 个\n")
+
+                    current_chapter = None
+                    for i, knowledge in enumerate(all_knowledges, 1):
+                        chapter_id = knowledge['id']
+                        chapter_title = knowledge['title']
+                        chapter_content = knowledge['titleContent']
+                        # 如果章节改变，打印章节标题
+                        if chapter_id != current_chapter:
+                            if current_chapter is not None:
+                                print()  # 章节之间空行
+                            current_chapter = chapter_id
+                            chapter_full_name = f"{chapter_title} - {chapter_content}" if chapter_content else chapter_title
+                            print(f"  📖 {chapter_full_name}")
+                            print(f"     id: {chapter_id}")
+
+                        print(f"    {i}. {knowledge['knowledge']}")
+                        print(f"       id: {knowledge['knowledge_id']}")
+
+                return all_knowledges
+
+            except json.JSONDecodeError as e:
+                logger.error(f"解析JSON响应失败: {str(e)}")
+                logger.error(f"响应内容: {response.text[:500]}")
+                return None
+        else:
+            logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+            logger.error(f"响应内容: {response.text[:500]}")
+            return None
+
+    except requests.exceptions.Timeout:
+        logger.error("❌ 请求超时，请检查网络连接")
+        return None
+    except requests.exceptions.ConnectionError as e:
+        logger.error(f"❌ 连接错误: {str(e)}")
+        return None
+    except Exception as e:
+        logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
+        return None
+
+
 def get_student_courses(access_token: str) -> Optional[List[Dict]]:
     """
     使用access_token获取学生端课程列表
@@ -254,32 +381,16 @@ def get_student_courses(access_token: str) -> Optional[List[Dict]]:
                     return None
 
                 # 打印课程信息到屏幕
-                print("\n" + "="*80)
-                print("📚 学生端课程列表")
-                print("="*80)
-
                 if not courses:
                     print("❌ 未找到任何课程")
                 else:
-                    print(f"✅ 共找到 {len(courses)} 门课程\n")
+                    print(f"📚 课程列表 (共 {len(courses)} 门):\n")
 
                     for i, course in enumerate(courses, 1):
-                        print(f"【课程 {i}】")
-                        print(f"  课程ID: {course.get('courseID', 'N/A')}")
-                        print(f"  课程名称: {course.get('courseName', 'N/A')}")
-                        print(f"  班级ID: {course.get('classID', 'N/A')}")
-                        print(f"  班级名称: {course.get('className', 'N/A')}")
-                        print(f"  教师ID: {course.get('teacherID', 'N/A')}")
-                        print(f"  教师姓名: {course.get('teacherName', 'N/A')}")
-
-                        # 打印其他可能的字段
-                        for key, value in course.items():
-                            if key not in ['courseID', 'courseName', 'classID', 'className', 'teacherID', 'teacherName']:
-                                print(f"  {key}: {value}")
-
-                        print()
-
-                print("="*80)
+                        course_name = course.get('courseName', 'N/A')
+                        class_name = course.get('className', 'N/A')
+                        teacher_name = course.get('teacherName', 'N/A')
+                        print(f"{i}. 【{course_name}】({class_name}) - {teacher_name}")
 
                 return courses
 

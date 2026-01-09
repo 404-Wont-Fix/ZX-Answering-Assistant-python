@@ -12,7 +12,7 @@ sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
-from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses
+from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -54,7 +54,20 @@ def main():
                     print("\n正在获取课程列表...")
                     courses = get_student_courses(access_token)
                     if courses:
-                        print(f"\n✅ 成功获取 {len(courses)} 门课程信息！")
+                        # 遍历每个课程，获取未完成的知识点
+                        for course in courses:
+                            course_id = course.get('courseID')
+                            course_name = course.get('courseName', 'N/A')
+
+                            if course_id:
+                                print(f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+                                print(f"📖 课程: {course_name}")
+                                print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+
+                                uncompleted_chapters = get_uncompleted_chapters(access_token, course_id)
+
+                                if uncompleted_chapters is not None and len(uncompleted_chapters) == 0:
+                                    print("✅ 该课程已全部完成！")
                     else:
                         print(f"\n⚠️ 获取课程列表失败或暂无课程")
                 else:
