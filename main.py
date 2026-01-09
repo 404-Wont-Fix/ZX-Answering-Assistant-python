@@ -11,7 +11,8 @@ project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
-from src.login import get_access_token
+from src.teacher_login import get_access_token
+from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -33,17 +34,45 @@ def main():
             # 调用开始答题功能
             print("开始答题功能")
             print("1. 批量答题")
-            print("2. 单个课程答题")
-            print("3. 题库导入")
-            print("4. 返回")
+            print("2. 获取access_token")
+            print("3. 单个课程答题")
+            print("4. 题库导入")
+            print("5. 返回")
             sub_choice = input("请选择：")
             
             if sub_choice == "1":
-                print("批量答题功能")
-                print("1. 获取access_token")
+                # 批量答题 - 获取token并打印课程列表
+                print("正在获取学生端access_token...")
+                access_token = get_student_access_token()
+                if access_token:
+                    print(f"\n✅ 获取学生端access_token成功！")
+                    print(f"access_token: {access_token}")
+                    print(f"token类型: Bearer")
+                    print(f"有效期: 5小时 (18000秒)")
+
+                    # 获取课程列表
+                    print("\n正在获取课程列表...")
+                    courses = get_student_courses(access_token)
+                    if courses:
+                        print(f"\n✅ 成功获取 {len(courses)} 门课程信息！")
+                    else:
+                        print(f"\n⚠️ 获取课程列表失败或暂无课程")
+                else:
+                    print(f"\n❌ 获取学生端access_token失败！")
             elif sub_choice == "2":
-                print("单个课程答题功能")
+                # 获取access_token - 只打印token
+                print("正在获取学生端access_token...")
+                access_token = get_student_access_token()
+                if access_token:
+                    print(f"\n✅ 获取学生端access_token成功！")
+                    print(f"access_token: {access_token}")
+                    print(f"token类型: Bearer")
+                    print(f"有效期: 5小时 (18000秒)")
+                else:
+                    print(f"\n❌ 获取学生端access_token失败！")
             elif sub_choice == "3":
+                print("单个课程答题功能")
+            elif sub_choice == "4":
                 # 题库导入功能
                 print("题库导入功能")
                 file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
@@ -91,7 +120,7 @@ def main():
                     print(importer.format_output())
                 else:
                     print("❌ 题库导入失败")
-            elif "4" == input("请选择："):
+            elif sub_choice == "5":
                 print("返回主菜单")
                 continue
             else:

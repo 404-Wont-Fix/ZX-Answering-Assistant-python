@@ -1,6 +1,6 @@
 """
-登录功能模块
-用于获取系统的access_token
+教师端登录功能模块
+用于获取教师端系统的access_token
 """
 
 from playwright.sync_api import sync_playwright
@@ -10,17 +10,17 @@ import time
 
 def get_access_token() -> Optional[str]:
     """
-    使用Playwright模拟浏览器登录获取access_token
+    使用Playwright模拟浏览器登录获取教师端access_token
     
     Returns:
         Optional[str]: 获取到的access_token，如果失败则返回None
     """
     try:
-        print("正在启动浏览器进行登录...")
+        print("正在启动浏览器进行教师端登录...")
         
         # 获取用户输入的用户名和密码
-        username = input("请输入账户：").strip()
-        password = input("请输入密码：").strip()
+        username = input("请输入教师账户：").strip()
+        password = input("请输入教师密码：").strip()
         
         if not username or not password:
             print("❌ 用户名或密码不能为空")
@@ -41,7 +41,7 @@ def get_access_token() -> Optional[str]:
                 # 创建页面
                 page = context.new_page()
                 
-                # 打开登录页面
+                # 打开教师端登录页面
                 login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
                 page.goto(login_url)
                 
