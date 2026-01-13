@@ -12,14 +12,76 @@ sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
-from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser
+from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser, get_course_progress_from_page
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
+import time
 
 
 # 全局变量，存储最后一次提取的数据
 last_extracted_data = None
+
+
+def display_progress_bar(progress_info: dict):
+    """
+    显示课程进度条
+
+    Args:
+        progress_info: 包含进度信息的字典
+    """
+    total = progress_info.get('total', 0)
+    completed = progress_info.get('completed', 0)
+    failed = progress_info.get('failed', 0)
+    not_started = progress_info.get('not_started', 0)
+    progress_percentage = progress_info.get('progress_percentage', 0)
+
+    print("\n" + "=" * 60)
+    print("📊 课程学习进度")
+    print("=" * 60)
+
+    # 计算进度条长度
+    bar_width = 40
+    filled_width = int(bar_width * progress_percentage / 100)
+
+    # 构建进度条
+    progress_bar = "█" * filled_width + "░" * (bar_width - filled_width)
+
+    # 显示进度条
+    print(f"\n进度: [{progress_bar}] {progress_percentage:.1f}%")
+    print(f"\n📈 统计信息:")
+    print(f"   ✅ 已完成: {completed} 个")
+    print(f"   ❌ 做错过: {failed} 个")
+    print(f"   ⏳ 未开始: {not_started} 个")
+    print(f"   📝 总计: {total} 个")
+
+    print("\n" + "=" * 60 + "\n")
+
+
+def monitor_course_progress(interval: int = 5):
+    """
+    持续监控并显示课程进度
+
+    Args:
+        interval: 监控间隔（秒），默认为5秒
+    """
+    print("\n🔄 开始监控课程进度...")
+    print("💡 提示: 按 Ctrl+C 停止监控\n")
+
+    try:
+        while True:
+            progress_info = get_course_progress_from_page()
+
+            if progress_info:
+                display_progress_bar(progress_info)
+            else:
+                print("❌ 无法获取课程进度信息")
+
+            # 等待指定的间隔时间
+            time.sleep(interval)
+
+    except KeyboardInterrupt:
+        print("\n\n⏸️  监控已停止")
 
 
 def main():
@@ -60,16 +122,20 @@ def main():
                         print("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n")
 
                         courses_with_status = []
-                        for course in courses:
+                        for i, course in enumerate(courses):
                             course_id = course.get('courseID')
                             course_name = course.get('courseName', 'N/A')
                             teacher_name = course.get('teacherName', 'N/A')
                             class_name = course.get('className', 'N/A')
 
+                            # 添加延迟（第一个请求除外）
+                            if i > 0:
+                                time.sleep(0.6)  # 600毫秒延迟
+
                             # 获取未完成的知识点
                             uncompleted_chapters = []
                             if course_id:
-                                uncompleted_chapters = get_uncompleted_chapters(access_token, course_id)
+                                uncompleted_chapters = get_uncompleted_chapters(access_token, course_id, delay_ms=600, max_retries=3)
 
                             # 判断完成状态
                             if uncompleted_chapters is not None and len(uncompleted_chapters) == 0:
@@ -159,6 +225,22 @@ def main():
 
                                             if success:
                                                 print("✅ 已在浏览器中打开答题页面")
+
+                                                # 等待页面加载后获取进度信息
+                                                print("\n⏳ 正在分析课程进度...")
+                                                time.sleep(2)  # 等待页面完全加载
+
+                                                # 获取并显示进度信息
+                                                progress_info = get_course_progress_from_page()
+                                                if progress_info:
+                                                    display_progress_bar(progress_info)
+
+                                                    # 询问是否启动持续监控
+                                                    monitor_choice = input("是否启动持续监控？(yes/no): ").strip().lower()
+                                                    if monitor_choice in ['yes', 'y', '是']:
+                                                        monitor_course_progress(interval=5)
+                                                else:
+                                                    print("⚠️  无法获取课程进度信息")
                                             else:
                                                 print("❌ 打开答题页面失败")
                                                 print("提示: 浏览器可能未初始化，请确保已登录")

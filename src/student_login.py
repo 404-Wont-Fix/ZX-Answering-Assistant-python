@@ -311,102 +311,226 @@ def close_browser():
         logger.error(f"关闭浏览器时发生错误: {str(e)}")
 
 
-def get_uncompleted_chapters(access_token: str, course_id: str) -> Optional[List[Dict]]:
+def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 600, max_retries: int = 3) -> Optional[List[Dict]]:
     """
     使用access_token和课程ID获取未完成的知识点列表
 
     Args:
         access_token: 学生端的access_token
         course_id: 课程ID
+        delay_ms: 请求延迟（毫秒），默认600毫秒
+        max_retries: 最大重试次数，默认3次
 
     Returns:
         Optional[List[Dict]]: 未完成的知识点列表，如果失败则返回None
     """
-    try:
-        logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
+    # API端点
+    url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
 
-        # API端点
-        url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
+    # 请求头
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "authorization": f"Bearer {access_token}",
+        "priority": "u=1, i",
+        "referer": "https://ai.cqzuxia.com/",
+        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+    }
 
-        # 请求头
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "authorization": f"Bearer {access_token}",
-            "priority": "u=1, i",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-        }
+    # 重试机制
+    for retry_count in range(max_retries):
+        try:
+            logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
 
-        logger.info(f"发送请求到: {url}")
+            # 添加延迟（第一次请求除外）
+            if retry_count > 0:
+                delay_seconds = delay_ms / 1000
+                logger.info(f"等待 {delay_ms} 毫秒后重试 ({retry_count}/{max_retries})...")
+                time.sleep(delay_seconds)
 
-        # 发送GET请求
-        response = requests.get(url, headers=headers, timeout=30)
+            logger.info(f"发送请求到: {url}")
 
-        # 检查响应状态
-        if response.status_code == 200:
-            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
+            # 发送GET请求
+            response = requests.get(url, headers=headers, timeout=30)
 
-            try:
-                data = response.json()
+            # 检查响应状态
+            if response.status_code == 200:
+                logger.info(f"✅ 请求成功，状态码: {response.status_code}")
 
-                # 检查返回的数据结构
-                if isinstance(data, dict):
-                    # 如果返回的是字典，提取data字段
-                    if "data" in data and data.get("success"):
-                        chapters_data = data["data"]
+                try:
+                    data = response.json()
+
+                    # 检查返回的数据结构
+                    if isinstance(data, dict):
+                        # 如果返回的是字典，提取data字段
+                        if "data" in data and data.get("success"):
+                            chapters_data = data["data"]
+                        else:
+                            logger.error(f"API返回错误: {data}")
+                            if retry_count < max_retries - 1:
+                                continue
+                            return None
                     else:
-                        logger.error(f"API返回错误: {data}")
+                        logger.error(f"未知的数据格式: {type(data)}")
+                        if retry_count < max_retries - 1:
+                            continue
                         return None
-                else:
-                    logger.error(f"未知的数据格式: {type(data)}")
+
+                    # 解析嵌套的章节-知识点结构
+                    all_knowledges = []
+                    for chapter in chapters_data:
+                        chapter_id = chapter.get('id', 'N/A')
+                        chapter_title = chapter.get('title', 'N/A')
+                        chapter_content = chapter.get('titleContent', '')
+
+                        knowledge_list = chapter.get('knowledgeList', [])
+                        for knowledge in knowledge_list:
+                            knowledge_id = knowledge.get('id', 'N/A')
+                            knowledge_name = knowledge.get('knowledge', 'N/A')
+
+                            all_knowledges.append({
+                                'id': chapter_id,
+                                'title': chapter_title,
+                                'titleContent': chapter_content,
+                                'knowledge_id': knowledge_id,
+                                'knowledge': knowledge_name
+                            })
+
+                    return all_knowledges
+
+                except json.JSONDecodeError as e:
+                    logger.error(f"解析JSON响应失败: {str(e)}")
+                    logger.error(f"响应内容: {response.text[:500]}")
+                    if retry_count < max_retries - 1:
+                        continue
                     return None
-
-                # 解析嵌套的章节-知识点结构
-                all_knowledges = []
-                for chapter in chapters_data:
-                    chapter_id = chapter.get('id', 'N/A')
-                    chapter_title = chapter.get('title', 'N/A')
-                    chapter_content = chapter.get('titleContent', '')
-
-                    knowledge_list = chapter.get('knowledgeList', [])
-                    for knowledge in knowledge_list:
-                        knowledge_id = knowledge.get('id', 'N/A')
-                        knowledge_name = knowledge.get('knowledge', 'N/A')
-
-                        all_knowledges.append({
-                            'id': chapter_id,
-                            'title': chapter_title,
-                            'titleContent': chapter_content,
-                            'knowledge_id': knowledge_id,
-                            'knowledge': knowledge_name
-                        })
-
-                return all_knowledges
-
-            except json.JSONDecodeError as e:
-                logger.error(f"解析JSON响应失败: {str(e)}")
+            else:
+                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
                 logger.error(f"响应内容: {response.text[:500]}")
+                if retry_count < max_retries - 1:
+                    continue
                 return None
-        else:
-            logger.error(f"❌ 请求失败，状态码: {response.status_code}")
-            logger.error(f"响应内容: {response.text[:500]}")
+
+        except requests.exceptions.Timeout:
+            logger.error("❌ 请求超时，请检查网络连接")
+            if retry_count < max_retries - 1:
+                continue
+            return None
+        except requests.exceptions.ConnectionError as e:
+            logger.error(f"❌ 连接错误: {str(e)}")
+            if retry_count < max_retries - 1:
+                continue
+            return None
+        except Exception as e:
+            logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
+            if retry_count < max_retries - 1:
+                continue
             return None
 
-    except requests.exceptions.Timeout:
-        logger.error("❌ 请求超时，请检查网络连接")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"❌ 连接错误: {str(e)}")
-        return None
+    # 所有重试都失败
+    logger.error(f"❌ 获取课程 {course_id} 的未完成知识点列表失败，已重试 {max_retries} 次")
+    return None
+
+
+def get_course_progress_from_page() -> Optional[Dict]:
+    """
+    从当前页面解析课程进度信息
+
+    Returns:
+        Optional[Dict]: 包含进度信息的字典:
+            {
+                'total': int,  # 总知识点数
+                'completed': int,  # 已完成数
+                'failed': int,  # 做错过的数
+                'not_started': int,  # 未开始的数
+                'progress_percentage': float  # 完成百分比
+            }
+            如果失败则返回None
+    """
+    global _page_instance
+
+    try:
+        if not _page_instance:
+            logger.error("❌ 页面未初始化")
+            return None
+
+        # 等待页面加载完成
+        _page_instance.wait_for_selector(".el-menu-item", timeout=10000)
+
+        # 获取所有的知识点菜单项
+        knowledge_items = _page_instance.query_selector_all(".el-menu-item")
+
+        total = len(knowledge_items)
+        completed = 0
+        failed = 0
+        not_started = 0
+
+        for item in knowledge_items:
+            # 获取pass-status元素
+            pass_status = item.query_selector(".pass-status")
+            if pass_status:
+                # 获取check和close图标元素
+                check_icon = pass_status.query_selector(".el-icon-check")
+                close_icon = pass_status.query_selector(".el-icon-close")
+
+                # 检查图标的display样式
+                check_display = "none"
+                close_display = "none"
+
+                if check_icon:
+                    check_style = check_icon.get_attribute("style") or ""
+                    check_display = "none" if "display: none" in check_style or "display:none" in check_style else "block"
+
+                if close_icon:
+                    close_style = close_icon.get_attribute("style") or ""
+                    close_display = "none" if "display: none" in close_style or "display:none" in close_style else "block"
+
+                # 根据图标显示状态判断
+                if check_display != "none" and close_display == "none":
+                    # 只有check图标显示 - 已完成
+                    completed += 1
+                elif close_display != "none" and check_display == "none":
+                    # 只有close图标显示 - 做错过（未通过）
+                    failed += 1
+                elif check_display == "none" and close_display == "none":
+                    # 两个图标都不显示 - 未开始
+                    not_started += 1
+                else:
+                    # 其他情况，检查class中是否有success标识
+                    item_class = item.get_attribute("class") or ""
+                    if "success" in item_class:
+                        completed += 1
+                    else:
+                        not_started += 1
+            else:
+                # 检查class中是否有success标识
+                item_class = item.get_attribute("class") or ""
+                if "success" in item_class:
+                    completed += 1
+                else:
+                    not_started += 1
+
+        progress_percentage = (completed / total * 100) if total > 0 else 0
+
+        progress_info = {
+            'total': total,
+            'completed': completed,
+            'failed': failed,
+            'not_started': not_started,
+            'progress_percentage': progress_percentage
+        }
+
+        logger.info(f"✅ 成功解析课程进度: {progress_info}")
+        return progress_info
+
     except Exception as e:
-        logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
+        logger.error(f"❌ 解析课程进度失败: {str(e)}")
         return None
 
 
