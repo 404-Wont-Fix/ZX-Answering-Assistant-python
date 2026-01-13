@@ -164,7 +164,7 @@ class Extractor:
     
     def filter_by_grade(self, class_list: List[Dict], grade: str) -> List[Dict]:
         """
-        根据年级筛选班级列表，并过滤掉重复的班级（只保留stats为0的班级）
+        根据年级筛选班级列表，并过滤掉重复的班级
         
         Args:
             class_list: 班级列表
@@ -179,18 +179,16 @@ class Extractor:
         for cls in class_list:
             class_grade = cls.get("grade", "")
             class_name = cls.get("className", "")
-            stats = cls.get("stats", 0)
             
             # 只选择指定年级的班级
             if class_grade == grade:
-                # 如果班级名称已经出现过，只保留stats为0的班级
+                # 如果班级名称已经出现过，跳过重复的班级
                 if class_name in seen_class_names:
                     continue
                 
-                # 只添加stats为0的班级
-                if stats == 0:
-                    filtered.append(cls)
-                    seen_class_names.add(class_name)
+                # 添加班级到过滤列表
+                filtered.append(cls)
+                seen_class_names.add(class_name)
         
         return filtered
     
@@ -1330,5 +1328,178 @@ def extract_single_course() -> Optional[Dict]:
     extractor = Extractor()
     try:
         return extractor.extract_single_course()
+    finally:
+        extractor.close()
+
+
+def extract_course_answers(course_id: str, username: str = None, password: str = None) -> Optional[Dict]:
+    """
+    直接提取指定课程的答案（使用教师端登录和班级选择逻辑）
+    
+    Args:
+        course_id: 课程ID
+        username: 教师账号（可选，如果不提供则询问）
+        password: 教师密码（可选，如果不提供则询问）
+        
+    Returns:
+        Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
+    """
+    extractor = Extractor()
+    try:
+        # 1. 登录
+        if not username:
+            username = input("请输入教师账号：").strip()
+        if not password:
+            password = input("请输入教师密码：").strip()
+        
+        if not username or not password:
+            print("❌ 账号或密码不能为空")
+            return None
+        
+        if not extractor.login(username, password):
+            return None
+        
+        # 2. 获取班级列表
+        class_list = extractor.get_class_list()
+        if not class_list:
+            print("❌ 获取班级列表失败")
+            return None
+        
+        # 3. 选择年级
+        selected_grade = extractor.select_grade(class_list)
+        if not selected_grade:
+            print("❌ 未选择年级")
+            return None
+        
+        # 4. 筛选该年级的班级
+        filtered_classes = extractor.filter_by_grade(class_list, selected_grade)
+        if not filtered_classes:
+            print(f"❌ 未找到{selected_grade}级的班级")
+            return None
+        
+        # 5. 选择班级
+        selected_class = extractor.select_class(filtered_classes)
+        if not selected_class:
+            print("❌ 未选择班级")
+            return None
+        
+        class_id = selected_class.get("id", "")
+        print(f"✅ 已选择班级：{selected_class.get('name', '')}")
+        
+        # 6. 获取课程列表
+        course_list = extractor.get_course_list(class_id)
+        if not course_list:
+            print("❌ 获取课程列表失败")
+            return None
+        
+        # 7. 验证课程ID是否存在
+        course_found = False
+        for course in course_list:
+            if course.get("courseID") == course_id:
+                course_found = True
+                print(f"✅ 找到课程：{course.get('courseName', '')}")
+                break
+        
+        if not course_found:
+            print(f"❌ 未找到课程ID: {course_id}")
+            print("\n可用课程列表：")
+            for course in course_list:
+                print(f"  - {course.get('courseName', '')} (ID: {course.get('courseID', '')})")
+            return None
+        
+        # 8. 获取章节列表
+        chapter_list = extractor.get_chapter_list(class_id)
+        if not chapter_list:
+            return None
+        
+        # 9. 获取知识点列表
+        knowledge_list = extractor.get_knowledge_list(class_id)
+        if not knowledge_list:
+            return None
+        
+        # 10. 按课程分组章节
+        course_chapters = {}
+        for chapter in chapter_list:
+            chapter_course_id = chapter.get("courseID", "")
+            if chapter_course_id not in course_chapters:
+                course_chapters[chapter_course_id] = []
+            course_chapters[chapter_course_id].append(chapter)
+        
+        # 11. 按章节分组知识点
+        chapter_knowledges = {}
+        for knowledge in knowledge_list:
+            chapter_id = knowledge.get("ChapterID", "")
+            if chapter_id not in chapter_knowledges:
+                chapter_knowledges[chapter_id] = []
+            chapter_knowledges[chapter_id].append(knowledge)
+        
+        # 12. 只获取指定课程的题目列表
+        knowledge_questions = {}
+        question_options = {}
+        
+        # 筛选出指定课程的章节
+        selected_course_chapters = course_chapters.get(course_id, [])
+        selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
+        
+        # 只处理指定课程的知识点
+        for knowledge in knowledge_list:
+            knowledge_id = knowledge.get("KnowledgeID", "")
+            chapter_id = knowledge.get("ChapterID", "")
+            
+            # 只处理指定课程的章节下的知识点
+            if chapter_id not in selected_chapter_ids:
+                continue
+            
+            print(f"\n正在获取知识点 {knowledge.get('Knowledge', '')} 的题目列表...")
+            question_list = extractor.get_question_list(class_id, knowledge_id)
+            if question_list:
+                knowledge_questions[knowledge_id] = question_list
+                
+                # 获取每个题目的选项
+                for question in question_list:
+                    question_id = question.get("QuestionID", "")
+                    print(f"正在获取题目 {question.get('QuestionTitle', '')} 的选项...")
+                    options_list = extractor.get_question_options(class_id, question_id)
+                    if options_list:
+                        question_options[question_id] = options_list
+                    else:
+                        print(f"⚠️ 题目 {question.get('QuestionTitle', '')} 获取选项失败")
+                    
+                    # 速率控制：每次请求间隔1000ms
+                    time.sleep(1)
+            else:
+                print(f"⚠️ 知识点 {knowledge.get('Knowledge', '')} 获取题目列表失败")
+            
+            # 速率控制：每次请求间隔1000ms
+            time.sleep(1)
+        
+        # 13. 筛选出指定课程的章节和知识点
+        selected_course_knowledges = []
+        for knowledge in knowledge_list:
+            chapter_id = knowledge.get("ChapterID", "")
+            if chapter_id in selected_chapter_ids:
+                selected_course_knowledges.append(knowledge)
+        
+        # 14. 打印提取信息
+        print("\n" + "="*50)
+        print("✅ 课程答案提取完成")
+        print("="*50)
+        print(f"课程ID: {course_id}")
+        print(f"班级ID: {class_id}")
+        print(f"班级名称: {selected_class.get('name', '')}")
+        print(f"章节数量: {len(selected_course_chapters)}")
+        print(f"知识点数量: {len(selected_course_knowledges)}")
+        print(f"题目数量: {sum(len(questions) for questions in knowledge_questions.values())}")
+        print("="*50)
+        
+        # 返回完整的数据结构
+        return {
+            "class_info": selected_class,
+            "course_info": {"courseID": course_id},
+            "chapters": selected_course_chapters,
+            "knowledges": selected_course_knowledges,
+            "questions": knowledge_questions,
+            "options": question_options
+        }
     finally:
         extractor.close()

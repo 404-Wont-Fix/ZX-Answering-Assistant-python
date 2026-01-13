@@ -5,6 +5,7 @@ ZX Answering Assistant - 主程序入口
 
 import sys
 from pathlib import Path
+import subprocess
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
@@ -127,6 +128,7 @@ def main():
                             course_name = course.get('courseName', 'N/A')
                             teacher_name = course.get('teacherName', 'N/A')
                             class_name = course.get('className', 'N/A')
+                            class_id = course.get('classID', '')  # 获取班级ID
 
                             # 添加延迟（第一个请求除外）
                             if i > 0:
@@ -154,6 +156,7 @@ def main():
                                 'course_name': course_name,
                                 'teacher_name': teacher_name,
                                 'class_name': class_name,
+                                'class_id': class_id,
                                 'completion_status': completion_status,
                                 'uncompleted_count': uncompleted_count,
                                 'uncompleted_chapters': uncompleted_chapters
@@ -235,18 +238,45 @@ def main():
                                                 if progress_info:
                                                     display_progress_bar(progress_info)
 
+                                                    # 询问是否提取该课程的答案
+                                                    extract_choice = input("\n是否提取该课程的答案？(yes/no): ").strip().lower()
+                                                    if extract_choice in ['yes', 'y', '是']:
+                                                        print(f"\n📚 正在提取课程答案：{selected_course['course_name']}")
+                                                        print(f"🆔 课程ID: {selected_course['course_id']}")
+                                                        
+                                                        # 调用独立进程运行教师端答案提取（避免Playwright冲突）
+                                                        print("\n🔄 正在启动教师端答案提取进程...")
+                                                        try:
+                                                            # 使用subprocess调用独立的提取脚本
+                                                            # 不捕获输出，允许用户与子进程交互
+                                                            result = subprocess.run(
+                                                                [sys.executable, "extract_answers.py", selected_course['course_id']],
+                                                                cwd=str(project_root)
+                                                            )
+                                                            
+                                                            if result.returncode == 0:
+                                                                print("\n✅ 答案提取成功！")
+                                                            else:
+                                                                print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
+                                                        except Exception as e:
+                                                            print(f"\n❌ 启动提取进程失败：{str(e)}")
+
                                                     # 询问是否启动持续监控
-                                                    monitor_choice = input("是否启动持续监控？(yes/no): ").strip().lower()
+                                                    monitor_choice = input("\n是否启动持续监控？(yes/no): ").strip().lower()
                                                     if monitor_choice in ['yes', 'y', '是']:
                                                         monitor_course_progress(interval=5)
+                                                    else:
+                                                        print("=" * 50 + "\n")
+                                                        break
                                                 else:
                                                     print("⚠️  无法获取课程进度信息")
+                                                    print("=" * 50 + "\n")
+                                                    break
                                             else:
                                                 print("❌ 打开答题页面失败")
                                                 print("提示: 浏览器可能未初始化，请确保已登录")
-
-                                            print("=" * 50 + "\n")
-                                            break
+                                                print("=" * 50 + "\n")
+                                                break
                                         elif confirm in ['no', 'n', '否']:
                                             print("返回课程列表\n")
                                             # 重新显示课程列表
