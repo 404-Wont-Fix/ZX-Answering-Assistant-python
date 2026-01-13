@@ -85,6 +85,123 @@ def monitor_course_progress(interval: int = 5):
         print("\n\n⏸️  监控已停止")
 
 
+def show_answer_menu(course_info: dict) -> bool:
+    """
+    显示答题选项菜单并处理用户选择
+
+    Args:
+        course_info: 课程信息字典，包含 course_id, course_name 等
+
+    Returns:
+        bool: 是否应该返回到课程列表（True表示返回）
+    """
+    while True:
+        print("\n" + "=" * 50)
+        print("📚 答题选项菜单")
+        print("=" * 50)
+        print("1. 提取该课程的答案")
+        print("2. 使用JSON题库")
+        print("3. 使用Word题库（暂未开放）")
+        print("4. 退出")
+        print("=" * 50)
+
+        choice = input("\n请选择操作 (1-4): ").strip()
+
+        if choice == "1":
+            # 提取该课程的答案
+            print(f"\n📚 正在提取课程答案：{course_info['course_name']}")
+            print(f"🆔 课程ID: {course_info['course_id']}")
+
+            # 调用独立进程运行教师端答案提取（避免Playwright冲突）
+            print("\n🔄 正在启动教师端答案提取进程...")
+            try:
+                result = subprocess.run(
+                    [sys.executable, "extract_answers.py", course_info['course_id']],
+                    cwd=str(project_root)
+                )
+
+                if result.returncode == 0:
+                    print("\n✅ 答案提取成功！")
+                else:
+                    print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
+            except Exception as e:
+                print(f"\n❌ 启动提取进程失败：{str(e)}")
+
+            # 询问是否启动持续监控
+            monitor_choice = input("\n是否启动持续监控？(yes/no): ").strip().lower()
+            if monitor_choice in ['yes', 'y', '是']:
+                monitor_course_progress(interval=5)
+                return True  # 监控结束后返回课程列表
+            else:
+                return True  # 不监控，直接返回课程列表
+
+        elif choice == "2":
+            # 使用JSON题库
+            print("\n📁 使用JSON题库功能")
+            file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
+
+            if not file_path:
+                # 使用默认路径，列出output目录下的JSON文件
+                output_dir = Path("output")
+                if output_dir.exists():
+                    json_files = list(output_dir.glob("*.json"))
+                    if json_files:
+                        print("\n可用的JSON文件：")
+                        for i, json_file in enumerate(json_files, 1):
+                            print(f"  {i}. {json_file.name}")
+
+                        file_choice = input("\n请选择文件编号：")
+                        try:
+                            choice_idx = int(file_choice) - 1
+                            if 0 <= choice_idx < len(json_files):
+                                file_path = str(json_files[choice_idx])
+                            else:
+                                print("❌ 无效的选择")
+                                continue
+                        except ValueError:
+                            print("❌ 请输入有效的数字")
+                            continue
+                    else:
+                        print("❌ output目录下没有找到JSON文件")
+                        continue
+                else:
+                    print("❌ output目录不存在")
+                    continue
+
+            # 导入题库
+            importer = QuestionBankImporter()
+            if importer.import_from_file(file_path):
+                bank_type = importer.get_bank_type()
+                if bank_type == "single":
+                    print("\n✅ 识别为单个课程题库")
+                elif bank_type == "multiple":
+                    print("\n✅ 识别为多个课程题库")
+                else:
+                    print("\n❌ 未知的题库类型")
+
+                # 格式化输出题库信息
+                print(importer.format_output())
+            else:
+                print("❌ 题库导入失败")
+
+            # 完成后继续显示菜单
+            continue
+
+        elif choice == "3":
+            # 使用Word题库（暂未开放）
+            print("\n⚠️  Word题库功能暂未开放")
+            continue
+
+        elif choice == "4":
+            # 退出
+            print("\n🔙 返回课程列表")
+            return True
+
+        else:
+            print("\n❌ 无效的选择，请输入1-4之间的数字")
+            continue
+
+
 def main():
     while True:
         print("欢迎使用智能答题助手系统")
@@ -99,10 +216,9 @@ def main():
             print("1. 开始答题")
             print("2. 获取access_token")
             print("3. 单个课程答题")
-            print("4. 题库导入")
-            print("5. 返回")
+            print("4. 返回")
             sub_choice = input("请选择：")
-            
+
             if sub_choice == "1":
                 # 批量答题 - 获取token并显示课程列表
                 print("正在获取学生端access_token...")
@@ -238,35 +354,10 @@ def main():
                                                 if progress_info:
                                                     display_progress_bar(progress_info)
 
-                                                    # 询问是否提取该课程的答案
-                                                    extract_choice = input("\n是否提取该课程的答案？(yes/no): ").strip().lower()
-                                                    if extract_choice in ['yes', 'y', '是']:
-                                                        print(f"\n📚 正在提取课程答案：{selected_course['course_name']}")
-                                                        print(f"🆔 课程ID: {selected_course['course_id']}")
-                                                        
-                                                        # 调用独立进程运行教师端答案提取（避免Playwright冲突）
-                                                        print("\n🔄 正在启动教师端答案提取进程...")
-                                                        try:
-                                                            # 使用subprocess调用独立的提取脚本
-                                                            # 不捕获输出，允许用户与子进程交互
-                                                            result = subprocess.run(
-                                                                [sys.executable, "extract_answers.py", selected_course['course_id']],
-                                                                cwd=str(project_root)
-                                                            )
-                                                            
-                                                            if result.returncode == 0:
-                                                                print("\n✅ 答案提取成功！")
-                                                            else:
-                                                                print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
-                                                        except Exception as e:
-                                                            print(f"\n❌ 启动提取进程失败：{str(e)}")
-
-                                                    # 询问是否启动持续监控
-                                                    monitor_choice = input("\n是否启动持续监控？(yes/no): ").strip().lower()
-                                                    if monitor_choice in ['yes', 'y', '是']:
-                                                        monitor_course_progress(interval=5)
-                                                    else:
-                                                        print("=" * 50 + "\n")
+                                                    # 显示答题选项菜单
+                                                    should_return = show_answer_menu(selected_course)
+                                                    print("=" * 50 + "\n")
+                                                    if should_return:
                                                         break
                                                 else:
                                                     print("⚠️  无法获取课程进度信息")
@@ -315,54 +406,6 @@ def main():
             elif sub_choice == "3":
                 print("单个课程答题功能")
             elif sub_choice == "4":
-                # 题库导入功能
-                print("题库导入功能")
-                file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
-                
-                if not file_path:
-                    # 使用默认路径，列出output目录下的JSON文件
-                    output_dir = Path("output")
-                    if output_dir.exists():
-                        json_files = list(output_dir.glob("*.json"))
-                        if json_files:
-                            print("\n可用的JSON文件：")
-                            for i, json_file in enumerate(json_files, 1):
-                                print(f"  {i}. {json_file.name}")
-                            
-                            choice = input("\n请选择文件编号：")
-                            try:
-                                choice_idx = int(choice) - 1
-                                if 0 <= choice_idx < len(json_files):
-                                    file_path = str(json_files[choice_idx])
-                                else:
-                                    print("❌ 无效的选择")
-                                    continue
-                            except ValueError:
-                                print("❌ 请输入有效的数字")
-                                continue
-                        else:
-                            print("❌ output目录下没有找到JSON文件")
-                            continue
-                    else:
-                        print("❌ output目录不存在")
-                        continue
-                
-                # 导入题库
-                importer = QuestionBankImporter()
-                if importer.import_from_file(file_path):
-                    bank_type = importer.get_bank_type()
-                    if bank_type == "single":
-                        print("\n✅ 识别为单个课程题库")
-                    elif bank_type == "multiple":
-                        print("\n✅ 识别为多个课程题库")
-                    else:
-                        print("\n❌ 未知的题库类型")
-                    
-                    # 格式化输出题库信息
-                    print(importer.format_output())
-                else:
-                    print("❌ 题库导入失败")
-            elif sub_choice == "5":
                 print("返回主菜单")
                 continue
             else:
