@@ -13,15 +13,17 @@ sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
-from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser, get_course_progress_from_page
+from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser, get_course_progress_from_page, get_browser_page
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
+from src.auto_answer import AutoAnswer
 import time
 
 
-# 全局变量，存储最后一次提取的数据
+# 全局变量，存储最后一次提取的数据和题库
 last_extracted_data = None
+current_question_bank = None  # 当前加载的题库数据
 
 
 def display_progress_bar(progress_info: dict):
@@ -95,17 +97,20 @@ def show_answer_menu(course_info: dict) -> bool:
     Returns:
         bool: 是否应该返回到课程列表（True表示返回）
     """
+    global current_question_bank
+
     while True:
         print("\n" + "=" * 50)
         print("📚 答题选项菜单")
         print("=" * 50)
         print("1. 提取该课程的答案")
         print("2. 使用JSON题库")
-        print("3. 使用Word题库（暂未开放）")
-        print("4. 退出")
+        print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else ""))
+        print("4. 使用Word题库（暂未开放）")
+        print("5. 退出")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-4): ").strip()
+        choice = input("\n请选择操作 (1-5): ").strip()
 
         if choice == "1":
             # 提取该课程的答案
@@ -122,6 +127,18 @@ def show_answer_menu(course_info: dict) -> bool:
 
                 if result.returncode == 0:
                     print("\n✅ 答案提取成功！")
+                    # 提取成功后自动加载最新的JSON文件
+                    output_dir = Path("output")
+                    if output_dir.exists():
+                        json_files = list(output_dir.glob("*.json"))
+                        if json_files:
+                            # 找最新的文件
+                            latest_file = max(json_files, key=lambda f: f.stat().st_mtime)
+                            print(f"\n📁 自动加载最新题库: {latest_file.name}")
+                            importer = QuestionBankImporter()
+                            if importer.import_from_file(str(latest_file)):
+                                current_question_bank = importer.data
+                                print("✅ 题库已自动加载，现在可以开始自动做题")
                 else:
                     print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
             except Exception as e:
@@ -179,6 +196,9 @@ def show_answer_menu(course_info: dict) -> bool:
                 else:
                     print("\n❌ 未知的题库类型")
 
+                # 保存题库数据到全局变量
+                current_question_bank = importer.data
+
                 # 格式化输出题库信息
                 print(importer.format_output())
             else:
@@ -188,17 +208,185 @@ def show_answer_menu(course_info: dict) -> bool:
             continue
 
         elif choice == "3":
+            # 开始自动做题
+            if not current_question_bank:
+                print("\n❌ 请先加载题库（选项1或选项2）")
+                continue
+
+            print("\n🤖 准备开始自动做题...")
+            print(f"🆔 课程ID: {course_info['course_id']}")
+            print(f"📚 课程名称: {course_info['course_name']}")
+
+            # 获取浏览器实例
+            browser_page = get_browser_page()
+            if not browser_page:
+                print("\n❌ 无法获取浏览器实例，请确保已登录学生端")
+                continue
+
+            print("\n💡 提示：请确保当前页面显示的是题目列表（知识点列表）")
+            print("💡 如果当前已经在答题界面，请先返回到知识点列表")
+
+            ready = input("\n是否准备好开始自动做题？(yes/no): ").strip().lower()
+            if ready not in ['yes', 'y', '是']:
+                print("❌ 已取消自动做题")
+                continue
+
+            # 询问是否一次性做完所有知识点
+            auto_all = input("\n是否一次性做完整个课程的所有未完成知识点？(yes/no): ").strip().lower()
+            auto_all_mode = auto_all in ['yes', 'y', '是']
+
+            if auto_all_mode:
+                print("\n🔄 自动全部模式：将自动完成所有未完成的知识点")
+                print("💡 提示：按 Ctrl+C 可随时中断")
+
+            # 创建自动做题器并开始
+            try:
+                auto_answer = AutoAnswer(browser_page[1])  # 使用page对象
+                auto_answer.load_question_bank(current_question_bank)
+
+                # 循环做题
+                knowledge_count = 0
+                total_success = 0
+                total_failed = 0
+
+                while True:
+                    print(f"\n{'='*50}")
+                    print(f"📍 知识点 #{knowledge_count + 1}")
+                    print(f"{'='*50}")
+
+                    # 第一个知识点：检索并开始做题
+                    # 之后的知识点：网站自动跳转后继续做题
+                    if knowledge_count == 0:
+                        print("\n🔍 检索第一个可作答的知识点并开始做题...")
+                        result = auto_answer.run_auto_answer(max_questions=5)
+                    else:
+                        print("\n⏳ 网站已自动跳转到下一个知识点，继续做题...")
+                        import time
+                        time.sleep(2)  # 等待跳转完成
+                        result = auto_answer.continue_auto_answer(max_questions=5)
+
+                    # 统计
+                    knowledge_count += 1
+                    total_success += result['success']
+                    total_failed += result['failed']
+
+                    # 显示本次统计
+                    print("\n" + "=" * 50)
+                    print("📊 本知识点完成统计")
+                    print("=" * 50)
+                    print(f"总题数: {result['total']}")
+                    print(f"✅ 成功: {result['success']}")
+                    print(f"❌ 失败: {result['failed']}")
+                    print(f"⏭️  跳过: {result['skipped']}")
+                    print("=" * 50)
+
+                    # 检查用户是否请求停止
+                    if result.get('stopped', False):
+                        print("\n" + "=" * 50)
+                        print("⚠️  用户请求停止做题")
+                        print("=" * 50)
+                        print(f"📊 本次完成: {knowledge_count} 个知识点")
+                        print(f"✅ 成功作答: {total_success} 题")
+                        print(f"❌ 失败: {total_failed} 题")
+                        print("=" * 50)
+                        break
+
+                    # 检查是否是自动全部模式
+                    if auto_all_mode:
+                        # 自动全部模式：网站会自动跳转到下一个知识点，继续循环
+                        print(f"\n⏳ 累计完成 {knowledge_count} 个知识点")
+                        print("⏳ 网站将自动跳转到下一个知识点...")
+
+                        # 检查是否还能继续（如果没有找到开始按钮，说明所有知识点都完成了）
+                        # 通过检查当前页面是否有"开始测评"按钮来判断
+                        import time
+                        time.sleep(1)  # 等待跳转
+
+                        try:
+                            # 尝试查找开始测评按钮
+                            from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+                            try:
+                                auto_answer.page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                                # 找到了，可以继续
+                                print("✅ 检测到下一个知识点，继续做题...")
+                                continue
+                            except PlaywrightTimeoutError:
+                                # 没找到，说明所有知识点都完成了
+                                print("\n" + "=" * 50)
+                                print("✅ 所有知识点已完成！")
+                                print("=" * 50)
+                                print(f"📊 总计完成 {knowledge_count} 个知识点")
+                                print(f"✅ 成功作答: {total_success} 题")
+                                print(f"❌ 失败: {total_failed} 题")
+                                print("=" * 50)
+                                break
+                        except Exception as e:
+                            print(f"\n❌ 检查失败: {str(e)}")
+                            print("💡 可能所有知识点都已完成")
+                            break
+                    else:
+                        # 手动模式：询问是否继续
+                        continue_choice = input("\n是否继续做题其他知识点？(yes/no): ").strip().lower()
+                        if continue_choice in ['yes', 'y', '是']:
+                            # 询问是否切换到自动全部模式
+                            switch_auto = input("\n💡 提示：是否切换到自动全部模式？(yes/no): ").strip().lower()
+                            if switch_auto in ['yes', 'y', '是']:
+                                auto_all_mode = True
+                                print("\n🔄 已切换到自动全部模式")
+                                print("⏳ 等待2秒后自动查找下一个知识点...")
+                                import time
+                                time.sleep(2)
+
+                                # 尝试开始下一个知识点
+                                try:
+                                    can_continue = auto_answer.click_start_button()
+                                    if not can_continue:
+                                        print("\n✅ 所有知识点已完成！")
+                                        print(f"📊 总计完成 {knowledge_count} 个知识点")
+                                        print(f"✅ 成功作答: {total_success} 题")
+                                        print(f"❌ 失败: {total_failed} 题")
+                                        break
+                                except Exception as e:
+                                    print(f"\n❌ 查找下一个知识点失败: {str(e)}")
+                                    break
+                            else:
+                                # 继续手动模式，需要用户手动切换
+                                print("\n💡 请手动切换到下一个知识点，然后按任意键继续...")
+                                input()
+                                continue
+                        else:
+                            # 用户选择不继续
+                            print("\n" + "=" * 50)
+                            print(f"📊 累计完成 {knowledge_count} 个知识点")
+                            print(f"✅ 成功作答: {total_success} 题")
+                            print(f"❌ 失败: {total_failed} 题")
+                            print("=" * 50)
+                            break
+
+                return True
+
+            except KeyboardInterrupt:
+                print("\n\n⚠️  用户中断自动做题")
+                print(f"📊 本次完成: {knowledge_count} 个知识点, {total_success} 题")
+                continue
+            except Exception as e:
+                print(f"\n❌ 自动做题失败：{str(e)}")
+                import traceback
+                traceback.print_exc()
+                continue
+
+        elif choice == "4":
             # 使用Word题库（暂未开放）
             print("\n⚠️  Word题库功能暂未开放")
             continue
 
-        elif choice == "4":
+        elif choice == "5":
             # 退出
             print("\n🔙 返回课程列表")
             return True
 
         else:
-            print("\n❌ 无效的选择，请输入1-4之间的数字")
+            print("\n❌ 无效的选择，请输入1-5之间的数字")
             continue
 
 

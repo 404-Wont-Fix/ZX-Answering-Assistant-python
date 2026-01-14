@@ -63,3 +63,4 @@ output/*
 .trae/*
 tests/*
 .claude/*
+AUTO_ANSWER_GUIDE.md
