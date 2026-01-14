@@ -426,6 +426,12 @@ class AutoAnswer:
         try:
             logger.info("🔍 查找可作答的知识点...")
 
+            # 刷新网页以确保页面状态最新
+            logger.info("🔄 刷新网页以确保知识点列表最新...")
+            self.page.reload(wait_until="networkidle")
+            time.sleep(2)  # 等待页面完全加载
+            logger.info("✅ 网页刷新完成")
+
             # 等待知识点列表加载
             self.page.wait_for_selector(".el-submenu", timeout=5000)
 
@@ -447,8 +453,18 @@ class AutoAnswer:
                     # 点击章节标题展开（如果是折叠状态）
                     chapter_title_div = chapter.query_selector(".el-submenu__title")
                     if chapter_title_div:
-                        chapter_title_div.click()
-                        time.sleep(0.5)  # 等待展开动画
+                        # 检查章节是否已经展开
+                        chapter_class = chapter.get_attribute("class") or ""
+                        is_opened = "is-opened" in chapter_class
+
+                        if not is_opened:
+                            # 章节是折叠的，需要点击展开
+                            chapter_title_div.click()
+                            time.sleep(0.5)  # 等待展开动画
+                            logger.debug(f"   ↕️  已展开章节")
+                        else:
+                            # 章节已经展开，不需要点击
+                            logger.debug(f"   ✅ 章节已展开")
 
                     # 获取该章节下的所有知识点
                     knowledge_items = chapter.query_selector_all(".el-menu-item")
