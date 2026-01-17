@@ -43,6 +43,10 @@ logger = logging.getLogger(__name__)
 _browser_instance = None
 _page_instance = None
 
+# 全局变量，缓存access_token
+_cached_access_token = None
+_token_expiry_time = None  # token过期时间（5小时有效期）
+
 
 def get_student_access_token(username: str = None, password: str = None, keep_browser: bool = True) -> Optional[str]:
     """
@@ -174,6 +178,8 @@ def get_student_access_token(username: str = None, password: str = None, keep_br
 
                 if access_token:
                     logger.info("✅ 成功获取access_token")
+                    # 缓存access_token
+                    set_access_token(access_token)
                     # 等待一下确保完全获取到token
                     time.sleep(0.5)
 
@@ -259,6 +265,105 @@ def get_browser_page() -> Optional[Tuple[Browser, Page]]:
     if _browser_instance and _page_instance:
         return _browser_instance, _page_instance
     return None
+
+
+def get_access_token_from_browser() -> Optional[str]:
+    """
+    从已登录的浏览器中提取access_token
+    通过刷新页面并监听/connect/token API来获取
+
+    Returns:
+        Optional[str]: 提取到的access_token，如果失败则返回None
+    """
+    global _page_instance
+
+    try:
+        if not _page_instance:
+            logger.error("❌ 浏览器未初始化，请先登录")
+            return None
+
+        logger.info("🔍 从浏览器中提取access_token...")
+
+        # 方法1：先尝试从localStorage获取
+        js_code = """
+        () => {
+            // 检查常见的token存储位置
+            const keys = ['access_token', 'token', 'auth_token', 'student_token', 'oidc.user:https://ai.cqzuxia.com:zhzx'];
+
+            for (let key of keys) {
+                const value = localStorage.getItem(key);
+                if (value) {
+                    // 如果是JSON格式（oidc），尝试解析
+                    try {
+                        const parsed = JSON.parse(value);
+                        if (parsed.access_token) {
+                            return parsed.access_token;
+                        }
+                    } catch (e) {
+                        // 不是JSON，直接返回
+                        if (value.length > 50) {
+                            return value;
+                        }
+                    }
+                }
+            }
+
+            return null;
+        }
+        """
+
+        result = _page_instance.evaluate(js_code)
+
+        if result and len(result) > 50:
+            logger.info(f"✅ 从localStorage提取到access_token: {result[:20]}...")
+            return result
+
+        # 方法2：刷新页面并监听网络请求
+        logger.info("💡 localStorage中未找到，尝试刷新页面获取...")
+
+        access_token = None
+
+        def handle_response(response):
+            nonlocal access_token
+            if "/connect/token" in response.url and response.status == 200:
+                try:
+                    response_body = response.body()
+                    response_data = json.loads(response_body.decode('utf-8'))
+                    if "access_token" in response_data:
+                        access_token = response_data["access_token"]
+                        logger.info(f"✅ 拦截到access_token")
+                except Exception as e:
+                    logger.debug(f"解析token响应失败: {str(e)}")
+
+        # 添加监听器
+        _page_instance.on("response", handle_response)
+
+        # 刷新页面触发token请求
+        current_url = _page_instance.url
+        if "ai.cqzuxia.com" in current_url:
+            logger.info("正在刷新页面...")
+            _page_instance.reload(wait_until="networkidle")
+        else:
+            logger.info("正在导航到登录页...")
+            _page_instance.goto("https://ai.cqzuxia.com/#/login", wait_until="networkidle")
+
+        # 等待获取token
+        import time
+        start_time = time.time()
+        while not access_token and (time.time() - start_time) < 10:
+            time.sleep(0.3)
+
+        if access_token:
+            logger.info(f"✅ 成功从浏览器提取access_token: {access_token[:20]}...")
+            return access_token
+        else:
+            logger.warning("⚠️ 浏览器中未找到有效的access_token")
+            logger.info("💡 提示：请确保已经在浏览器中登录学生端")
+            return None
+
+    except Exception as e:
+        logger.error(f"❌ 从浏览器提取access_token失败: {str(e)}")
+        return None
 
 
 def navigate_to_course(course_id: str) -> bool:
@@ -534,9 +639,9 @@ def get_course_progress_from_page() -> Optional[Dict]:
         return None
 
 
-def get_student_courses(access_token: str) -> Optional[List[Dict]]:
+def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     """
-    使用access_token获取学生端课程列表
+    获取学生端课程列表的实际请求逻辑（内部方法，用于重试）
 
     Args:
         access_token: 学生端的access_token
@@ -544,78 +649,179 @@ def get_student_courses(access_token: str) -> Optional[List[Dict]]:
     Returns:
         Optional[List[Dict]]: 课程列表，如果失败则返回None
     """
+    # API端点
+    url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
+
+    # 请求头
+    headers = {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "authorization": f"Bearer {access_token}",
+        "priority": "u=1, i",
+        "referer": "https://ai.cqzuxia.com/",
+        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+    }
+
+    logger.info(f"发送请求到: {url}")
+    logger.info(f"使用token: {access_token[:20]}...")
+
+    # 发送GET请求
+    response = requests.get(url, headers=headers, timeout=30)
+
+    # 检查响应状态
+    if response.status_code == 200:
+        logger.info(f"✅ 请求成功，状态码: {response.status_code}")
+
+        try:
+            data = response.json()
+
+            # 打印完整的响应数据（用于调试）
+            logger.info(f"响应数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
+            # 检查返回的数据结构
+            if isinstance(data, list):
+                # 如果直接返回列表
+                courses = data
+            elif isinstance(data, dict):
+                # 如果返回的是字典，尝试提取课程列表
+                if "data" in data:
+                    courses = data["data"]
+                elif "success" in data and data["success"]:
+                    courses = data.get("data", [])
+                else:
+                    logger.error(f"API返回错误: {data}")
+                    return None
+            else:
+                logger.error(f"未知的数据格式: {type(data)}")
+                return None
+
+            return courses
+
+        except json.JSONDecodeError as e:
+            logger.error(f"解析JSON响应失败: {str(e)}")
+            logger.error(f"响应内容: {response.text[:500]}")
+            return None
+    else:
+        logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+        logger.error(f"响应内容: {response.text[:500]}")
+        return None
+
+
+def get_student_courses(access_token: str, max_retries: int = 3, delay: int = 2) -> Optional[List[Dict]]:
+    """
+    使用access_token获取学生端课程列表（带重试）
+
+    Args:
+        access_token: 学生端的access_token
+        max_retries: 最大重试次数，默认3次
+        delay: 重试延迟（秒），默认2秒
+
+    Returns:
+        Optional[List[Dict]]: 课程列表，如果失败则返回None
+    """
     try:
         logger.info("正在获取学生端课程列表...")
 
-        # API端点
-        url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
-
-        # 请求头
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "authorization": f"Bearer {access_token}",
-            "priority": "u=1, i",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-        }
-
-        logger.info(f"发送请求到: {url}")
-        logger.info(f"使用token: {access_token[:20]}...")
-
-        # 发送GET请求
-        response = requests.get(url, headers=headers, timeout=30)
-
-        # 检查响应状态
-        if response.status_code == 200:
-            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
-
+        for attempt in range(max_retries):
             try:
-                data = response.json()
+                return _get_student_courses_request(access_token)
+            except Exception as e:
+                error_str = str(e)
+                # 检查是否是网络连接错误
+                is_network_error = (
+                    "ConnectionResetError" in error_str or
+                    "Connection aborted" in error_str or
+                    "RemoteDisconnected" in error_str or
+                    "远程主机" in error_str or
+                    "10054" in error_str
+                )
 
-                # 打印完整的响应数据（用于调试）
-                logger.info(f"响应数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
-
-                # 检查返回的数据结构
-                if isinstance(data, list):
-                    # 如果直接返回列表
-                    courses = data
-                elif isinstance(data, dict):
-                    # 如果返回的是字典，尝试提取课程列表
-                    if "data" in data:
-                        courses = data["data"]
-                    elif "success" in data and data["success"]:
-                        courses = data.get("data", [])
-                    else:
-                        logger.error(f"API返回错误: {data}")
-                        return None
+                if is_network_error and attempt < max_retries - 1:
+                    logger.warning(f"⚠️ 网络错误，第 {attempt + 1}/{max_retries} 次尝试失败，{delay}秒后重试...")
+                    time.sleep(delay)
+                    continue
                 else:
-                    logger.error(f"未知的数据格式: {type(data)}")
-                    return None
+                    # 如果不是网络错误或已达到最大重试次数，抛出异常
+                    raise e
 
-                return courses
-
-            except json.JSONDecodeError as e:
-                logger.error(f"解析JSON响应失败: {str(e)}")
-                logger.error(f"响应内容: {response.text[:500]}")
-                return None
-        else:
-            logger.error(f"❌ 请求失败，状态码: {response.status_code}")
-            logger.error(f"响应内容: {response.text[:500]}")
-            return None
+        return None
 
     except requests.exceptions.Timeout:
         logger.error("❌ 请求超时，请检查网络连接")
         return None
     except requests.exceptions.ConnectionError as e:
-        logger.error(f"❌ 连接错误: {str(e)}")
+        logger.error(f"❌ 连接错误（重试后仍失败）: {str(e)}")
         return None
     except Exception as e:
-        logger.error(f"❌ 获取课程列表异常: {str(e)}")
+        logger.error(f"❌ 获取课程列表异常（重试后仍失败）: {str(e)}")
         return None
+
+
+# ==================== Access Token 管理函数 ====================
+
+def set_access_token(token: str):
+    """
+    设置access_token缓存
+
+    Args:
+        token: access_token字符串
+    """
+    global _cached_access_token, _token_expiry_time
+    _cached_access_token = token
+    # token有效期5小时（18000秒），提前10分钟过期
+    _token_expiry_time = time.time() + 18000 - 600
+    logger.info(f"✅ access_token已缓存，有效期至: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(_token_expiry_time))}")
+
+
+def get_cached_access_token() -> Optional[str]:
+    """
+    获取缓存的access_token
+    如果token不存在或已过期，则自动从浏览器获取
+
+    Returns:
+        Optional[str]: 有效的access_token，如果获取失败则返回None
+    """
+    global _cached_access_token, _token_expiry_time
+
+    # 检查缓存是否存在
+    if not _cached_access_token:
+        logger.info("💡 缓存中无access_token，尝试从浏览器获取...")
+        return get_access_token_from_browser()
+
+    # 检查token是否过期
+    if _token_expiry_time and time.time() > _token_expiry_time:
+        logger.warning("⚠️ 缓存的access_token已过期，重新获取...")
+        return get_access_token_from_browser()
+
+    # token有效，返回缓存的token
+    logger.info(f"✅ 使用缓存的access_token: {_cached_access_token[:20]}...")
+    return _cached_access_token
+
+
+def clear_access_token():
+    """清除access_token缓存"""
+    global _cached_access_token, _token_expiry_time
+    _cached_access_token = None
+    _token_expiry_time = None
+    logger.info("🗑️ access_token缓存已清除")
+
+
+def is_token_valid() -> bool:
+    """
+    检查缓存的access_token是否有效
+
+    Returns:
+        bool: token是否有效
+    """
+    global _cached_access_token, _token_expiry_time
+    if not _cached_access_token:
+        return False
+    if _token_expiry_time and time.time() > _token_expiry_time:
+        return False
+    return True

@@ -38,6 +38,10 @@ class AutoAnswer:
         self.current_question_index = 0  # 当前题目的索引（0-based）
         self.api_listener_active = False  # API监听器是否激活
 
+        # 优雅退出控制相关
+        self._is_answering_question = False  # 是否正在答题
+        self._is_processing_knowledge = False  # 是否正在处理知识点
+
     def load_question_bank(self, question_bank_data: Dict):
         """
         加载题库数据
@@ -62,9 +66,7 @@ class AutoAnswer:
                     if msvcrt.kbhit():  # 检测是否有键盘输入
                         char = msvcrt.getch().decode('utf-8')
                         if char.lower() == 'q':
-                            print("\n\n⚠️  检测到停止信号，将在完成当前知识点后退出...")
-                            logger.info("⚠️  用户请求停止做题")
-                            self.should_stop = True
+                            self.request_stop()
                             break
                 except ImportError:
                     # 非Windows平台，使用input阻塞（简化处理）
@@ -87,12 +89,49 @@ class AutoAnswer:
         self.input_thread.start()
         logger.info("✅ 停止监听已启动（按 'q' 键可随时停止）")
 
+    def request_stop(self):
+        """请求停止（按Q键时调用）"""
+        print("\n\n🛑 检测到Q键，准备停止...")
+        logger.info("🛑 检测到Q键，准备停止...")
+        self.should_stop = True
+
+        if self._is_answering_question:
+            print("⏳ 当前正在答题，完成后将停止...")
+            logger.info("⏳ 当前正在答题，完成后将停止...")
+        elif self._is_processing_knowledge:
+            print("⏳ 当前正在处理知识点，完成后将停止...")
+            logger.info("⏳ 当前正在处理知识点，完成后将停止...")
+        else:
+            print("🛑 立即停止...")
+            logger.info("🛑 立即停止...")
+
     def stop_stop_listener(self):
         """停止停止监听线程"""
         self.should_stop = True
         if self.input_thread and self.input_thread.is_alive():
             self.input_thread.join(timeout=1)
         logger.info("✅ 停止监听已停止")
+
+    def _check_stop(self) -> bool:
+        """
+        检查是否应该停止
+
+        Returns:
+            bool: True表示应该停止，False表示继续
+        """
+        if self.should_stop:
+            # 如果正在答题，不等当前题目做完
+            # 如果正在处理知识点，等当前知识点做完
+            if self._is_answering_question:
+                logger.info("⏸️ 等待当前题目完成...")
+                return False
+            elif self._is_processing_knowledge:
+                logger.info("⏸️ 等待当前知识点完成...")
+                return False
+            else:
+                logger.info("🛑 按Q键退出，停止做题")
+                return True
+        return False
 
     def start_api_listener(self):
         """启动全局API监听器（捕获beginevaluate API）"""
@@ -941,7 +980,20 @@ class AutoAnswer:
                                 except:
                                     pass
 
-                            logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
+                            # 没有找到测评按钮，说明已完成或次数用尽
+                            # 检查是否有"已完成"或"测评次数"等提示信息
+                            try:
+                                status_info = self.page.query_selector(".evaluation-status, .status-info, .completed-tag")
+                                if status_info:
+                                    status_text = status_info.text_content() or ""
+                                    if "3次" in status_text or "已完成" in status_text:
+                                        logger.info(f"⏭️  跳过知识点: {knowledge_name} (状态: {status_text.strip()})")
+                                    else:
+                                        logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
+                                else:
+                                    logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
+                            except:
+                                logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
 
                         except Exception as e:
                             logger.debug(f"   ⚠️  知识点 {knowledge_count} 检查失败 - {str(e)}")
@@ -1338,11 +1390,22 @@ class AutoAnswer:
         }
 
         try:
+            # 标记正在处理知识点
+            self._is_processing_knowledge = True
+
             # 等待答题界面加载
             time.sleep(2)
 
             # 循环做题
             for i in range(max_questions):
+                # 检查是否需要停止（在每道题开始前）
+                if self._check_stop():
+                    self._is_processing_knowledge = False
+                    return result
+
+                # 标记正在答题
+                self._is_answering_question = True
+
                 logger.info(f"\n📌 第 {i+1}/{max_questions} 题")
 
                 # 更新当前题目索引
@@ -1362,9 +1425,20 @@ class AutoAnswer:
                 else:
                     result['failed'] += 1
 
+                # 标记答题完成
+                self._is_answering_question = False
+
+                # 检查是否需要停止（每道题完成后）
+                if self._check_stop():
+                    self._is_processing_knowledge = False
+                    return result
+
                 # 等待完成或进入下一题
                 is_last = (i == max_questions - 1)  # 是否是最后一题
                 self.wait_for_completion_or_next(is_last_question=is_last)
+
+            # 标记知识点处理完成
+            self._is_processing_knowledge = False
 
             logger.info("=" * 60)
             logger.info("✅ 当前知识点做题流程完成")
@@ -1374,6 +1448,8 @@ class AutoAnswer:
 
         except Exception as e:
             logger.error(f"❌ 答题循环失败: {str(e)}")
+            self._is_answering_question = False
+            self._is_processing_knowledge = False
             return result
 
     def run_auto_answer(self, max_questions: int = 5) -> Dict:

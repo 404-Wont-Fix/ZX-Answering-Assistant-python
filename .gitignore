@@ -64,3 +64,5 @@ output/*
 tests/*
 .claude/*
 AUTO_ANSWER_GUIDE.md
+sign
+API

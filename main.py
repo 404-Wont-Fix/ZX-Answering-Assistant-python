@@ -13,11 +13,15 @@ sys.path.insert(0, str(project_root))
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
-from src.student_login import get_student_access_token, get_student_access_token_with_credentials, get_student_courses, get_uncompleted_chapters, navigate_to_course, close_browser, get_course_progress_from_page, get_browser_page
+from src.student_login import (get_student_access_token, get_student_access_token_with_credentials,
+                               get_student_courses, get_uncompleted_chapters, navigate_to_course,
+                               close_browser, get_course_progress_from_page, get_browser_page,
+                               get_cached_access_token)
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
 from src.auto_answer import AutoAnswer
+from src.api_auto_answer import APIAutoAnswer
 import time
 
 
@@ -105,8 +109,8 @@ def show_answer_menu(course_info: dict) -> bool:
         print("=" * 50)
         print("1. 提取该课程的答案")
         print("2. 使用JSON题库")
-        print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else ""))
-        print("4. 使用Word题库（暂未开放）")
+        print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(兼容模式)")
+        print("4. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(暴力模式)")
         print("5. 退出")
         print("=" * 50)
 
@@ -376,9 +380,85 @@ def show_answer_menu(course_info: dict) -> bool:
                 continue
 
         elif choice == "4":
-            # 使用Word题库（暂未开放）
-            print("\n⚠️  Word题库功能暂未开放")
-            continue
+            # API暴力模式自动做题
+            if not current_question_bank:
+                print("\n❌ 请先加载题库（选项1或选项2）")
+                continue
+
+            print("\n🚀 API暴力模式自动做题")
+            print(f"🆔 课程ID: {course_info['course_id']}")
+            print(f"📚 课程名称: {course_info['course_name']}")
+            print("\n💡 提示：此模式使用API直接构造请求完成做题，无需浏览器操作")
+            print("💡 优势：速度更快，不依赖浏览器状态")
+            print("💡 前提：需要学生端的access_token")
+
+            # 获取access_token（使用缓存管理）
+            print("\n🔍 正在获取学生端access_token...")
+
+            # 使用缓存函数，自动处理token的获取和缓存
+            access_token = get_cached_access_token()
+
+            if not access_token:
+                # 缓存获取失败，提示用户手动输入
+                print("\n⚠️ 自动获取access_token失败")
+                access_token = input("请手动输入access_token（或回车取消）: ").strip()
+
+                if not access_token:
+                    print("❌ 已取消操作")
+                    continue
+                else:
+                    # 手动输入后，保存到缓存
+                    from src.student_login import set_access_token
+                    set_access_token(access_token)
+
+            # 询问是否自动完成所有知识点
+            auto_all = input("\n是否自动完成所有未完成的知识点？(yes/no): ").strip().lower()
+            auto_all_mode = auto_all in ['yes', 'y', '是']
+
+            max_knowledges = None
+            if not auto_all_mode:
+                max_input = input("请输入要完成的知识点数量（直接回车完成1个）: ").strip()
+                max_knowledges = int(max_input) if max_input else 1
+
+            try:
+                # 创建API自动做题器
+                api_answer = APIAutoAnswer(access_token)
+                api_answer.load_question_bank(current_question_bank)
+
+                print("\n" + "=" * 60)
+                print("🚀 开始API暴力模式自动做题")
+                print("=" * 60)
+
+                # 执行自动做题
+                result = api_answer.auto_answer_all_knowledges(
+                    course_info['course_id'],
+                    max_knowledges=max_knowledges if not auto_all_mode else None
+                )
+
+                # 显示结果
+                print("\n" + "=" * 60)
+                print("📊 最终统计")
+                print("=" * 60)
+                print(f"知识点: {result['completed_knowledges']}/{result['total_knowledges']}")
+                print(f"题目: 总计 {result['total_questions']} 题")
+                print(f"✅ 成功: {result['success']} 题")
+                print(f"❌ 失败: {result['failed']} 题")
+                print(f"⏭️  跳过: {result['skipped']} 题")
+                print("=" * 60)
+
+                if auto_all_mode and result['completed_knowledges'] >= result['total_knowledges']:
+                    print("\n🎉 恭喜！所有知识点已完成！")
+
+                return True
+
+            except KeyboardInterrupt:
+                print("\n\n⚠️  用户中断自动做题")
+                continue
+            except Exception as e:
+                print(f"\n❌ API自动做题失败：{str(e)}")
+                import traceback
+                traceback.print_exc()
+                continue
 
         elif choice == "5":
             # 退出
