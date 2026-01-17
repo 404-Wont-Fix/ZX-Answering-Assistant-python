@@ -217,7 +217,7 @@ python main.py
 
 1. 选择 `1. 开始答题`
 2. 选择 `1. 批量答题`
-3. 登录学生账户（默认账户：`530627200608120055` / `120055`）
+3. 登录学生账户（默认账户：`530XXXXXXXXXXXXXXXX` / `XXXXXX`）
 4. 查看课程列表和完成进度
 5. 选择要作答的课程
 6. 选择答题模式：
@@ -294,8 +294,8 @@ answer:
 
 ```env
 # 学生端默认账户
-STUDENT_USERNAME=530627200608120055
-STUDENT_PASSWORD=120055
+STUDENT_USERNAME=530XXXXXXXXXXXXXXX
+STUDENT_PASSWORD=XXXXXX
 
 # 教师端账户（需要手动输入）
 TEACHER_USERNAME=
