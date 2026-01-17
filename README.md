@@ -25,6 +25,7 @@
 - [配置说明](#配置说明)
 - [项目结构](#项目结构)
 - [技术栈](#技术栈)
+- [版本管理](#版本管理)
 - [常见问题](#常见问题)
 - [开发规范](#开发规范)
 - [免责声明](#免责声明)
@@ -265,7 +266,7 @@ python main.py
 ```yaml
 app:
   name: "ZX Answering Assistant"
-  version: "1.0.0"
+  version: "1.1.0"
   debug: false
 
 logging:
@@ -334,6 +335,8 @@ ZX-Answering-Assistant-python/
 ├── main.py                        # 主程序入口
 ├── extract_answers.py             # 独立答案提取脚本
 ├── build.py                       # PyInstaller 打包脚本
+├── version.py                     # 版本信息管理
+├── VERSION.md                     # 版本管理文档
 ├── requirements.txt               # Python 依赖
 ├── .gitignore                     # Git 忽略文件
 ├── CLAUDE.md                      # Claude Code 指导文档
@@ -375,6 +378,82 @@ ZX-Answering-Assistant-python/
 - `/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass` - 知识点
 - `/evaluation/api/TeacherEvaluation/GetKnowQuestionEvaluation` - 题目列表
 - `/evaluation/api/TeacherEvaluation/GetQuestionAnswerListByQID` - 答案选项
+
+---
+
+## 📦 版本管理
+
+### 版本信息
+
+项目使用 `version.py` 文件管理版本信息，包含以下内容：
+
+- `VERSION`: 主版本号（当前：1.1.0）
+- `VERSION_NAME`: 程序名称
+- `BUILD_DATE`: 构建日期（打包时自动更新）
+- `BUILD_TIME`: 构建时间（打包时自动更新）
+- `GIT_COMMIT`: Git提交哈希（打包时自动更新）
+- `BUILD_MODE`: 构建模式（development 或 release）
+
+### 修改版本号
+
+编辑 [version.py](version.py) 文件中的 `VERSION` 变量：
+
+```python
+VERSION = "1.1.0"  # 修改版本号
+```
+
+### 打包项目
+
+```bash
+# 查看打包选项
+python build.py --help
+
+# 目录模式（默认，启动快）
+python build.py
+
+# 单文件模式
+python build.py --mode onefile
+```
+
+### 打包模式对比
+
+| 特性 | onedir（默认）⭐ | onefile |
+|-----|------------------|---------|
+| 启动速度 | 快（1-3秒） | 慢（30秒-2分钟） |
+| 文件形式 | 整个文件夹 | 单个exe |
+| 分发方式 | 分发文件夹 | 分发单个文件 |
+| 适用场景 | 追求快速启动 | 对启动速度要求不高 |
+
+### 版本显示
+
+程序启动时会自动显示版本信息：
+
+```
+============================================================
+📦 ZX Answering Assistant v1.1.0 (Build 2026-01-17)
+============================================================
+版本号: 1.1.0
+构建日期: 2026-01-17
+构建时间: 18:30:45
+Git提交: abc1234
+构建模式: release
+============================================================
+```
+
+### 版本号规范
+
+遵循语义化版本控制（Semantic Versioning）：
+
+- 主版本号.次版本号.修订号
+- 例如：1.0.0, 1.0.1, 1.1.0
+
+**版本更新规则：**
+
+- **主版本号**：不兼容的API修改
+- **次版本号**：向下兼容的功能性新增
+- **修订号**：向下兼容的问题修正
+
+详细版本管理说明请查看 [VERSION.md](VERSION.md)
 
 ---
 
@@ -424,10 +503,41 @@ ZX-Answering-Assistant-python/
 **A:** 运行打包脚本：
 
 ```bash
+# 查看打包选项
+python build.py --help
+
+# 目录模式（默认，启动快）
 python build.py
+
+# 单文件模式
+python build.py --mode onefile
 ```
 
-打包完成后，可执行文件位于 `dist/ZX-Answering-Assistant.exe`
+**打包模式对比：**
+
+| 特性 | onedir（默认）⭐ | onefile |
+|-----|------------------|---------|
+| 启动速度 | 快（1-3秒） | 慢（30秒-2分钟） |
+| 文件形式 | 整个文件夹 | 单个exe |
+| 分发方式 | 分发文件夹 | 分发单个文件 |
+| 适用场景 | 追求快速启动 | 对启动速度要求不高 |
+
+**打包输出：**
+
+- **onedir 模式**: `dist/ZX-Answering-Assistant/ZX-Answering-Assistant.exe`
+- **onefile 模式**: `dist/ZX-Answering-Assistant.exe`
+
+**版本信息：**
+
+打包时会自动更新：
+- 构建日期
+- 构建时间
+- Git 提交哈希
+- 构建模式
+
+程序启动时会显示完整的版本信息。
+
+详细版本管理说明请查看 [VERSION.md](VERSION.md)
 
 ### Q6: Playwright 浏览器安装失败？
 

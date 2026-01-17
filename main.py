@@ -12,6 +12,12 @@ import os
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+# 导入版本信息
+import version
+
+# 显示版本信息
+version.print_version_info()
+
 # 设置Playwright浏览器路径（支持打包后的exe）
 def setup_playwright_browser():
     """设置Playwright浏览器路径"""
