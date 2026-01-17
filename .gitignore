@@ -66,3 +66,5 @@ tests/*
 AUTO_ANSWER_GUIDE.md
 sign
 API
+ZX-Answering-Assistant.spec
+playwright_browsers/*
