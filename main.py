@@ -731,17 +731,20 @@ def main():
                 else:
                     print(f"\n❌ 获取access_token失败！")
             elif choice2 == "2":
+                global last_extracted_data
                 result = extract_questions()
                 if result:
                     last_extracted_data = result
                     print("题目提取完成")
             elif choice2 == "3":
+                global last_extracted_data
                 result = extract_single_course()
                 if result:
                     last_extracted_data = result
                     print("题目提取完成")
             elif choice2 == "4":
                 # 结果导出功能
+                global last_extracted_data
                 if last_extracted_data is None:
                     print("❌ 没有可导出的数据，请先进行题目提取")
                 else:

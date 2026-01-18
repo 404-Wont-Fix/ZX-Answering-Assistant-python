@@ -3,14 +3,47 @@
 用于记录程序的版本号、构建信息等
 """
 
+import subprocess
+import sys
+from datetime import datetime
+from pathlib import Path
+
 VERSION = "1.1.0"
 VERSION_NAME = "ZX Answering Assistant"
 
-# 构建信息（会在打包时自动更新）
-BUILD_DATE = ""
-BUILD_TIME = ""
-GIT_COMMIT = ""
-BUILD_MODE = ""  # "development" 或 "release"
+# 构建信息（会在打包时自动更新，开发时自动获取）
+def _get_build_info():
+    """获取构建信息"""
+    now = datetime.now()
+    build_date = now.strftime("%Y-%m-%d")
+    build_time = now.strftime("%H:%M:%S")
+    
+    # 获取Git提交信息
+    git_commit = ""
+    try:
+        result = subprocess.run(
+            ["git", "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            git_commit = result.stdout.strip()
+    except:
+        pass
+    
+    # 判断构建模式
+    build_mode = "development"
+    # 检查是否在打包环境中运行
+    if getattr(sys, 'frozen', False):
+        build_mode = "release"
+    # 或者检查是否在dist目录中
+    elif 'dist' in str(Path(__file__).parent):
+        build_mode = "release"
+    
+    return build_date, build_time, git_commit, build_mode
+
+BUILD_DATE, BUILD_TIME, GIT_COMMIT, BUILD_MODE = _get_build_info()
 
 
 def get_version_string():
