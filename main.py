@@ -712,6 +712,7 @@ def main():
                 print("无效的选择，请重新输入")
         elif choice == "2":
             # 题目提取功能
+            global last_extracted_data
             print("题目提取功能")
             print("1. 获取access_token")
             print("2. 全部提取")
