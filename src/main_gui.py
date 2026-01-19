@@ -35,6 +35,14 @@ class MainApp:
         self.extraction_view = ExtractionView(page)
         self.settings_view = SettingsView(page)
 
+        # 缓存每个视图的内容（保持状态）
+        self.cached_contents = {
+            0: None,  # 评估答题
+            1: None,  # 答案提取
+            2: None,  # 设置
+            3: None,  # 关于
+        }
+
         # 初始化UI
         self._setup_page()
         self._build_ui()
@@ -51,6 +59,15 @@ class MainApp:
 
         # 注册窗口关闭时的清理函数
         self.page.on_close = self._on_window_close
+
+    def _cache_all_contents(self):
+        """首次加载时缓存所有视图内容"""
+        print("🔄 正在初始化所有视图...")
+        self.cached_contents[0] = self.answering_view.get_content()
+        self.cached_contents[1] = self.extraction_view.get_content()
+        self.cached_contents[2] = self.settings_view.get_content()
+        self.cached_contents[3] = self._get_about_content()
+        print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
         """窗口关闭时的清理函数"""
@@ -112,11 +129,17 @@ class MainApp:
             bgcolor=ft.Colors.BLUE_50,
         )
 
-        # 创建内容区域（添加滚动支持）- 按照 StackOverflow 答案
+        # 初始化第一个视图（评估答题）并缓存
+        print("🔄 正在初始化评估答题视图...")
+        initial_content = self.answering_view.get_content()
+        self.cached_contents[0] = initial_content
+        print("✅ 评估答题视图已初始化")
+
+        # 创建内容区域（添加滚动支持）- 使用初始化的内容
         self.content_area = ft.Column(
             [
                 ft.Container(
-                    content=self.answering_view.get_content(),  # 默认显示评估答题页面
+                    content=initial_content,  # 使用刚初始化的评估答题页面
                     expand=True,
                 )
             ],
@@ -142,24 +165,32 @@ class MainApp:
         self.page.add(main_row)
 
     def _on_destination_changed(self, e):
-        """导航栏切换事件处理"""
+        """导航栏切换事件处理（使用缓存保持状态）"""
         self.current_destination = e.control.selected_index
 
-        # 根据选择更新内容区域
-        # content_area 是一个 Column，需要更新其 controls[0].content
-        if self.current_destination == 0:
-            new_content = self.answering_view.get_content()
-        elif self.current_destination == 1:
-            new_content = self.extraction_view.get_content()
-        elif self.current_destination == 2:
-            new_content = self.settings_view.get_content()
-        elif self.current_destination == 3:
-            new_content = self._get_about_content()
-        else:
-            return
+        # 使用缓存的内容，而不是重新创建
+        # 这样可以保持各个视图的状态（如输入框内容、滚动位置等）
+        cached_content = self.cached_contents.get(self.current_destination)
+
+        if cached_content is None:
+            # 如果缓存不存在（不应该发生），则创建并缓存
+            print(f"⚠️ 视图 {self.current_destination} 未缓存，正在创建...")
+            if self.current_destination == 0:
+                cached_content = self.answering_view.get_content()
+            elif self.current_destination == 1:
+                cached_content = self.extraction_view.get_content()
+            elif self.current_destination == 2:
+                cached_content = self.settings_view.get_content()
+            elif self.current_destination == 3:
+                cached_content = self._get_about_content()
+            else:
+                return
+
+            # 缓存新创建的内容
+            self.cached_contents[self.current_destination] = cached_content
 
         # 更新 Column 中第一个 Container 的 content
-        self.content_area.controls[0].content = new_content
+        self.content_area.controls[0].content = cached_content
         self.page.update()
 
     def _toggle_rail(self, e):
