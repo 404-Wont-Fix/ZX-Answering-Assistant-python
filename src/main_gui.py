@@ -49,6 +49,19 @@ class MainApp:
         self.page.padding = 0
         self.page.bgcolor = ft.Colors.GREY_50
 
+        # 注册窗口关闭时的清理函数
+        self.page.on_close = self._on_window_close
+
+    def _on_window_close(self):
+        """窗口关闭时的清理函数"""
+        try:
+            # 关闭 Playwright 浏览器
+            from src.student_login import close_browser
+            close_browser()
+            print("✅ 浏览器已关闭")
+        except Exception as e:
+            print(f"⚠️ 关闭浏览器时出错: {e}")
+
     def _build_ui(self):
         """构建用户界面"""
         # 创建导航栏
