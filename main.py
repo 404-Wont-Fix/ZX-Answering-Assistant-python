@@ -1,12 +1,17 @@
 """
 ZX Answering Assistant - 主程序入口
 智能答题助手系统
+
+支持两种运行模式:
+- GUI模式: 使用Flet图形界面
+- CLI模式: 使用命令行界面
 """
 
 import sys
 from pathlib import Path
 import subprocess
 import os
+import argparse
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
@@ -770,5 +775,60 @@ def main():
             print("无效的选择，请重新输入")
 
 
+def run_gui_mode():
+    """启动GUI模式"""
+    try:
+        from src.main_gui import run_app
+        print("🚀 正在启动图形界面...")
+        run_app()
+    except ImportError as e:
+        print(f"❌ 导入GUI模块失败: {e}")
+        print("💡 请确保已安装 flet 库: pip install flet")
+        sys.exit(1)
+    except Exception as e:
+        print(f"❌ 启动GUI失败: {e}")
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)
+
+
+def parse_arguments():
+    """解析命令行参数"""
+    parser = argparse.ArgumentParser(
+        description="ZX Answering Assistant - 智能答题助手",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+示例:
+  python main.py              # 默认启动GUI模式
+  python main.py --gui        # 启动GUI模式
+  python main.py --cli        # 启动命令行模式
+        """
+    )
+
+    parser.add_argument(
+        '--cli',
+        action='store_true',
+        help='使用命令行界面模式'
+    )
+
+    parser.add_argument(
+        '--gui',
+        action='store_true',
+        help='使用图形界面模式（默认）'
+    )
+
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    main()
+    # 解析命令行参数
+    args = parse_arguments()
+
+    # 决定使用哪种模式
+    if args.cli:
+        # CLI模式
+        print("🖥️  启动命令行模式...")
+        main()
+    else:
+        # GUI模式（默认）
+        run_gui_mode()

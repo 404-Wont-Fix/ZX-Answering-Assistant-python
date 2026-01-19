@@ -19,3 +19,6 @@ aiohttp>=3.9.0
 # Utility libraries
 tqdm>=4.66.0
 keyboard>=0.13.5
+
+# GUI framework
+flet>=0.80.0
