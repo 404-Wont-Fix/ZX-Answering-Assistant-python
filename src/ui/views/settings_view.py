@@ -100,6 +100,12 @@ class SettingsView:
 
     def _on_save_click(self, e):
         """处理保存设置按钮点击事件"""
-        self.page.show_snack_bar(
-            ft.SnackBar(ft.Text("设置已保存"))
+        # 使用 AlertDialog 显示消息
+        dialog = ft.AlertDialog(
+            title=ft.Text("提示"),
+            content=ft.Text("设置已保存"),
+            actions=[
+                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+            ],
         )
+        self.page.show_dialog(dialog)

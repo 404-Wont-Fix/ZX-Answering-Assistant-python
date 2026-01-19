@@ -86,6 +86,12 @@ class ExtractionView:
 
     def _on_extract_click(self, e):
         """处理提取答案按钮点击事件"""
-        self.page.show_snack_bar(
-            ft.SnackBar(ft.Text("功能开发中..."))
+        # 使用 AlertDialog 显示消息
+        dialog = ft.AlertDialog(
+            title=ft.Text("提示"),
+            content=ft.Text("功能开发中..."),
+            actions=[
+                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+            ],
         )
+        self.page.show_dialog(dialog)
