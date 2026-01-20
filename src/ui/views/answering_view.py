@@ -5,6 +5,8 @@ This module contains the UI components for the answering page.
 """
 
 import flet as ft
+import json
+from pathlib import Path
 from src.student_login import (
     get_student_access_token,
     get_student_courses,
@@ -36,6 +38,7 @@ class AnsweringView:
         self.current_course = None  # 当前选中的课程
         self.current_progress = None  # 当前课程进度信息
         self.current_uncompleted = None  # 当前课程未完成知识点列表
+        self.question_bank_data = None  # 存储加载的题库数据
 
     def get_content(self) -> ft.Column:
         """
@@ -845,15 +848,293 @@ class AnsweringView:
     def _on_use_json_bank(self, e):
         """处理使用JSON题库按钮点击事件"""
         print("DEBUG: 使用JSON题库")
-        # TODO: 实现使用JSON题库功能
-        dialog = ft.AlertDialog(
-            title=ft.Text("功能开发中"),
-            content=ft.Text("JSON题库功能正在开发中，敬请期待！"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+
+        # 使用 tkinter 文件选择器（更可靠）
+        try:
+            import tkinter as tk
+            from tkinter import filedialog
+
+            # 创建隐藏的 tkinter 根窗口
+            root = tk.Tk()
+            root.withdraw()  # 隐藏主窗口
+            root.wm_attributes('-topmost', 1)  # 置顶显示
+
+            # 打开文件选择对话框
+            file_path = filedialog.askopenfilename(
+                title="选择JSON题库文件",
+                filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
+            )
+
+            # 销毁 tkinter 窗口
+            root.destroy()
+
+            # 检查用户是否选择了文件
+            if file_path:
+                print(f"DEBUG: 选择的文件 = {file_path}")
+                # 调用文件选择处理逻辑
+                self._process_selected_json_file(file_path)
+            else:
+                print("DEBUG: 用户取消了文件选择")
+
+        except Exception as ex:
+            print(f"❌ 打开文件选择对话框失败: {ex}")
+            dialog = ft.AlertDialog(
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                        ft.Text("打开文件选择器失败", color=ft.Colors.RED),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Text(f"❌ 无法打开文件选择对话框：{str(ex)}"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+
+    def _process_selected_json_file(self, file_path: str):
+        """
+        处理选中的JSON文件
+
+        Args:
+            file_path: JSON文件路径
+        """
+        from pathlib import Path
+
+        file_name = Path(file_path).name
+
+        try:
+            # 读取并解析JSON文件
+            with open(file_path, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+
+            # 显示成功对话框
+            dialog = ft.AlertDialog(
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN),
+                        ft.Text("题库加载成功", color=ft.Colors.GREEN),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Column(
+                    [
+                        ft.Text(f"✅ 成功加载题库文件"),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(f"📄 文件名: {file_name}"),
+                        ft.Text(f"📁 路径: {file_path}"),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(
+                            f"📊 数据预览:\n{json.dumps(data, ensure_ascii=False, indent=2)[:500]}...",
+                            size=12,
+                            color=ft.Colors.GREY_700,
+                            max_lines=10,
+                        ),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+
+            # 保存题库数据供后续使用
+            self.question_bank_data = data
+            print(f"✅ 成功加载JSON题库: {file_name}")
+
+        except json.JSONDecodeError as je:
+            # JSON解析错误
+            print(f"❌ JSON解析失败: {je}")
+            dialog = ft.AlertDialog(
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                        ft.Text("JSON格式错误", color=ft.Colors.RED),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Column(
+                    [
+                        ft.Text("❌ 文件不是有效的JSON格式"),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(f"📄 文件: {file_name}"),
+                        ft.Text(f"💡 错误信息: {str(je)}", size=12, color=ft.Colors.RED_700),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+
+        except Exception as ex:
+            # 其他错误
+            print(f"❌ 读取文件失败: {ex}")
+            dialog = ft.AlertDialog(
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                        ft.Text("读取文件失败", color=ft.Colors.RED),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Column(
+                    [
+                        ft.Text("❌ 无法读取文件内容"),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(f"📄 文件: {file_name}"),
+                        ft.Text(f"💡 错误信息: {str(ex)}", size=12, color=ft.Colors.RED_700),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+
+    def _on_json_file_selected(self, e):
+        """
+        处理JSON文件选择完成事件
+
+        Args:
+            e: 文件选择结果事件 (FilePickerResultEvent)
+        """
+        if e.files and len(e.files) > 0:
+            # 用户选择了文件
+            file_path = e.files[0].path
+            file_name = e.files[0].name
+            print(f"DEBUG: 选择的文件 = {file_path}")
+
+            try:
+                # 读取并解析JSON文件
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+
+                # 显示成功对话框
+                dialog = ft.AlertDialog(
+                    title=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN),
+                            ft.Text("题库加载成功", color=ft.Colors.GREEN),
+                        ],
+                        spacing=10,
+                    ),
+                    content=ft.Column(
+                        [
+                            ft.Text(f"✅ 成功加载题库文件"),
+                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                            ft.Text(f"📄 文件名: {file_name}"),
+                            ft.Text(f"📁 路径: {file_path}"),
+                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                            ft.Text(
+                                f"📊 数据预览:\n{json.dumps(data, ensure_ascii=False, indent=2)[:500]}...",
+                                size=12,
+                                color=ft.Colors.GREY_700,
+                                max_lines=10,
+                            ),
+                        ],
+                        spacing=5,
+                        tight=True,
+                    ),
+                    actions=[
+                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+                self.page.show_dialog(dialog)
+
+                # TODO: 这里可以添加逻辑来保存题库数据供后续使用
+                # 例如：self.question_bank_data = data
+
+                print(f"✅ 成功加载JSON题库: {file_name}")
+
+            except json.JSONDecodeError as je:
+                # JSON解析错误
+                print(f"❌ JSON解析失败: {je}")
+                dialog = ft.AlertDialog(
+                    title=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                            ft.Text("JSON格式错误", color=ft.Colors.RED),
+                        ],
+                        spacing=10,
+                    ),
+                    content=ft.Column(
+                        [
+                            ft.Text("❌ 文件不是有效的JSON格式"),
+                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                            ft.Text(f"📄 文件: {file_name}"),
+                            ft.Text(f"💡 错误信息: {str(je)}", size=12, color=ft.Colors.RED_700),
+                        ],
+                        spacing=5,
+                        tight=True,
+                    ),
+                    actions=[
+                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+                self.page.show_dialog(dialog)
+
+            except Exception as ex:
+                # 其他错误
+                print(f"❌ 读取文件失败: {ex}")
+                dialog = ft.AlertDialog(
+                    title=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                            ft.Text("读取文件失败", color=ft.Colors.RED),
+                        ],
+                        spacing=10,
+                    ),
+                    content=ft.Column(
+                        [
+                            ft.Text("❌ 无法读取文件内容"),
+                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                            ft.Text(f"📄 文件: {file_name}"),
+                            ft.Text(f"💡 错误信息: {str(ex)}", size=12, color=ft.Colors.RED_700),
+                        ],
+                        spacing=5,
+                        tight=True,
+                    ),
+                    actions=[
+                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+                self.page.show_dialog(dialog)
+        elif e.error:
+            # 文件选择器发生错误
+            print(f"❌ 文件选择错误: {e.error}")
+            dialog = ft.AlertDialog(
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                        ft.Text("文件选择错误", color=ft.Colors.RED),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Text(f"❌ {e.error}"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+        else:
+            # 用户取消了文件选择
+            print("DEBUG: 用户取消了文件选择")
 
     def _on_start_compatibility_mode(self, e, course_id: str):
         """处理开始兼容模式按钮点击事件"""
