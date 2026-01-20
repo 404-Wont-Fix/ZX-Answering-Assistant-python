@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import subprocess
 import os
+import tempfile
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
@@ -24,21 +25,21 @@ def setup_playwright_browser():
     try:
         # 检查是否在打包环境中
         if getattr(sys, 'frozen', False):
-            # 在打包环境中，使用临时目录中的浏览器
-            import tempfile
-            import shutil
-            
-            # 获取打包的浏览器目录
+            # 在打包环境中，使用打包的浏览器
             browsers_dir = Path(sys._MEIPASS) / "playwright_browsers"
             if browsers_dir.exists():
-                # 设置Playwright浏览器路径
+                # 设置Playwright浏览器路径环境变量
                 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers_dir)
-                print(f"✅ 使用打包的浏览器: {browsers_dir}")
+                # 同时设置用户数据目录指向临时目录
+                os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
+                print(f"[OK] 使用打包的浏览器: {browsers_dir}")
+            else:
+                print(f"[WARN] 打包的浏览器目录不存在: {browsers_dir}")
         else:
             # 开发环境，使用系统浏览器
-            print("✅ 使用系统浏览器")
+            print("[OK] 使用系统浏览器")
     except Exception as e:
-        print(f"⚠️ 设置浏览器路径失败: {e}")
+        print(f"[WARN] 设置浏览器路径失败: {e}")
 
 # 在导入Playwright之前设置浏览器路径
 setup_playwright_browser()

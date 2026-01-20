@@ -48,13 +48,13 @@ def update_version_info():
         with open(version_file, 'w', encoding='utf-8') as f:
             f.write(content)
         
-        print(f"✅ 版本信息已更新:")
+        print(f"[OK] 版本信息已更新:")
         print(f"   构建日期: {build_date}")
         print(f"   构建时间: {build_time}")
         print(f"   Git提交: {git_commit}")
         
     except Exception as e:
-        print(f"⚠️ 更新版本信息失败: {e}")
+        print(f"[WARN] 更新版本信息失败: {e}")
 
 
 def build_project(mode="onedir"):
@@ -66,7 +66,7 @@ def build_project(mode="onedir"):
     """
     # 导入版本信息
     import version
-    print(f"📦 打包版本: {version.get_version_string()}")
+    print(f"[INFO] 打包版本: {version.get_version_string()}")
     
     # 更新构建信息
     update_version_info()
@@ -74,24 +74,27 @@ def build_project(mode="onedir"):
     # 重新导入版本信息以获取更新后的数据
     import importlib
     importlib.reload(version)
-    print(f"📦 完整版本: {version.get_full_version_string()}")
+    print(f"[INFO] 完整版本: {version.get_full_version_string()}")
     
     # 检查是否安装了PyInstaller
     try:
         import PyInstaller
-        print("✅ PyInstaller 已安装")
+        print("[OK] PyInstaller 已安装")
     except ImportError:
-        print("❌ PyInstaller 未安装，正在安装...")
+        print("[ERROR] PyInstaller 未安装，正在安装...")
         subprocess.check_call([sys.executable, "-m", "pip", "install", "pyinstaller"])
-        print("✅ PyInstaller 安装完成")
+        print("[OK] PyInstaller 安装完成")
     
     # 确保所有依赖已安装
     print("\n正在安装项目依赖...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
     
-    # 确保Playwright浏览器已安装
-    print("\n正在安装Playwright浏览器...")
-    subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
+    # 复制Playwright浏览器到项目目录
+    print("\n正在复制Playwright浏览器...")
+    if not Path("playwright_browsers").exists():
+        subprocess.check_call([sys.executable, "copy_browser.py"])
+    else:
+        print("[OK] 浏览器目录已存在，跳过复制")
     
     # 获取Playwright安装路径
     try:
@@ -99,9 +102,9 @@ def build_project(mode="onedir"):
         print("\n正在获取Playwright浏览器路径...")
         with sync_playwright() as p:
             browser_path = p.chromium.executable_path
-            print(f"✅ Playwright浏览器路径: {browser_path}")
+            print(f"[OK] Playwright浏览器路径: {browser_path}")
     except Exception as e:
-        print(f"⚠️ 获取Playwright路径失败: {e}")
+        print(f"[WARN] 获取Playwright路径失败: {e}")
     
     # 打包项目
     mode_name = "单文件" if mode == "onefile" else "目录模式"
@@ -128,7 +131,6 @@ def build_project(mode="onedir"):
         "--hidden-import", "greenlet",
         "--hidden-import", "loguru",
         "--hidden-import", "yaml",
-        "--hidden-import", "pandas",
         "--hidden-import", "openpyxl",
         "--hidden-import", "aiohttp",
         "--hidden-import", "tqdm",
@@ -137,11 +139,11 @@ def build_project(mode="onedir"):
         "--hidden-import", "dotenv",
         "--collect-all", "playwright",
         "--collect-all", "pyyaml",
-        "--collect-all", "pandas",
         "--collect-all", "openpyxl",
         "--exclude-module", "matplotlib",
         "--exclude-module", "numpy",
         "--exclude-module", "scipy",
+        "--exclude-module", "pandas",
         "--name", "ZX-Answering-Assistant",
         "main.py"
     ]
@@ -151,29 +153,29 @@ def build_project(mode="onedir"):
     
     # 输出结果
     print("\n" + "=" * 60)
-    print("✅ 项目打包完成！")
+    print("[OK] 项目打包完成！")
     print("=" * 60)
     
     if mode == "onefile":
         exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant.exe'
-        print(f"📁 可执行文件位于: {exe_path}")
-        print(f"📦 版本: {version.get_full_version_string()}")
+        print(f"[DIR] 可执行文件位于: {exe_path}")
+        print(f"[FILE] 版本: {version.get_full_version_string()}")
         print("\n" + "=" * 60)
-        print("📋 使用说明:")
+        print("[LIST] 使用说明:")
         print("=" * 60)
-        print("✨ 零依赖运行：已包含Playwright浏览器，无需下载")
+        print("[STAR] 零依赖运行：已包含Playwright浏览器，无需下载")
         print("1. 首次运行可执行文件时，会自动解压到临时目录")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. 建议将exe文件放在单独的目录中运行")
         print("4. 首次启动可能需要1-2分钟（解压文件）")
     else:
         exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant' / 'ZX-Answering-Assistant.exe'
-        print(f"📁 可执行文件位于: {exe_path}")
-        print(f"📦 版本: {version.get_full_version_string()}")
+        print(f"[DIR] 可执行文件位于: {exe_path}")
+        print(f"[FILE] 版本: {version.get_full_version_string()}")
         print("\n" + "=" * 60)
-        print("📋 使用说明:")
+        print("[LIST] 使用说明:")
         print("=" * 60)
-        print("✨ 优化版：使用目录模式，启动速度快10-20倍")
+        print("[STAR] 优化版：使用目录模式，启动速度快10-20倍")
         print("1. 运行 dist/ZX-Answering-Assistant/ZX-Answering-Assistant.exe")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. 可以将整个 ZX-Answering-Assistant 文件夹分发给用户")
@@ -201,7 +203,7 @@ def main():
     print("=" * 60)
     print("ZX Answering Assistant - 项目打包工具")
     print("=" * 60)
-    print(f"📦 打包模式: {args.mode}")
+    print(f"[INFO] 打包模式: {args.mode}")
     
     # 构建项目
     build_project(mode=args.mode)
