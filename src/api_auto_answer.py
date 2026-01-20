@@ -26,12 +26,13 @@ class APIAutoAnswer:
     # API基础URL
     BASE_URL = "https://ai.cqzuxia.com/evaluation/api"
 
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, log_callback=None):
         """
         初始化API自动做题器
 
         Args:
             access_token: 学生端access_token
+            log_callback: 日志回调函数（可选），用于将日志输出到GUI
         """
         self.access_token = access_token
         self.question_bank = None  # 题库数据
@@ -44,6 +45,45 @@ class APIAutoAnswer:
         self._stop_thread = None  # 停止监听线程
         self._is_answering_question = False  # 是否正在答题
         self._is_processing_knowledge = False  # 是否正在处理知识点
+
+        # 日志回调
+        self._log_callback = log_callback
+
+        # 设置日志处理器
+        self._setup_log_handler()
+
+    def _setup_log_handler(self):
+        """设置日志处理器，将日志转发到回调函数"""
+        if self._log_callback:
+            # 创建自定义日志处理器
+            class CallbackHandler(logging.Handler):
+                def __init__(self, callback):
+                    super().__init__()
+                    self.callback = callback
+
+                def emit(self, record):
+                    try:
+                        msg = self.format(record)
+                        # 移除时间戳和日志级别，只保留消息内容
+                        # 格式通常是：2026-01-20 20:06:11,730 - src.api_auto_answer - INFO - message
+                        parts = msg.split(" - ")
+                        if len(parts) >= 4:
+                            message = " - ".join(parts[3:])  # 只取消息部分
+                        else:
+                            message = msg
+                        self.callback(message.rstrip())
+                    except Exception:
+                        pass
+
+            # 添加处理器到 logger
+            self._log_handler = CallbackHandler(self._log_callback)
+            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(self._log_handler)
+
+    def _cleanup_log_handler(self):
+        """清理日志处理器"""
+        if hasattr(self, '_log_handler') and self._log_handler:
+            logger.removeHandler(self._log_handler)
 
     def start_stop_listener(self):
         """启动停止监听器（监听Q键）"""
@@ -77,6 +117,8 @@ class APIAutoAnswer:
         if self._stop_thread and self._stop_thread.is_alive():
             self._stop_thread.join(timeout=1)
         logger.info("🛑 停止监听器已关闭")
+        # 清理日志处理器
+        self._cleanup_log_handler()
 
     def _check_stop(self) -> bool:
         """
@@ -787,6 +829,8 @@ class APIAutoAnswer:
                     })
 
             total_result['total_knowledges'] = len(all_knowledges) + skipped_count
+            # 将预检查跳过的知识点数加到最终统计中
+            total_result['skipped_knowledges'] = skipped_count
 
             if not all_knowledges:
                 logger.info("✅ 没有未完成的知识点")
@@ -857,7 +901,7 @@ class APIAutoAnswer:
             logger.info("🎉 所有知识点处理完成")
             logger.info("=" * 60)
             logger.info(f"📊 总体统计:")
-            logger.info(f"   知识点: {total_result['completed_knowledges']}/{total_result['total_knowledges']}")
+            logger.info(f"   知识点: 已完成 {total_result['completed_knowledges']}/{total_result['total_knowledges']}, 跳过 {total_result['skipped_knowledges']} 个")
             logger.info(f"   题目: 总计 {total_result['total_questions']} 题, 成功 {total_result['success']} 题, 跳过 {total_result['skipped']} 题")
             logger.info("=" * 60)
 

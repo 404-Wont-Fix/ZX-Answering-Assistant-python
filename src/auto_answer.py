@@ -18,12 +18,13 @@ logger = logging.getLogger(__name__)
 class AutoAnswer:
     """自动做题类"""
 
-    def __init__(self, page):
+    def __init__(self, page, log_callback=None):
         """
         初始化自动做题器
 
         Args:
             page: Playwright页面对象
+            log_callback: 日志回调函数（可选），用于将日志输出到GUI
         """
         self.page = page
         self.question_bank = None  # 题库数据
@@ -41,6 +42,44 @@ class AutoAnswer:
         # 优雅退出控制相关
         self._is_answering_question = False  # 是否正在答题
         self._is_processing_knowledge = False  # 是否正在处理知识点
+
+        # 日志回调
+        self._log_callback = log_callback
+
+        # 设置日志处理器
+        self._setup_log_handler()
+
+    def _setup_log_handler(self):
+        """设置日志处理器，将日志转发到回调函数"""
+        if self._log_callback:
+            # 创建自定义日志处理器
+            class CallbackHandler(logging.Handler):
+                def __init__(self, callback):
+                    super().__init__()
+                    self.callback = callback
+
+                def emit(self, record):
+                    try:
+                        msg = self.format(record)
+                        # 移除时间戳和日志级别，只保留消息内容
+                        parts = msg.split(" - ")
+                        if len(parts) >= 4:
+                            message = " - ".join(parts[3:])
+                        else:
+                            message = msg
+                        self.callback(message.rstrip())
+                    except Exception:
+                        pass
+
+            # 添加处理器到 logger
+            self._log_handler = CallbackHandler(self._log_callback)
+            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(self._log_handler)
+
+    def _cleanup_log_handler(self):
+        """清理日志处理器"""
+        if hasattr(self, '_log_handler') and self._log_handler:
+            logger.removeHandler(self._log_handler)
 
     def load_question_bank(self, question_bank_data: Dict):
         """
@@ -111,6 +150,8 @@ class AutoAnswer:
         if self.input_thread and self.input_thread.is_alive():
             self.input_thread.join(timeout=1)
         logger.info("✅ 停止监听已停止")
+        # 清理日志处理器
+        self._cleanup_log_handler()
 
     def _check_stop(self) -> bool:
         """

@@ -6,7 +6,9 @@ This module contains the UI components for the answering page.
 
 import flet as ft
 import json
+import sys
 from pathlib import Path
+from io import StringIO
 from src.student_login import (
     get_student_access_token,
     get_student_courses,
@@ -39,6 +41,13 @@ class AnsweringView:
         self.current_progress = None  # 当前课程进度信息
         self.current_uncompleted = None  # 当前课程未完成知识点列表
         self.question_bank_data = None  # 存储加载的题库数据
+
+        # 答题相关状态
+        self.is_answering = False  # 是否正在答题
+        self.answer_dialog = None  # 答题日志对话框
+        self.log_text = None  # 日志文本控件
+        self.auto_answer_instance = None  # 自动答题实例
+        self.should_stop_answering = False  # 停止答题标志
 
     def get_content(self) -> ft.Column:
         """
@@ -902,13 +911,54 @@ class AnsweringView:
             file_path: JSON文件路径
         """
         from pathlib import Path
+        from src.question_bank_importer import QuestionBankImporter
 
         file_name = Path(file_path).name
 
         try:
-            # 读取并解析JSON文件
-            with open(file_path, 'r', encoding='utf-8') as f:
-                data = json.load(f)
+            # 使用 QuestionBankImporter 导入并解析题库
+            importer = QuestionBankImporter()
+            success = importer.import_from_file(file_path)
+
+            if not success:
+                raise ValueError("无法导入题库文件")
+
+            # 获取题库类型
+            bank_type = importer.get_bank_type()
+
+            # 格式化输出题库信息（打印到控制台）
+            print("\n" + importer.format_output())
+
+            # 计算统计数据
+            if bank_type == "single":
+                parsed = importer.parse_single_course()
+                stats = parsed["statistics"] if parsed else {}
+                preview = f"""
+📊 题库统计：
+  班级：{parsed['class']['name'] if parsed else '未知'}
+  课程：{parsed['course']['courseName'] if parsed else '未知'}
+  章节数：{stats.get('totalChapters', 0)}
+  知识点数：{stats.get('totalKnowledges', 0)}
+  题目数：{stats.get('totalQuestions', 0)}
+  选项数：{stats.get('totalOptions', 0)}
+"""
+            elif bank_type == "multiple":
+                parsed = importer.parse_multiple_courses()
+                stats = parsed["statistics"] if parsed else {}
+                preview = f"""
+📊 题库统计：
+  班级：{parsed['class']['name'] if parsed else '未知'}
+  课程数：{stats.get('totalCourses', 0)}
+  章节数：{stats.get('totalChapters', 0)}
+  知识点数：{stats.get('totalKnowledges', 0)}
+  题目数：{stats.get('totalQuestions', 0)}
+  选项数：{stats.get('totalOptions', 0)}
+"""
+            else:
+                preview = "⚠️ 未知的题库类型"
+
+            # 保存原始数据供答题使用
+            self.question_bank_data = importer.data
 
             # 显示成功对话框
             dialog = ft.AlertDialog(
@@ -925,12 +975,19 @@ class AnsweringView:
                         ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                         ft.Text(f"📄 文件名: {file_name}"),
                         ft.Text(f"📁 路径: {file_path}"),
+                        ft.Text(f"🏷️ 类型: {bank_type if bank_type else '未知'}"),
                         ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                         ft.Text(
-                            f"📊 数据预览:\n{json.dumps(data, ensure_ascii=False, indent=2)[:500]}...",
+                            preview,
                             size=12,
                             color=ft.Colors.GREY_700,
-                            max_lines=10,
+                        ),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(
+                            "💡 详细题库信息已输出到控制台",
+                            size=11,
+                            color=ft.Colors.BLUE_700,
+                            style=ft.TextStyle(italic=True),
                         ),
                     ],
                     spacing=5,
@@ -943,8 +1000,6 @@ class AnsweringView:
             )
             self.page.show_dialog(dialog)
 
-            # 保存题库数据供后续使用
-            self.question_bank_data = data
             print(f"✅ 成功加载JSON题库: {file_name}")
 
         except json.JSONDecodeError as je:
@@ -1139,28 +1194,360 @@ class AnsweringView:
     def _on_start_compatibility_mode(self, e, course_id: str):
         """处理开始兼容模式按钮点击事件"""
         print(f"DEBUG: 开始兼容模式答题 - 课程ID: {course_id}")
-        # TODO: 实现兼容模式答题功能
-        dialog = ft.AlertDialog(
-            title=ft.Text("功能开发中"),
-            content=ft.Text("兼容模式答题功能正在开发中，敬请期待！"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        self._start_answering("compatibility", course_id)
 
     def _on_start_brute_mode(self, e, course_id: str):
         """处理开始暴力模式按钮点击事件"""
         print(f"DEBUG: 开始暴力模式答题 - 课程ID: {course_id}")
-        # TODO: 实现暴力模式答题功能
-        dialog = ft.AlertDialog(
-            title=ft.Text("功能开发中"),
-            content=ft.Text("暴力模式答题功能正在开发中，敬请期待！"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
+        self._start_answering("brute", course_id)
+
+    def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
+        """
+        创建答题日志对话框
+
+        Args:
+            title: 对话框标题
+
+        Returns:
+            ft.AlertDialog: 日志对话框
+        """
+        # 创建日志文本控件
+        self.log_text = ft.Text(
+            "",
+            size=12,
+            color=ft.Colors.BLACK,
+            selectable=True,
+            no_wrap=False,  # 允许换行
+            max_lines=None,  # 不限制行数
         )
-        self.page.show_dialog(dialog)
+
+        # 创建对话框
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.PLAY_ARROW, color=ft.Colors.BLUE),
+                    ft.Text(title, color=ft.Colors.BLUE, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Container(
+                            content=ft.Column(
+                                [self.log_text],
+                                scroll=ft.ScrollMode.ALWAYS,  # 改为 ALWAYS
+                                auto_scroll=False,  # 关闭 auto_scroll
+                            ),
+                            width=600,
+                            height=400,
+                            bgcolor=ft.Colors.GREY_100,
+                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border_radius=8,
+                            padding=10,
+                        ),
+                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                        ft.Text(
+                            "⏳ 正在答题中...点击下方按钮可随时停止",
+                            size=12,
+                            color=ft.Colors.ORANGE_700,
+                            weight=ft.FontWeight.BOLD,
+                        ),
+                    ],
+                    spacing=0,
+                ),
+                width=650,
+                padding=20,
+            ),
+            actions=[
+                ft.ElevatedButton(
+                    "🛑 停止答题",
+                    icon=ft.Icons.STOP,
+                    bgcolor=ft.Colors.RED,
+                    color=ft.Colors.WHITE,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                    ),
+                    on_click=self._on_stop_answering,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+        return dialog
+
+    def _append_log(self, message: str):
+        """
+        追加日志到日志文本控件
+
+        Args:
+            message: 日志消息
+        """
+        if self.log_text:
+            current_text = self.log_text.value if self.log_text.value else ""
+            new_text = current_text + message + "\n"
+            # 限制日志长度，只保留最后 2000 个字符
+            if len(new_text) > 2000:
+                new_text = "...(日志已截断)\n" + new_text[-2000:]
+            self.log_text.value = new_text
+            # 在后台线程中更新UI需要使用 update 方法
+            # Flet 会自动处理线程安全的UI更新
+            try:
+                self.log_text.update()
+            except Exception as e:
+                # 如果更新失败（比如线程问题），忽略错误
+                print(f"⚠️ UI更新失败: {e}")
+
+    def _on_stop_answering(self, e):
+        """处理停止答题按钮点击事件"""
+        print("🛑 用户请求停止答题")
+        self._append_log("🛑 正在停止答题...\n")
+        self.should_stop_answering = True
+
+        # 如果有自动答题实例，调用其停止方法
+        if self.auto_answer_instance and hasattr(self.auto_answer_instance, 'request_stop'):
+            self.auto_answer_instance.request_stop()
+
+        # 关闭对话框（使用 pop_dialog 而不是 close）
+        if self.answer_dialog:
+            self.page.pop_dialog()
+            self.answer_dialog = None
+
+        self.is_answering = False
+        self._append_log("✅ 答题已停止\n")
+
+    def _start_answering(self, mode: str, course_id: str):
+        """
+        开始答题（兼容模式和暴力模式）
+
+        Args:
+            mode: 答题模式 ("compatibility" 或 "brute")
+            course_id: 课程ID
+        """
+        if self.is_answering:
+            dialog = ft.AlertDialog(
+                title=ft.Text("提示"),
+                content=ft.Text("正在答题中，请先停止当前答题任务"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
+            return
+
+        # 检查是否已加载题库
+        if not self.question_bank_data:
+            dialog = ft.AlertDialog(
+                title=ft.Text("提示"),
+                content=ft.Text("请先加载 JSON 题库文件"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
+            return
+
+        # 设置答题状态
+        self.is_answering = True
+        self.should_stop_answering = False
+
+        # 创建并显示日志对话框
+        mode_name = "兼容模式" if mode == "compatibility" else "暴力模式"
+        self.answer_dialog = self._create_answer_log_dialog(f"自动答题 - {mode_name}")
+        self.page.show_dialog(self.answer_dialog)
+
+        # 在后台线程中运行答题任务
+        self.page.run_thread(lambda: self._run_answering_task(mode, course_id))
+
+    def _run_answering_task(self, mode: str, course_id: str):
+        """
+        在后台线程中运行答题任务
+
+        Args:
+            mode: 答题模式
+            course_id: 课程ID
+        """
+        try:
+            mode_name = "兼容模式" if mode == "compatibility" else "暴力模式"
+            self._append_log(f"🚀 开始{mode_name}答题\n")
+            self._append_log(f"📚 课程ID: {course_id}\n")
+            self._append_log("-" * 50 + "\n")
+
+            if mode == "compatibility":
+                # ========== 兼容模式：使用浏览器自动化 ==========
+                self._append_log("📌 模式：浏览器自动化（兼容模式）\n")
+                self._append_log("⏳ 正在获取浏览器实例...\n")
+
+                from src.student_login import get_browser_page
+                from src.auto_answer import AutoAnswer
+
+                # 获取浏览器实例
+                browser_page = get_browser_page()
+                if not browser_page:
+                    self._append_log("❌ 无法获取浏览器实例\n")
+                    self._append_log("💡 请确保已经登录学生端\n")
+                    return
+
+                self._append_log("✅ 浏览器实例获取成功\n")
+
+                # 创建自动做题器（传入日志回调）
+                page = browser_page[1]  # 使用page对象
+                auto_answer = AutoAnswer(page, log_callback=self._append_log)
+                self.auto_answer_instance = auto_answer
+
+                # 加载题库
+                self._append_log("📖 正在加载题库...\n")
+                auto_answer.load_question_bank(self.question_bank_data)
+                self._append_log("✅ 题库加载成功\n")
+                self._append_log("-" * 50 + "\n")
+
+                # 答题循环
+                knowledge_count = 0
+                total_success = 0
+                total_failed = 0
+
+                while True:
+                    # 检查停止信号
+                    if self.should_stop_answering:
+                        self._append_log("⚠️ 检测到停止信号，答题已终止\n")
+                        break
+
+                    self._append_log(f"\n📍 知识点 #{knowledge_count + 1}\n")
+                    self._append_log("-" * 50 + "\n")
+
+                    # 第一个知识点：检索并开始做题
+                    # 之后的知识点：网站自动跳转后继续做题
+                    if knowledge_count == 0:
+                        self._append_log("🔍 检索第一个可作答的知识点...\n")
+                        result = auto_answer.run_auto_answer(max_questions=5)
+                    else:
+                        self._append_log("⏳ 网站已自动跳转，继续做题...\n")
+                        import time
+                        time.sleep(2)  # 等待跳转完成
+                        result = auto_answer.continue_auto_answer(max_questions=5)
+
+                    # 统计
+                    knowledge_count += 1
+                    total_success += result['success']
+                    total_failed += result['failed']
+
+                    # 显示本次统计
+                    self._append_log(f"\n📊 知识点完成统计:\n")
+                    self._append_log(f"  总题数: {result['total']}\n")
+                    self._append_log(f"  ✅ 成功: {result['success']}\n")
+                    self._append_log(f"  ❌ 失败: {result['failed']}\n")
+                    self._append_log(f"  ⏭️  跳过: {result['skipped']}\n")
+
+                    # 检查用户是否请求停止
+                    if result.get('stopped', False) or self.should_stop_answering:
+                        self._append_log("\n⚠️ 用户请求停止做题\n")
+                        break
+
+                    # 检查是否还有更多知识点
+                    # 通过检查当前页面是否有"开始测评"按钮来判断
+                    import time
+                    time.sleep(1)
+
+                    try:
+                        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
+                        try:
+                            auto_answer.page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                            # 找到了，可以继续
+                            self._append_log(f"\n✅ 检测到下一个知识点，继续...\n")
+                            continue
+                        except PlaywrightTimeoutError:
+                            # 没找到，说明所有知识点都完成了
+                            self._append_log("\n✅ 所有知识点已完成！\n")
+                            break
+                    except Exception as e:
+                        self._append_log(f"\n❌ 检查失败: {str(e)}\n")
+                        self._append_log("💡 可能所有知识点都已完成\n")
+                        break
+
+                # 最终统计
+                self._append_log("\n" + "=" * 50 + "\n")
+                self._append_log("📊 最终统计\n")
+                self._append_log("=" * 50 + "\n")
+                self._append_log(f"📍 完成知识点: {knowledge_count} 个\n")
+                self._append_log(f"✅ 成功作答: {total_success} 题\n")
+                self._append_log(f"❌ 失败: {total_failed} 题\n")
+                self._append_log("=" * 50 + "\n")
+
+            elif mode == "brute":
+                # ========== 暴力模式：使用API直接请求 ==========
+                self._append_log("📌 模式：API直接请求（暴力模式）\n")
+                self._append_log("⏳ 正在获取access_token...\n")
+
+                from src.student_login import get_cached_access_token
+                from src.api_auto_answer import APIAutoAnswer
+
+                # 获取access_token（使用缓存管理）
+                access_token = get_cached_access_token()
+
+                if not access_token:
+                    self._append_log("⚠️ 自动获取access_token失败\n")
+                    self._append_log("💡 请先登录学生端获取token\n")
+                    return
+
+                self._append_log("✅ access_token获取成功\n")
+                self._append_log(f"🔑 Token: {access_token[:20]}...\n")
+
+                # 创建API自动做题器（传入日志回调）
+                api_answer = APIAutoAnswer(access_token, log_callback=self._append_log)
+                self.auto_answer_instance = api_answer
+
+                # 加载题库
+                self._append_log("📖 正在加载题库...\n")
+                api_answer.load_question_bank(self.question_bank_data)
+                self._append_log("✅ 题库加载成功\n")
+                self._append_log("-" * 50 + "\n")
+
+                # 执行自动做题
+                self._append_log("🚀 开始自动完成所有知识点\n")
+                self._append_log("💡 提示：按 Ctrl+C 可随时中断\n")
+                self._append_log("-" * 50 + "\n")
+
+                result = api_answer.auto_answer_all_knowledges(
+                    course_id,
+                    max_knowledges=None  # None表示完成所有知识点
+                )
+
+                # 显示结果
+                self._append_log("\n" + "=" * 50 + "\n")
+                self._append_log("📊 最终统计\n")
+                self._append_log("=" * 50 + "\n")
+                self._append_log(f"📍 知识点: {result['completed_knowledges']}/{result['total_knowledges']}\n")
+                self._append_log(f"📝 题目总计: {result['total_questions']} 题\n")
+                self._append_log(f"✅ 成功: {result['success']} 题\n")
+                self._append_log(f"❌ 失败: {result['failed']} 题\n")
+                self._append_log(f"⏭️  跳过: {result['skipped']} 题\n")
+                self._append_log("=" * 50 + "\n")
+
+                if result['completed_knowledges'] >= result['total_knowledges']:
+                    self._append_log("\n🎉 恭喜！所有知识点已完成！\n")
+
+            # 完成
+            self._append_log("\n🎉 答题任务完成！\n")
+
+            # 延迟后自动关闭对话框
+            import time
+            time.sleep(2)
+            if self.answer_dialog:
+                self.page.pop_dialog()
+                self.answer_dialog = None
+
+        except KeyboardInterrupt:
+            self._append_log("\n⚠️ 用户中断答题\n")
+        except Exception as e:
+            self._append_log(f"\n❌ 答题过程出错: {str(e)}\n")
+            import traceback
+            self._append_log(f"📋 详细错误:\n{traceback.format_exc()}\n")
+        finally:
+            self.is_answering = False
+            self.should_stop_answering = False
+            self.auto_answer_instance = None
 
     def _on_back_from_course_detail(self, e):
         """处理从课程详情返回的按钮点击事件"""
