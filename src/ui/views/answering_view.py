@@ -22,14 +22,16 @@ from src.student_login import (
 class AnsweringView:
     """评估答题页面视图"""
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, main_app=None):
         """
         初始化评估答题视图
 
         Args:
             page (ft.Page): Flet页面对象
+            main_app: MainApp实例（用于导航切换）
         """
         self.page = page
+        self.main_app = main_app  # 保存MainApp引用
         self.current_content = None  # 保存当前内容容器的引用
         self.username_field = None  # 用户名输入框
         self.password_field = None  # 密码输入框
@@ -640,7 +642,7 @@ class AnsweringView:
                         ),
                         ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                         ft.ElevatedButton(
-                            "提取该课程的答案",
+                            "获取答案",
                             icon=ft.Icons.DOWNLOAD,
                             bgcolor=ft.Colors.BLUE,
                             color=ft.Colors.WHITE,
@@ -841,18 +843,39 @@ class AnsweringView:
         self.current_content.content = detail_content
         self.page.update()
 
-    def _on_extract_answers(self, e, course_id: str):
+    def _on_extract_answers(self, _e, course_id: str):
         """处理提取答案按钮点击事件"""
         print(f"DEBUG: 提取课程答案 - 课程ID: {course_id}")
-        # TODO: 实现提取答案功能
-        dialog = ft.AlertDialog(
-            title=ft.Text("功能开发中"),
-            content=ft.Text("提取答案功能正在开发中，敬请期待！"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+
+        if self.main_app:
+            # 切换到答案提取页面（导航索引 = 1）
+            # 直接设置导航栏的选中索引
+            self.main_app.navigation_rail.selected_index = 1
+
+            # 创建一个模拟的事件对象，用于调用 _on_destination_changed
+            class ControlEvent:
+                def __init__(self, control):
+                    self.control = control
+
+            mock_event = ControlEvent(self.main_app.navigation_rail)
+            self.main_app._on_destination_changed(mock_event)
+
+            # 更新UI
+            self.main_app.navigation_rail.update()
+
+            # TODO: 可以在这里传递课程ID到答案提取页面
+            # 让提取页面自动开始提取该课程的答案
+            # self.main_app.extraction_view.start_extract_course(course_id)
+        else:
+            # 如果没有MainApp引用，显示提示
+            dialog = ft.AlertDialog(
+                title=ft.Text("错误"),
+                content=ft.Text("无法切换到答案提取页面：MainApp引用未找到"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
 
     def _on_use_json_bank(self, e):
         """处理使用JSON题库按钮点击事件"""

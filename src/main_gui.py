@@ -30,8 +30,8 @@ class MainApp:
         self.rail_expanded = True
         self.rail_width = 200
 
-        # 初始化视图模块
-        self.answering_view = AnsweringView(page)
+        # 初始化视图模块（传递MainApp引用以便视图可以切换导航）
+        self.answering_view = AnsweringView(page, main_app=self)
         self.extraction_view = ExtractionView(page)
         self.settings_view = SettingsView(page)
 
