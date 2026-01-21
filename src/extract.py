@@ -1291,6 +1291,122 @@ class Extractor:
             "options": question_options
         }
     
+    def extract_course_with_progress(self, class_id: str, course_id: str, course_name: str,
+                                     class_info: Dict, course_info: Dict,
+                                     progress_callback=None) -> Optional[Dict]:
+        """
+        提取指定课程的答案（带进度回调）
+
+        Args:
+            class_id: 班级ID
+            course_id: 课程ID
+            course_name: 课程名称
+            class_info: 班级信息字典
+            course_info: 课程信息字典
+            progress_callback: 进度回调函数，签名为 callback(message, current, total)
+
+        Returns:
+            Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
+        """
+        def log(msg, current=None, total=None):
+            """内部日志辅助函数"""
+            print(msg)
+            if progress_callback:
+                progress_callback(msg, current, total)
+
+        try:
+            # 获取章节列表
+            log(f"📋 正在获取章节列表...")
+            chapter_list = self.get_chapter_list(class_id)
+            if not chapter_list:
+                log("❌ 获取章节列表失败")
+                return None
+
+            # 获取知识点列表
+            log(f"📚 正在获取知识点列表...")
+            knowledge_list = self.get_knowledge_list(class_id)
+            if not knowledge_list:
+                log("❌ 获取知识点列表失败")
+                return None
+
+            # 按课程分组章节
+            course_chapters = {}
+            for chapter in chapter_list:
+                chapter_course_id = chapter.get("courseID", "")
+                if chapter_course_id not in course_chapters:
+                    course_chapters[chapter_course_id] = []
+                course_chapters[chapter_course_id].append(chapter)
+
+            # 按章节分组知识点
+            chapter_knowledges = {}
+            for knowledge in knowledge_list:
+                chapter_id = knowledge.get("ChapterID", "")
+                if chapter_id not in chapter_knowledges:
+                    chapter_knowledges[chapter_id] = []
+                chapter_knowledges[chapter_id].append(knowledge)
+
+            # 筛选出选中课程的章节
+            selected_course_chapters = course_chapters.get(course_id, [])
+            selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
+
+            # 只处理选中课程的知识点
+            selected_course_knowledges = []
+            for knowledge in knowledge_list:
+                chapter_id = knowledge.get("ChapterID", "")
+                if chapter_id in selected_chapter_ids:
+                    selected_course_knowledges.append(knowledge)
+
+            # 获取题目和选项
+            knowledge_questions = {}
+            question_options = {}
+
+            total_knowledges = len(selected_course_knowledges)
+            log(f"📝 开始提取题目数据，共 {total_knowledges} 个知识点", 0, total_knowledges)
+
+            for idx, knowledge in enumerate(selected_course_knowledges, 1):
+                knowledge_id = knowledge.get("KnowledgeID", "")
+                knowledge_name = knowledge.get("Knowledge", "")
+
+                log(f"正在获取知识点 [{idx}/{total_knowledges}]: {knowledge_name}", idx, total_knowledges)
+
+                question_list = self.get_question_list(class_id, knowledge_id)
+                if question_list:
+                    knowledge_questions[knowledge_id] = question_list
+
+                    # 获取每个题目的选项
+                    for question in question_list:
+                        question_id = question.get("QuestionID", "")
+                        question_title = question.get("QuestionTitle", "")
+                        options_list = self.get_question_options(class_id, question_id)
+                        if options_list:
+                            question_options[question_id] = options_list
+
+                        # 速率控制
+                        time.sleep(1)
+                else:
+                    log(f"⚠️ 知识点 {knowledge_name} 获取题目列表失败", idx, total_knowledges)
+
+                # 速率控制
+                time.sleep(1)
+
+            log(f"✅ 题目提取完成！", total_knowledges, total_knowledges)
+
+            # 返回完整的数据结构
+            return {
+                "class_info": class_info,
+                "course_info": course_info,
+                "chapters": selected_course_chapters,
+                "knowledges": selected_course_knowledges,
+                "questions": knowledge_questions,
+                "options": question_options
+            }
+
+        except Exception as e:
+            log(f"❌ 提取过程发生错误：{str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def close(self):
         """关闭浏览器"""
         if self.browser:
