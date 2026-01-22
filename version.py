@@ -8,7 +8,7 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-VERSION = "1.1.0"
+VERSION = "1.2.1"
 VERSION_NAME = "ZX Answering Assistant"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）

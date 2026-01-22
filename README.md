@@ -40,12 +40,14 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 - 🖥️ **双界面支持**：现代化 GUI 界面（Flet）+ 传统 CLI 命令行
 - 🤖 **双模式支持**：浏览器兼容模式 + API 暴力模式
 - 🎓 **双端支持**：学生端答题 + 教师端答案提取
+- ⚡ **智能速率控制**：可配置的 API 请求速率限制（50ms-3秒）
 - 🔄 **自动重试**：网络错误自动重试机制（最多3次）
 - ⏸️ **优雅退出**：按 Q 键随时停止，等待当前题目/知识点完成
 - 📊 **进度监控**：实时显示答题进度和统计信息
 - 🗄️ **题库管理**：支持题库导入/导出，支持 JSON 和 Excel 格式
 - 📁 **自动保存**：提取的答案自动保存为 JSON 文件
 - 🎨 **可视化界面**：图形化操作流程，实时进度显示
+- ⚙️ **统一配置**：CLI 模式支持配置文件管理账号和设置
 
 ---
 
@@ -185,6 +187,10 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 **数据管理**
 - [src/export.py](src/export.py) - 数据导出（JSON）
 - [src/question_bank_importer.py](src/question_bank_importer.py) - 题库导入
+
+**系统配置**
+- [src/api_client.py](src/api_client.py) - 统一 API 请求客户端（支持速率限制和重试）
+- [src/settings.py](src/settings.py) - CLI 设置管理（账号、速率级别等）
 
 ---
 
@@ -369,6 +375,51 @@ python main.py
 | `Q` | 停止当前答题操作 |
 | `Ctrl + C` | 强制退出程序 |
 
+### CLI 设置功能
+
+CLI 模式支持通过配置文件管理账号密码和 API 设置，首次运行时会自动生成 `cli_config.json` 文件。
+
+#### 可配置项
+
+**账号管理**
+- 学生端账号和密码
+- 教师端账号和密码
+
+**API 设置**
+- **请求速率级别**：控制 API 请求之间的延迟
+  - `low` - 50ms（快速，适合无限制的 API）
+  - `medium` - 1秒（默认，平衡速度和稳定性）
+  - `medium_high` - 2秒（较保守）
+  - `high` - 3秒（最保守，适合严格限制的 API）
+- **最大重试次数**：网络错误时的重试次数（默认 3 次）
+
+#### 配置文件示例
+
+```json
+{
+  "credentials": {
+    "student": {
+      "username": "your_student_username",
+      "password": "your_password"
+    },
+    "teacher": {
+      "username": "your_teacher_username",
+      "password": "your_password"
+    }
+  },
+  "api_settings": {
+    "max_retries": 3,
+    "rate_level": "medium"
+  }
+}
+```
+
+#### 速率级别选择建议
+
+- **API 无速率限制**：选择 `low`（50ms）- 最大化速度
+- **API 有轻微限制**：选择 `medium`（1秒）- 默认推荐
+- **API 限制较严**：选择 `medium_high`（2秒）或 `high`（3秒）
+
 ---
 
 ## 📁 项目结构
@@ -393,6 +444,8 @@ ZX-Answering-Assistant-python/
 │   ├── extract.py                 # 答案提取
 │   ├── export.py                  # 数据导出
 │   ├── question_bank_importer.py  # 题库导入
+│   ├── api_client.py              # API 客户端（速率限制）
+│   ├── settings.py                # 设置管理
 │   └── file_handler.py            # 文件处理
 ├── logs/                          # 日志文件
 ├── tests/                         # 测试代码
@@ -404,6 +457,7 @@ ZX-Answering-Assistant-python/
 ├── version.py                     # 版本信息管理
 ├── VERSION.md                     # 版本管理文档
 ├── requirements.txt               # Python 依赖
+├── cli_config.json                # CLI 配置文件（自动生成）
 ├── .gitignore                     # Git 忽略文件
 ├── CLAUDE.md                      # Claude Code 指导文档
 └── README.md                      # 项目说明文档
@@ -450,11 +504,20 @@ ZX-Answering-Assistant-python/
 
 ### 版本信息
 
-当前版本：**v1.2.0**
+当前版本：**v1.2.1**
 
 ### 主要版本更新
 
-**v1.2.0** (最新)
+**v1.2.1** (最新)
+- 🐛 修复 API 客户端速率限制逻辑（之前只在重试时生效）
+- ✨ 实现可配置的 API 请求速率控制（50ms-3秒）
+- ✨ 新增 CLI 配置文件管理（cli_config.json）
+- ✨ 统一 API 请求处理，支持速率级别配置
+- 📝 添加账号密码持久化存储功能
+- ⚡ 移除硬编码延迟，改用智能速率控制
+- 🎨 改进系统架构，新增 api_client 和 settings 模块
+
+**v1.2.0**
 - ✨ 新增现代化 GUI 界面（Flet 框架）
 - ✨ 优化用户体验：图形化操作流程
 - ✨ 实时进度显示和日志输出
