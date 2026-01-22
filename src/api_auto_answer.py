@@ -238,12 +238,18 @@ class APIAutoAnswer:
             Optional[List[Dict]]: 课程列表，如果失败则返回None
         """
         try:
+            from src.api_client import get_api_client
+
             logger.info("📋 获取课程列表...")
 
             url = f"{self.BASE_URL}/StudentEvaluate/GetCourseList"
             headers = self._get_headers()
 
-            response = requests.get(url, headers=headers, timeout=30)
+            api_client = get_api_client()
+            response = api_client.get(url, headers=headers)
+
+            if response is None:
+                return None
 
             if response.status_code == 200:
                 data = response.json()
@@ -268,12 +274,18 @@ class APIAutoAnswer:
             Optional[Dict]: 课程信息，包含知识点的完成状态，如果失败则返回None
         """
         try:
+            from src.api_client import get_api_client
+
             logger.info(f"📋 获取课程 {course_id} 的详细信息...")
 
             url = f"{self.BASE_URL}/studentevaluate/GetCourseInfoByCourseId?CourseID={course_id}"
             headers = self._get_headers()
 
-            response = requests.get(url, headers=headers, timeout=30)
+            api_client = get_api_client()
+            response = api_client.get(url, headers=headers)
+
+            if response is None:
+                return None
 
             if response.status_code == 200:
                 data = response.json()
@@ -307,13 +319,19 @@ class APIAutoAnswer:
             Optional[Dict]: 包含章节和知识点信息的字典，如果失败则返回None
         """
         try:
+            from src.api_client import get_api_client
+
             logger.info(f"📖 获取课程 {course_id} 的章节和知识点信息...")
 
             # 获取未完成的章节列表
             url = f"{self.BASE_URL}/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
             headers = self._get_headers()
 
-            response = requests.get(url, headers=headers, timeout=30)
+            api_client = get_api_client()
+            response = api_client.get(url, headers=headers)
+
+            if response is None:
+                return None
 
             if response.status_code == 200:
                 data = response.json()
@@ -343,41 +361,52 @@ class APIAutoAnswer:
             Optional[Dict]: 包含题目列表的响应数据，如果失败则返回None
                      如果返回特殊字符串"skip"，表示需要跳过该知识点
         """
-        # 构造参数字符串（用于签名，不编码）
-        params_raw = f"kpid={kpid}"
+        try:
+            from src.api_client import get_api_client
 
-        # 生成签名（基于未编码的参数字符串）
-        sign = self.generate_sign(params_raw)
+            # 构造参数字符串（用于签名，不编码）
+            params_raw = f"kpid={kpid}"
 
-        # 构造URL参数（需要URL编码）
-        params_encoded = urlencode({"kpid": kpid, "sign": sign})
-        url = f"{self.BASE_URL}/studentevaluate/beginevaluate?{params_encoded}"
+            # 生成签名（基于未编码的参数字符串）
+            sign = self.generate_sign(params_raw)
 
-        headers = self._get_headers()
+            # 构造URL参数（需要URL编码）
+            params_encoded = urlencode({"kpid": kpid, "sign": sign})
+            url = f"{self.BASE_URL}/studentevaluate/beginevaluate?{params_encoded}"
 
-        logger.info(f"   签名原文: {params_raw}")
-        logger.info(f"   签名结果: {sign[:16]}...")
-        logger.info(f"   请求URL: {url}")
+            headers = self._get_headers()
 
-        response = requests.get(url, headers=headers, timeout=30)
+            logger.info(f"   签名原文: {params_raw}")
+            logger.info(f"   签名结果: {sign[:16]}...")
+            logger.info(f"   请求URL: {url}")
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("code") == 0 and "data" in data:
-                question_list = data["data"].get("questionList", [])
-                logger.info(f"✅ 成功开始测评，共 {len(question_list)} 道题")
-                return data["data"]
-            else:
-                error_msg = data.get("msg", "")
-                # 检查是否是次数用尽的错误
-                if "评估过3次" in error_msg or "已经评估" in error_msg:
-                    logger.warning(f"⚠️ 该知识点已完成或次数已用尽: {error_msg}")
-                    return "skip"  # 返回特殊标记表示需要跳过
-                logger.error(f"❌ API返回错误: {data}")
+            api_client = get_api_client()
+            response = api_client.get(url, headers=headers)
+
+            if response is None:
                 return None
-        else:
-            logger.error(f"❌ 开始测评失败: {response.status_code}")
-            logger.error(f"   响应内容: {response.text[:500]}")
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == 0 and "data" in data:
+                    question_list = data["data"].get("questionList", [])
+                    logger.info(f"✅ 成功开始测评，共 {len(question_list)} 道题")
+                    return data["data"]
+                else:
+                    error_msg = data.get("msg", "")
+                    # 检查是否是次数用尽的错误
+                    if "评估过3次" in error_msg or "已经评估" in error_msg:
+                        logger.warning(f"⚠️ 该知识点已完成或次数已用尽: {error_msg}")
+                        return "skip"  # 返回特殊标记表示需要跳过
+                    logger.error(f"❌ API返回错误: {data}")
+                    return None
+            else:
+                logger.error(f"❌ 开始测评失败: {response.status_code}")
+                logger.error(f"   响应内容: {response.text[:500]}")
+                return None
+
+        except Exception as e:
+            logger.error(f"❌ 开始测评异常: {str(e)}")
             return None
 
     def begin_evaluate(self, kpid: str) -> Optional[Dict]:
@@ -410,50 +439,61 @@ class APIAutoAnswer:
         Returns:
             bool: 是否成功保存
         """
-        # 构造请求体中的questions数组（使用大写字段名）
-        questions_data = [{"QuestionID": question_id, "AnswerID": answer_id}]
+        try:
+            from src.api_client import get_api_client
 
-        # 签名时使用小写字段名（注意：签名原文和请求体的字段名大小写不同！）
-        # 签名原文格式：kpid=xxx&questions=[{"questionid":"...","answerid":"..."}]
-        questions_for_sign = [{"questionid": question_id, "answerid": answer_id}]
-        questions_json = json.dumps(questions_for_sign, separators=(',', ':'), ensure_ascii=False)
+            # 构造请求体中的questions数组（使用大写字段名）
+            questions_data = [{"QuestionID": question_id, "AnswerID": answer_id}]
 
-        params_raw = f"kpid={kpid}&questions={questions_json}"
+            # 签名时使用小写字段名（注意：签名原文和请求体的字段名大小写不同！）
+            # 签名原文格式：kpid=xxx&questions=[{"questionid":"...","answerid":"..."}]
+            questions_for_sign = [{"questionid": question_id, "answerid": answer_id}]
+            questions_json = json.dumps(questions_for_sign, separators=(',', ':'), ensure_ascii=False)
 
-        # 生成签名（基于未编码的参数字符串）
-        sign = self.generate_sign(params_raw)
+            params_raw = f"kpid={kpid}&questions={questions_json}"
 
-        # 构造请求URL
-        url = f"{self.BASE_URL}/StudentEvaluate/SaveEvaluateAnswer"
+            # 生成签名（基于未编码的参数字符串）
+            sign = self.generate_sign(params_raw)
 
-        # 构造请求体
-        body = {
-            "kpid": kpid,
-            "questions": questions_data,
-            "sign": sign
-        }
-        headers = self._get_headers()
+            # 构造请求URL
+            url = f"{self.BASE_URL}/StudentEvaluate/SaveEvaluateAnswer"
 
-        logger.info(f"   === SaveEvaluateAnswer 请求详情 ===")
-        logger.info(f"   签名原文: {params_raw}")
-        logger.info(f"   签名结果: {sign}")
-        logger.info(f"   请求URL: {url}")
-        logger.info(f"   请求体: {json.dumps(body, ensure_ascii=False, separators=(',', ':'))}")
-        logger.info(f"   ===============================")
+            # 构造请求体
+            body = {
+                "kpid": kpid,
+                "questions": questions_data,
+                "sign": sign
+            }
+            headers = self._get_headers()
 
-        response = requests.post(url, json=body, headers=headers, timeout=30)
+            logger.info(f"   === SaveEvaluateAnswer 请求详情 ===")
+            logger.info(f"   签名原文: {params_raw}")
+            logger.info(f"   签名结果: {sign}")
+            logger.info(f"   请求URL: {url}")
+            logger.info(f"   请求体: {json.dumps(body, ensure_ascii=False, separators=(',', ':'))}")
+            logger.info(f"   ===============================")
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("code") == 0 or data.get("success"):
-                logger.info(f"   ✅ 已保存答案")
-                return True
-            else:
-                logger.error(f"❌ API返回错误: {data}")
+            api_client = get_api_client()
+            response = api_client.post(url, json=body, headers=headers)
+
+            if response is None:
                 return False
-        else:
-            logger.error(f"❌ 保存答案失败: {response.status_code}")
-            logger.error(f"   响应内容: {response.text[:500]}")
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == 0 or data.get("success"):
+                    logger.info(f"   ✅ 已保存答案")
+                    return True
+                else:
+                    logger.error(f"❌ API返回错误: {data}")
+                    return False
+            else:
+                logger.error(f"❌ 保存答案失败: {response.status_code}")
+                logger.error(f"   响应内容: {response.text[:500]}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ 保存答案异常: {str(e)}")
             return False
 
     def save_evaluate_answer(self, kpid: str, question_id: str, answer_id: str) -> bool:
@@ -484,45 +524,56 @@ class APIAutoAnswer:
         Returns:
             bool: 是否成功保存
         """
-        # 构造questions JSON字符串（空数组，表示已完成）
-        questions_json = "[]"
+        try:
+            from src.api_client import get_api_client
 
-        # 构造参数字符串（用于签名，不编码）
-        # 原文：kpid=xxx&questions=[]
-        params_raw = f"kpid={kpid}&questions={questions_json}"
+            # 构造questions JSON字符串（空数组，表示已完成）
+            questions_json = "[]"
 
-        # 生成签名（基于未编码的参数字符串）
-        sign = self.generate_sign(params_raw)
+            # 构造参数字符串（用于签名，不编码）
+            # 原文：kpid=xxx&questions=[]
+            params_raw = f"kpid={kpid}&questions={questions_json}"
 
-        # 构造请求URL（无参数）
-        url = f"{self.BASE_URL}/StudentEvaluate/SaveTestMemberInfo"
+            # 生成签名（基于未编码的参数字符串）
+            sign = self.generate_sign(params_raw)
 
-        # 构造请求体（包含kpid、questions和sign）
-        body = {
-            "kpid": kpid,
-            "questions": [],
-            "sign": sign
-        }
-        headers = self._get_headers()
+            # 构造请求URL（无参数）
+            url = f"{self.BASE_URL}/StudentEvaluate/SaveTestMemberInfo"
 
-        logger.info(f"   签名原文: {params_raw}")
-        logger.info(f"   签名结果: {sign[:16]}...")
-        logger.info(f"   请求URL: {url}")
-        logger.info(f"   请求体JSON: {json.dumps(body, ensure_ascii=False, separators=(',', ':'))}")
+            # 构造请求体（包含kpid、questions和sign）
+            body = {
+                "kpid": kpid,
+                "questions": [],
+                "sign": sign
+            }
+            headers = self._get_headers()
 
-        response = requests.post(url, json=body, headers=headers, timeout=30)
+            logger.info(f"   签名原文: {params_raw}")
+            logger.info(f"   签名结果: {sign[:16]}...")
+            logger.info(f"   请求URL: {url}")
+            logger.info(f"   请求体JSON: {json.dumps(body, ensure_ascii=False, separators=(',', ':'))}")
 
-        if response.status_code == 200:
-            data = response.json()
-            if data.get("code") == 0 or data.get("success"):
-                logger.info(f"✅ 成功提交试卷")
-                return True
-            else:
-                logger.error(f"❌ API返回错误: {data}")
+            api_client = get_api_client()
+            response = api_client.post(url, json=body, headers=headers)
+
+            if response is None:
                 return False
-        else:
-            logger.error(f"❌ 提交试卷失败: {response.status_code}")
-            logger.error(f"   响应内容: {response.text[:500]}")
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get("code") == 0 or data.get("success"):
+                    logger.info(f"✅ 成功提交试卷")
+                    return True
+                else:
+                    logger.error(f"❌ API返回错误: {data}")
+                    return False
+            else:
+                logger.error(f"❌ 提交试卷失败: {response.status_code}")
+                logger.error(f"   响应内容: {response.text[:500]}")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ 提交试卷异常: {str(e)}")
             return False
 
     def save_test_member_info(self, kpid: str) -> bool:

@@ -14,7 +14,7 @@ class APIRateLevel(Enum):
     """API请求速率级别"""
     LOW = "low"           # 低: 50ms延迟
     MEDIUM = "medium"     # 中: 1秒延迟
-    MEDIUM_HIGH = "medium_high"  # 中高: 1.5秒延迟
+    MEDIUM_HIGH = "medium_high"  # 中高: 2秒延迟
     HIGH = "high"         # 高: 3秒延迟
 
     @classmethod
@@ -30,7 +30,7 @@ class APIRateLevel(Enum):
         delays = {
             APIRateLevel.LOW: 50,
             APIRateLevel.MEDIUM: 1000,
-            APIRateLevel.MEDIUM_HIGH: 1500,
+            APIRateLevel.MEDIUM_HIGH: 2000,
             APIRateLevel.HIGH: 3000
         }
         return delays[self]
@@ -40,7 +40,7 @@ class APIRateLevel(Enum):
         names = {
             APIRateLevel.LOW: "低（50ms）",
             APIRateLevel.MEDIUM: "中（1秒）",
-            APIRateLevel.MEDIUM_HIGH: "中高（1.5秒）",
+            APIRateLevel.MEDIUM_HIGH: "中高（2秒）",
             APIRateLevel.HIGH: "高（3秒）"
         }
         return names[self]

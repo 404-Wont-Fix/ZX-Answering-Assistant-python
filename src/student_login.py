@@ -480,124 +480,100 @@ def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 
     Args:
         access_token: 学生端的access_token
         course_id: 课程ID
-        delay_ms: 请求延迟（毫秒），默认600毫秒
-        max_retries: 最大重试次数，默认3次
+        delay_ms: 请求延迟（毫秒），默认600毫秒（已弃用，请使用设置菜单配置）
+        max_retries: 最大重试次数，默认3次（已弃用，请使用设置菜单配置）
 
     Returns:
         Optional[List[Dict]]: 未完成的知识点列表，如果失败则返回None
     """
-    # API端点
-    url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
+    # 使用API客户端发送请求
+    try:
+        from src.api_client import get_api_client
 
-    # 请求头
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "zh-CN,zh;q=0.9",
-        "authorization": f"Bearer {access_token}",
-        "priority": "u=1, i",
-        "referer": "https://ai.cqzuxia.com/",
-        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-    }
+        api_client = get_api_client()
 
-    # 重试机制
-    for retry_count in range(max_retries):
-        try:
-            logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
+        # API端点
+        url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
 
-            # 添加延迟（第一次请求除外）
-            if retry_count > 0:
-                delay_seconds = delay_ms / 1000
-                logger.info(f"等待 {delay_ms} 毫秒后重试 ({retry_count}/{max_retries})...")
-                time.sleep(delay_seconds)
+        # 请求头
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "authorization": f"Bearer {access_token}",
+            "priority": "u=1, i",
+            "referer": "https://ai.cqzuxia.com/",
+            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+        }
 
-            logger.info(f"发送请求到: {url}")
+        # 如果明确指定了max_retries且大于0，使用它（向后兼容）
+        actual_max_retries = max_retries if max_retries > 0 else None
 
-            # 发送GET请求
-            response = requests.get(url, headers=headers, timeout=30)
+        logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
+        logger.info(f"发送请求到: {url}")
 
-            # 检查响应状态
-            if response.status_code == 200:
-                logger.info(f"✅ 请求成功，状态码: {response.status_code}")
+        # 发送GET请求
+        response = api_client.request("GET", url, headers=headers, max_retries=actual_max_retries)
 
-                try:
-                    data = response.json()
+        if response and response.status_code == 200:
+            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
 
-                    # 检查返回的数据结构
-                    if isinstance(data, dict):
-                        # 如果返回的是字典，提取data字段
-                        if "data" in data and data.get("success"):
-                            chapters_data = data["data"]
-                        else:
-                            logger.error(f"API返回错误: {data}")
-                            if retry_count < max_retries - 1:
-                                continue
-                            return None
+            try:
+                data = response.json()
+
+                # 检查返回的数据结构
+                if isinstance(data, dict):
+                    # 如果返回的是字典，提取data字段
+                    if "data" in data and data.get("success"):
+                        chapters_data = data["data"]
                     else:
-                        logger.error(f"未知的数据格式: {type(data)}")
-                        if retry_count < max_retries - 1:
-                            continue
+                        logger.error(f"API返回错误: {data}")
                         return None
-
-                    # 解析嵌套的章节-知识点结构
-                    all_knowledges = []
-                    for chapter in chapters_data:
-                        chapter_id = chapter.get('id', 'N/A')
-                        chapter_title = chapter.get('title', 'N/A')
-                        chapter_content = chapter.get('titleContent', '')
-
-                        knowledge_list = chapter.get('knowledgeList', [])
-                        for knowledge in knowledge_list:
-                            knowledge_id = knowledge.get('id', 'N/A')
-                            knowledge_name = knowledge.get('knowledge', 'N/A')
-
-                            all_knowledges.append({
-                                'id': chapter_id,
-                                'title': chapter_title,
-                                'titleContent': chapter_content,
-                                'knowledge_id': knowledge_id,
-                                'knowledge': knowledge_name
-                            })
-
-                    return all_knowledges
-
-                except json.JSONDecodeError as e:
-                    logger.error(f"解析JSON响应失败: {str(e)}")
-                    logger.error(f"响应内容: {response.text[:500]}")
-                    if retry_count < max_retries - 1:
-                        continue
+                else:
+                    logger.error(f"未知的数据格式: {type(data)}")
                     return None
-            else:
-                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
-                logger.error(f"响应内容: {response.text[:500]}")
-                if retry_count < max_retries - 1:
-                    continue
+
+                # 解析嵌套的章节-知识点结构
+                all_knowledges = []
+                for chapter in chapters_data:
+                    chapter_id = chapter.get('id', 'N/A')
+                    chapter_title = chapter.get('title', 'N/A')
+                    chapter_content = chapter.get('titleContent', '')
+
+                    knowledge_list = chapter.get('knowledgeList', [])
+                    for knowledge in knowledge_list:
+                        knowledge_id = knowledge.get('id', 'N/A')
+                        knowledge_name = knowledge.get('knowledge', 'N/A')
+
+                        all_knowledges.append({
+                            'id': chapter_id,
+                            'title': chapter_title,
+                            'titleContent': chapter_content,
+                            'knowledge_id': knowledge_id,
+                            'knowledge': knowledge_name
+                        })
+
+                logger.info(f"✅ 成功获取 {len(all_knowledges)} 个未完成知识点")
+                return all_knowledges
+
+            except Exception as e:
+                logger.error(f"解析JSON响应失败: {str(e)}")
+                logger.error(f"响应内容: {response.text[:500] if response else 'N/A'}")
                 return None
-
-        except requests.exceptions.Timeout:
-            logger.error("❌ 请求超时，请检查网络连接")
-            if retry_count < max_retries - 1:
-                continue
-            return None
-        except requests.exceptions.ConnectionError as e:
-            logger.error(f"❌ 连接错误: {str(e)}")
-            if retry_count < max_retries - 1:
-                continue
-            return None
-        except Exception as e:
-            logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
-            if retry_count < max_retries - 1:
-                continue
+        else:
+            status_code = response.status_code if response else "N/A"
+            logger.error(f"❌ 请求失败，状态码: {status_code}")
+            logger.error(f"响应内容: {response.text[:500] if response else 'N/A'}")
             return None
 
-    # 所有重试都失败
-    logger.error(f"❌ 获取课程 {course_id} 的未完成知识点列表失败，已重试 {max_retries} 次")
-    return None
+    except Exception as e:
+        logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
+        return None
 
 
 def get_course_progress_from_page() -> Optional[Dict]:
@@ -706,6 +682,8 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     Returns:
         Optional[List[Dict]]: 课程列表，如果失败则返回None
     """
+    from src.api_client import get_api_client
+
     # API端点
     url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
 
@@ -728,10 +706,14 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     logger.info(f"发送请求到: {url}")
     logger.info(f"使用token: {access_token[:20]}...")
 
-    # 发送GET请求
-    response = requests.get(url, headers=headers, timeout=30)
+    # 使用APIClient发送GET请求
+    api_client = get_api_client()
+    response = api_client.get(url, headers=headers)
 
-    # 检查响应状态
+    if response is None:
+        return None
+
+    # 检查响应状态（APIClient已经处理了重试，这里只需要处理成功的响应）
     if response.status_code == 200:
         logger.info(f"✅ 请求成功，状态码: {response.status_code}")
 
@@ -770,53 +752,92 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
         return None
 
 
-def get_student_courses(access_token: str, max_retries: int = 3, delay: int = 2) -> Optional[List[Dict]]:
+def get_student_courses(access_token: str, max_retries: Optional[int] = None, delay: int = 2) -> Optional[List[Dict]]:
     """
     使用access_token获取学生端课程列表（带重试）
 
     Args:
         access_token: 学生端的access_token
-        max_retries: 最大重试次数，默认3次
-        delay: 重试延迟（秒），默认2秒
+        max_retries: 最大重试次数，如果不提供则从配置读取
+        delay: 重试延迟（秒），默认2秒（保留用于向后兼容，实际使用APIClient的指数退避）
 
     Returns:
         Optional[List[Dict]]: 课程列表，如果失败则返回None
     """
+    from src.api_client import get_api_client
+
     try:
         logger.info("正在获取学生端课程列表...")
 
-        for attempt in range(max_retries):
+        # API端点
+        url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
+
+        # 请求头
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "accept-language": "zh-CN,zh;q=0.9",
+            "authorization": f"Bearer {access_token}",
+            "priority": "u=1, i",
+            "referer": "https://ai.cqzuxia.com/",
+            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
+            "sec-ch-ua-mobile": "?0",
+            "sec-ch-ua-platform": '"Windows"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "same-origin",
+            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
+        }
+
+        logger.info(f"发送请求到: {url}")
+        logger.info(f"使用token: {access_token[:20]}...")
+
+        # 使用APIClient发送GET请求（带重试）
+        api_client = get_api_client()
+        response = api_client.get(url, headers=headers, max_retries=max_retries)
+
+        if response is None:
+            return None
+
+        # 检查响应状态
+        if response.status_code == 200:
+            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
+
             try:
-                return _get_student_courses_request(access_token)
-            except Exception as e:
-                error_str = str(e)
-                # 检查是否是网络连接错误
-                is_network_error = (
-                    "ConnectionResetError" in error_str or
-                    "Connection aborted" in error_str or
-                    "RemoteDisconnected" in error_str or
-                    "远程主机" in error_str or
-                    "10054" in error_str
-                )
+                data = response.json()
 
-                if is_network_error and attempt < max_retries - 1:
-                    logger.warning(f"⚠️ 网络错误，第 {attempt + 1}/{max_retries} 次尝试失败，{delay}秒后重试...")
-                    time.sleep(delay)
-                    continue
+                # 打印完整的响应数据（用于调试）
+                logger.info(f"响应数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
+
+                # 检查返回的数据结构
+                if isinstance(data, list):
+                    # 如果直接返回列表
+                    courses = data
+                elif isinstance(data, dict):
+                    # 如果返回的是字典，尝试提取课程列表
+                    if "data" in data:
+                        courses = data["data"]
+                    elif "success" in data and data["success"]:
+                        courses = data.get("data", [])
+                    else:
+                        logger.error(f"API返回错误: {data}")
+                        return None
                 else:
-                    # 如果不是网络错误或已达到最大重试次数，抛出异常
-                    raise e
+                    logger.error(f"未知的数据格式: {type(data)}")
+                    return None
 
-        return None
+                return courses
 
-    except requests.exceptions.Timeout:
-        logger.error("❌ 请求超时，请检查网络连接")
-        return None
-    except requests.exceptions.ConnectionError as e:
-        logger.error(f"❌ 连接错误（重试后仍失败）: {str(e)}")
-        return None
+            except json.JSONDecodeError as e:
+                logger.error(f"解析JSON响应失败: {str(e)}")
+                logger.error(f"响应内容: {response.text[:500]}")
+                return None
+        else:
+            logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+            logger.error(f"响应内容: {response.text[:500]}")
+            return None
+
     except Exception as e:
-        logger.error(f"❌ 获取课程列表异常（重试后仍失败）: {str(e)}")
+        logger.error(f"❌ 获取课程列表异常: {str(e)}")
         return None
 
 

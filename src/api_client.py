@@ -113,8 +113,8 @@ class APIClient:
             error = None
 
             try:
-                # 应用速率限制
-                if rate_limit and attempt > 0:
+                # 应用速率限制（每次请求前都应用，不仅仅是重试时）
+                if rate_limit:
                     self._apply_rate_limit()
 
                 # 发送请求

@@ -251,7 +251,7 @@ def settings_rate_level(settings):
     print("\n可选速率：")
     print("1. 低（API之间延迟50毫秒）")
     print("2. 中（API之间延迟1秒）")
-    print("3. 中高（API之间延迟1.5秒）")
+    print("3. 中高（API之间延迟2秒）")
     print("4. 高（API之间延迟3秒）")
     print("0. 返回")
 
