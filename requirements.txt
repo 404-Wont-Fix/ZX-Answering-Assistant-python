@@ -1,13 +1,11 @@
 # Core dependencies
 requests>=2.31.0
-python-dotenv>=1.0.0
 
 # Browser automation
 playwright>=1.57.0
 
 # Logging and configuration
 loguru>=0.7.0
-pyyaml>=6.0
 
 # Data processing
 pandas>=2.0.0

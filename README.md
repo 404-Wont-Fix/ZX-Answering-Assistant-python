@@ -22,7 +22,6 @@
 - [系统架构](#系统架构)
 - [快速开始](#快速开始)
 - [使用指南](#使用指南)
-- [配置说明](#配置说明)
 - [项目结构](#项目结构)
 - [技术栈](#技术栈)
 - [版本管理](#版本管理)
@@ -158,7 +157,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 │          │                                         │        │
 │          ▼                                         ▼        │
 │     ┌─────────────────┐                     ┌──────────────┐
-│     │   题库管理系统    │                     │   配置系统    │
+│     │   题库管理系统    │                     │   设置系统    │
 │     └─────────────────┘                     └──────────────┘
 │                                                               │
 └───────────────────────────────────────────────────────────────┘
@@ -229,18 +228,7 @@ pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-### 4. 配置系统
-
-```bash
-# 复制配置文件模板
-# Windows
-copy config\config.example.yaml config\config.yaml
-
-# Linux/Mac
-cp config/config.example.yaml config/config.yaml
-```
-
-### 5. 运行程序
+### 4. 运行程序
 
 #### 方式一：GUI 模式（推荐）
 
@@ -383,55 +371,6 @@ python main.py
 
 ---
 
-## ⚙️ 配置说明
-
-### 配置文件 (config/config.yaml)
-
-```yaml
-app:
-  name: "ZX Answering Assistant"
-  version: "1.2.0"
-  debug: false
-
-logging:
-  level: "INFO"  # DEBUG, INFO, WARNING, ERROR
-  format: "<green>{time:YYYY-MM-DD HH:mm:ss}</green> | <level>{level: <8}</level> | <level>{message}</level>"
-  rotation: "100 MB"
-  retention: "7 days"
-
-data:
-  input_dir: "data/input"
-  output_dir: "output"
-  temp_dir: "data/temp"
-
-network:
-  timeout: 30
-  retry_delay: 2
-  max_retries: 3
-
-answer:
-  mode: "api"  # compatible, api
-  delay_between_questions: 1.5
-  delay_between_knowledges: 3
-```
-
-### 环境变量 (.env)
-
-```env
-# 学生端默认账户
-STUDENT_USERNAME=530XXXXXXXXXXXXXXX
-STUDENT_PASSWORD=XXXXXX
-
-# 教师端账户（需要手动输入）
-TEACHER_USERNAME=
-TEACHER_PASSWORD=
-
-# API 配置
-API_BASE_URL=https://ai.cqzuxia.com
-```
-
----
-
 ## 📁 项目结构
 
 ```
@@ -440,9 +379,6 @@ ZX-Answering-Assistant-python/
 │   ├── input/                     # 输入文件（题库）
 │   ├── output/                    # 输出文件（导出结果）
 │   └── temp/                      # 临时文件
-├── config/                        # 配置文件
-│   ├── config.example.yaml        # 配置模板
-│   └── config.yaml                # 用户配置（需创建）
 ├── src/                           # 源代码
 │   ├── __init__.py
 │   ├── ui/                        # GUI 界面模块
@@ -485,8 +421,6 @@ ZX-Answering-Assistant-python/
 | **playwright** | ≥1.57.0 | 浏览器自动化 |
 | **requests** | ≥2.31.0 | HTTP 请求 |
 | **loguru** | ≥0.7.0 | 日志管理 |
-| **pyyaml** | ≥6.0 | YAML 配置解析 |
-| **python-dotenv** | ≥1.0.0 | 环境变量管理 |
 | **pandas** | ≥2.0.0 | 数据处理 |
 | **openpyxl** | ≥3.1.0 | Excel 文件处理 |
 | **keyboard** | ≥0.13.5 | 键盘监听 |
@@ -623,14 +557,7 @@ ZX-Answering-Assistant-python/
 
 ### Q7: 如何调试日志？
 
-**A:** 修改配置文件 `config/config.yaml`：
-
-```yaml
-logging:
-  level: "DEBUG"  # 改为 DEBUG 级别
-```
-
-或在 GUI 界面的"设置"页面中调整日志级别。
+**A:** 在 GUI 界面的"设置"页面中调整日志级别，选择 DEBUG 级别即可查看详细日志。
 
 ### Q8: 遇到问题如何获取帮助？
 
