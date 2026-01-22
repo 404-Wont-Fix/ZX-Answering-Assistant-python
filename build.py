@@ -9,6 +9,7 @@ import sys
 import argparse
 from pathlib import Path
 from datetime import datetime
+from src.build_tools import ensure_browser_ready, get_browser_size
 
 
 def update_version_info():
@@ -88,11 +89,24 @@ def build_project(mode="onedir"):
     # 确保所有依赖已安装
     print("\n正在安装项目依赖...")
     subprocess.check_call([sys.executable, "-m", "pip", "install", "-r", "requirements.txt"])
-    
+
     # 确保Playwright浏览器已安装
     print("\n正在安装Playwright浏览器...")
     subprocess.check_call([sys.executable, "-m", "playwright", "install", "chromium"])
-    
+
+    # 复制Playwright浏览器到项目目录
+    print("\n正在准备Playwright浏览器用于打包...")
+    project_root = Path(__file__).parent
+    browser_result = ensure_browser_ready(project_root=project_root)
+
+    if browser_result["ready"]:
+        if browser_result["copied"]:
+            print(f"✅ 浏览器已复制 ({browser_result['size_mb']:.2f} MB)")
+        else:
+            print(f"✅ 浏览器已准备就绪 ({browser_result['size_mb']:.2f} MB)")
+    else:
+        print("⚠️ 浏览器准备失败，但继续打包...")
+
     # 获取Playwright安装路径
     try:
         from playwright.sync_api import sync_playwright
@@ -187,21 +201,52 @@ def main():
         description="ZX Answering Assistant - 项目打包工具",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    
+
     parser.add_argument(
         '--mode', '-m',
         choices=['onefile', 'onedir'],
         default='onedir',
         help='打包模式: onefile(单文件，启动慢) 或 onedir(目录模式，启动快，默认)'
     )
-    
+
+    parser.add_argument(
+        '--copy-browser',
+        action='store_true',
+        help='仅复制Playwright浏览器到项目目录（不进行打包）'
+    )
+
+    parser.add_argument(
+        '--force-copy',
+        action='store_true',
+        help='强制重新复制浏览器（覆盖已有文件）'
+    )
+
     args = parser.parse_args()
-    
+
     print("=" * 60)
     print("ZX Answering Assistant - 项目打包工具")
     print("=" * 60)
+
+    # 如果只是复制浏览器
+    if args.copy_browser:
+        print("📦 任务: 复制Playwright浏览器")
+        project_root = Path(__file__).parent
+        browser_result = ensure_browser_ready(
+            project_root=project_root,
+            force_copy=args.force_copy
+        )
+
+        if browser_result["ready"]:
+            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
+            print(f"\n✅ 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
+            return 0
+        else:
+            print("\n❌ 浏览器准备失败")
+            return 1
+
+    # 正常打包流程
     print(f"📦 打包模式: {args.mode}")
-    
+
     # 构建项目
     build_project(mode=args.mode)
 
