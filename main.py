@@ -764,7 +764,11 @@ def main():
                 print("无效的选择，请重新输入")
         elif choice == "3":
             # 设置功能
-            print("设置功能尚未实现")
+            print("=========设置菜单=========")
+            print("1. 设置账号密码")
+            print("2. 设置 API 请求超时重试次数")
+            print("3. 设置 API 请求速率")
+            print("4. 返回")
         elif choice == "4":
             # 退出系统
             print("退出系统，再见！")
