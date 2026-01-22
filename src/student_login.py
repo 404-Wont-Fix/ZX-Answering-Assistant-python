@@ -53,8 +53,8 @@ def get_student_access_token(username: str = None, password: str = None, keep_br
     使用Playwright模拟浏览器登录获取学生端access_token
 
     Args:
-        username: 学生账户，如果为None则询问用户输入
-        password: 学生密码，如果为None则询问用户输入
+        username: 学生账户，如果为None则从配置读取或询问用户输入
+        password: 学生密码，如果为None则从配置读取或询问用户输入
         keep_browser: 是否保持浏览器开启，默认为True
 
     Returns:
@@ -63,18 +63,57 @@ def get_student_access_token(username: str = None, password: str = None, keep_br
     global _browser_instance, _page_instance
 
     try:
-        # 如果没有提供用户名和密码，则询问用户
-        if username is None:
-            username = input("请输入学生账户: ").strip()
-            if not username:
-                print("❌ 账户不能为空")
-                return None
+        # 如果没有提供用户名和密码，尝试从配置读取或询问用户
+        if username is None or password is None:
+            try:
+                from src.settings import get_settings_manager
+                settings = get_settings_manager()
+                config_username, config_password = settings.get_student_credentials()
 
-        if password is None:
-            password = input("请输入学生密码: ").strip()
-            if not password:
-                print("❌ 密码不能为空")
-                return None
+                if config_username and config_password:
+                    print("\n💡 检测到已保存的学生端账号")
+                    use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+                    if use_saved in ['', 'yes', 'y', '是']:
+                        print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                        username = config_username
+                        password = config_password
+                    else:
+                        print("💡 请手动输入账号密码")
+                        if username is None:
+                            username = input("请输入学生账户: ").strip()
+                            if not username:
+                                print("❌ 账户不能为空")
+                                return None
+                        if password is None:
+                            password = input("请输入学生密码: ").strip()
+                            if not password:
+                                print("❌ 密码不能为空")
+                                return None
+                else:
+                    # 配置中没有保存的凭据，询问用户输入
+                    if username is None:
+                        username = input("请输入学生账户: ").strip()
+                        if not username:
+                            print("❌ 账户不能为空")
+                            return None
+                    if password is None:
+                        password = input("请输入学生密码: ").strip()
+                        if not password:
+                            print("❌ 密码不能为空")
+                            return None
+            except Exception:
+                # 如果读取配置失败，继续询问用户输入
+                if username is None:
+                    username = input("请输入学生账户: ").strip()
+                    if not username:
+                        print("❌ 账户不能为空")
+                        return None
+                if password is None:
+                    password = input("请输入学生密码: ").strip()
+                    if not password:
+                        print("❌ 密码不能为空")
+                        return None
 
         logger.info("正在启动浏览器进行学生端登录...")
         logger.info(f"使用账户: {username}")
@@ -241,6 +280,24 @@ def get_student_access_token_with_credentials() -> Optional[str]:
     Returns:
         Optional[str]: 获取到的access_token，如果失败则返回None
     """
+    # 尝试从配置文件读取凭据
+    try:
+        from src.settings import get_settings_manager
+        settings = get_settings_manager()
+        config_username, config_password = settings.get_student_credentials()
+
+        if config_username and config_password:
+            print("\n💡 检测到已保存的学生端账号")
+            use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+            if use_saved in ['', 'yes', 'y', '是']:
+                print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                return get_student_access_token(config_username, config_password)
+            else:
+                print("💡 请手动输入账号密码")
+    except Exception:
+        pass  # 如果读取配置失败，继续手动输入
+
     # 获取用户输入的用户名和密码
     username = input("请输入学生账户（直接回车使用默认账户）: ").strip()
     password = input("请输入学生密码（直接回车使用默认密码）: ").strip()

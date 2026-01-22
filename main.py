@@ -59,12 +59,233 @@ from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
 from src.auto_answer import AutoAnswer
 from src.api_auto_answer import APIAutoAnswer
+from src.settings import get_settings_manager, APIRateLevel
 import time
 
 
 # 全局变量，存储最后一次提取的数据和题库
 last_extracted_data = None
 current_question_bank = None  # 当前加载的题库数据
+
+
+# ==================== CLI设置菜单功能 ====================
+
+def settings_menu():
+    """CLI设置菜单"""
+    settings = get_settings_manager()
+
+    while True:
+        print("\n" + "=" * 50)
+        print("⚙️ 设置菜单")
+        print("=" * 50)
+        print("1. 设置账号密码")
+        print("2. 设置 API 请求超时重试次数")
+        print("3. 设置 API 请求速率")
+        print("4. 查看当前设置")
+        print("5. 返回")
+        print("=" * 50)
+
+        choice = input("\n请选择操作 (1-5): ").strip()
+
+        if choice == "1":
+            # 设置账号密码
+            settings_account_password(settings)
+        elif choice == "2":
+            # 设置API请求超时重试次数
+            settings_max_retries(settings)
+        elif choice == "3":
+            # 设置API请求速率
+            settings_rate_level(settings)
+        elif choice == "4":
+            # 查看当前设置
+            settings.display_current_settings()
+        elif choice == "5":
+            # 返回
+            print("\n🔙 返回主菜单")
+            break
+        else:
+            print("\n❌ 无效的选择，请输入1-5之间的数字")
+
+
+def settings_account_password(settings):
+    """设置账号密码子菜单"""
+    while True:
+        print("\n" + "=" * 50)
+        print("🔑 设置账号密码")
+        print("=" * 50)
+        print("1. 设置学生端账号密码")
+        print("2. 设置教师端账号密码")
+        print("3. 删除学生端账号密码")
+        print("4. 删除教师端账号密码")
+        print("5. 返回")
+        print("=" * 50)
+
+        choice = input("\n请选择操作 (1-5): ").strip()
+
+        if choice == "1":
+            # 设置学生端账号密码
+            print("\n👤 设置学生端账号密码")
+            print("💡 提示：设置后，登录时将自动填充账号密码")
+            username = input("请输入学生账户: ").strip()
+            if not username:
+                print("❌ 账户不能为空")
+                continue
+
+            password = input("请输入学生密码: ").strip()
+            if not password:
+                print("❌ 密码不能为空")
+                continue
+
+            confirm = input("\n确认保存？(yes/no): ").strip().lower()
+            if confirm in ['yes', 'y', '是']:
+                if settings.set_student_credentials(username, password):
+                    print("\n✅ 学生端账号密码已保存")
+                else:
+                    print("\n❌ 保存失败")
+            else:
+                print("\n❌ 已取消")
+
+        elif choice == "2":
+            # 设置教师端账号密码
+            print("\n👨‍🏫 设置教师端账号密码")
+            print("💡 提示：设置后，登录时将自动填充账号密码")
+            username = input("请输入教师账户: ").strip()
+            if not username:
+                print("❌ 账户不能为空")
+                continue
+
+            password = input("请输入教师密码: ").strip()
+            if not password:
+                print("❌ 密码不能为空")
+                continue
+
+            confirm = input("\n确认保存？(yes/no): ").strip().lower()
+            if confirm in ['yes', 'y', '是']:
+                if settings.set_teacher_credentials(username, password):
+                    print("\n✅ 教师端账号密码已保存")
+                else:
+                    print("\n❌ 保存失败")
+            else:
+                print("\n❌ 已取消")
+
+        elif choice == "3":
+            # 删除学生端账号密码
+            student_username, _ = settings.get_student_credentials()
+            if not student_username:
+                print("\n⚠️ 学生端账号密码未设置")
+                continue
+
+            print("\n🗑️ 删除学生端账号密码")
+            confirm = input("确认删除？(yes/no): ").strip().lower()
+            if confirm in ['yes', 'y', '是']:
+                if settings.clear_student_credentials():
+                    print("\n✅ 学生端账号密码已删除")
+                else:
+                    print("\n❌ 删除失败")
+            else:
+                print("\n❌ 已取消")
+
+        elif choice == "4":
+            # 删除教师端账号密码
+            teacher_username, _ = settings.get_teacher_credentials()
+            if not teacher_username:
+                print("\n⚠️ 教师端账号密码未设置")
+                continue
+
+            print("\n🗑️ 删除教师端账号密码")
+            confirm = input("确认删除？(yes/no): ").strip().lower()
+            if confirm in ['yes', 'y', '是']:
+                if settings.clear_teacher_credentials():
+                    print("\n✅ 教师端账号密码已删除")
+                else:
+                    print("\n❌ 删除失败")
+            else:
+                print("\n❌ 已取消")
+
+        elif choice == "5":
+            # 返回
+            print("\n🔙 返回设置菜单")
+            break
+        else:
+            print("\n❌ 无效的选择，请输入1-5之间的数字")
+
+
+def settings_max_retries(settings):
+    """设置API请求超时重试次数"""
+    print("\n⚙️ 设置 API 请求超时重试次数")
+    print(f"当前值: {settings.get_max_retries()} 次")
+    print("💡 提示：当API请求失败时，系统会自动重试指定次数")
+
+    while True:
+        value = input("\n请输入重试次数 (0-10，直接回车取消): ").strip()
+
+        if not value:
+            print("\n❌ 已取消")
+            return
+
+        try:
+            max_retries = int(value)
+            if max_retries < 0 or max_retries > 10:
+                print("❌ 重试次数必须在 0-10 之间")
+                continue
+
+            confirm = input(f"\n确认设置为 {max_retries} 次？(yes/no): ").strip().lower()
+            if confirm in ['yes', 'y', '是']:
+                if settings.set_max_retries(max_retries):
+                    print(f"\n✅ API请求超时重试次数已设置为 {max_retries} 次")
+                else:
+                    print("\n❌ 设置失败")
+            else:
+                print("\n❌ 已取消")
+            return
+
+        except ValueError:
+            print("❌ 请输入有效的数字")
+
+
+def settings_rate_level(settings):
+    """设置API请求速率"""
+    print("\n⚙️ 设置 API 请求速率")
+    print(f"当前值: {settings.get_rate_level().get_display_name()}")
+    print("💡 提示：控制API请求之间的延迟时间，避免请求过快被限制")
+    print("\n可选速率：")
+    print("1. 低（API之间延迟50毫秒）")
+    print("2. 中（API之间延迟1秒）")
+    print("3. 中高（API之间延迟1.5秒）")
+    print("4. 高（API之间延迟3秒）")
+    print("0. 返回")
+
+    while True:
+        choice = input("\n请选择速率 (0-4): ").strip()
+
+        if choice == "0":
+            print("\n❌ 已取消")
+            return
+        elif choice == "1":
+            rate_level = APIRateLevel.LOW
+            display_name = rate_level.get_display_name()
+        elif choice == "2":
+            rate_level = APIRateLevel.MEDIUM
+            display_name = rate_level.get_display_name()
+        elif choice == "3":
+            rate_level = APIRateLevel.MEDIUM_HIGH
+            display_name = rate_level.get_display_name()
+        elif choice == "4":
+            rate_level = APIRateLevel.HIGH
+            display_name = rate_level.get_display_name()
+        else:
+            print("❌ 无效的选择，请输入0-4之间的数字")
+            continue
+
+        confirm = input(f"\n确认设置为 {display_name}？(yes/no): ").strip().lower()
+        if confirm in ['yes', 'y', '是']:
+            if settings.set_rate_level(rate_level):
+                print(f"\n✅ API请求速率已设置为 {display_name}")
+            else:
+                print("\n❌ 设置失败")
+        else:
+            print("\n❌ 已取消")
+        return
 
 
 def display_progress_bar(progress_info: dict):
@@ -520,8 +741,7 @@ def main():
             print("开始答题功能")
             print("1. 开始答题")
             print("2. 获取access_token")
-            print("3. 单个课程答题")
-            print("4. 返回")
+            print("3. 返回")
             sub_choice = input("请选择：")
 
             if sub_choice == "1":
@@ -709,8 +929,6 @@ def main():
                 else:
                     print(f"\n❌ 获取学生端access_token失败！")
             elif sub_choice == "3":
-                print("单个课程答题功能")
-            elif sub_choice == "4":
                 print("返回主菜单")
                 continue
             else:
@@ -764,11 +982,7 @@ def main():
                 print("无效的选择，请重新输入")
         elif choice == "3":
             # 设置功能
-            print("=========设置菜单=========")
-            print("1. 设置账号密码")
-            print("2. 设置 API 请求超时重试次数")
-            print("3. 设置 API 请求速率")
-            print("4. 返回")
+            settings_menu()
         elif choice == "4":
             # 退出系统
             print("退出系统，再见！")

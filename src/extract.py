@@ -20,20 +20,48 @@ class Extractor:
         self.context = None
         self.page = None
         
-    def login(self, username: str, password: str) -> bool:
+    def login(self, username: str = None, password: str = None) -> bool:
         """
         使用用户名和密码登录系统
-        
+
         Args:
-            username: 用户名
-            password: 密码
-            
+            username: 用户名，如果为None则尝试从配置读取或询问用户
+            password: 密码，如果为None则尝试从配置读取或询问用户
+
         Returns:
             bool: 登录是否成功
         """
         try:
             print("正在启动浏览器进行登录...")
-            
+
+            # 尝试从配置文件读取凭据
+            if username is None or password is None:
+                try:
+                    from src.settings import get_settings_manager
+                    settings = get_settings_manager()
+                    config_username, config_password = settings.get_teacher_credentials()
+
+                    if config_username and config_password:
+                        print("\n💡 检测到已保存的教师端账号")
+                        use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+                        if use_saved in ['', 'yes', 'y', '是']:
+                            print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                            username = config_username
+                            password = config_password
+                        else:
+                            print("💡 请手动输入账号密码")
+                            if username is None:
+                                username = input("请输入账号：").strip()
+                            if password is None:
+                                password = input("请输入密码：").strip()
+                except Exception:
+                    # 如果读取配置失败，继续手动输入
+                    if username is None:
+                        username = input("请输入账号：").strip()
+                    if password is None:
+                        password = input("请输入密码：").strip()
+
             # 检查是否有正在运行的asyncio事件循环
             try:
                 loop = asyncio.get_running_loop()
@@ -828,27 +856,17 @@ class Extractor:
     def extract(self) -> Optional[Dict]:
         """
         执行题目提取流程
-        
+
         Returns:
             Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
         """
-        # 1. 询问用户账号密码
+        # 1. 询问用户账号密码（如果不提供，login方法会尝试从配置读取）
         print("\n" + "="*50)
         print("题目提取功能")
         print("="*50)
-        
-        username = input("请输入账号：").strip()
-        if not username:
-            print("❌ 账号不能为空")
-            return None
-        
-        password = input("请输入密码：").strip()
-        if not password:
-            print("❌ 密码不能为空")
-            return None
-        
-        # 2. 登录
-        if not self.login(username, password):
+
+        # 2. 登录（不传参数，让login方法自动处理）
+        if not self.login():
             return None
         
         # 3. 获取班级列表
@@ -1067,27 +1085,17 @@ class Extractor:
     def extract_single_course(self) -> Optional[Dict]:
         """
         执行单个课程题目提取流程
-        
+
         Returns:
             Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
         """
-        # 1. 询问用户账号密码
+        # 1. 询问用户账号密码（如果不提供，login方法会尝试从配置读取）
         print("\n" + "="*50)
         print("单个课程题目提取功能")
         print("="*50)
-        
-        username = input("请输入账号：").strip()
-        if not username:
-            print("❌ 账号不能为空")
-            return None
-        
-        password = input("请输入密码：").strip()
-        if not password:
-            print("❌ 密码不能为空")
-            return None
-        
-        # 2. 登录
-        if not self.login(username, password):
+
+        # 2. 登录（不传参数，让login方法自动处理）
+        if not self.login():
             return None
         
         # 3. 获取班级列表
@@ -1451,28 +1459,19 @@ def extract_single_course() -> Optional[Dict]:
 def extract_course_answers(course_id: str, username: str = None, password: str = None) -> Optional[Dict]:
     """
     直接提取指定课程的答案（使用教师端登录和班级选择逻辑）
-    
+
     Args:
         course_id: 课程ID
-        username: 教师账号（可选，如果不提供则询问）
-        password: 教师密码（可选，如果不提供则询问）
-        
+        username: 教师账号（可选，如果不提供则从配置读取或询问）
+        password: 教师密码（可选，如果不提供则从配置读取或询问）
+
     Returns:
         Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
     """
     extractor = Extractor()
     try:
-        # 1. 登录
-        if not username:
-            username = input("请输入教师账号：").strip()
-        if not password:
-            password = input("请输入教师密码：").strip()
-        
-        if not username or not password:
-            print("❌ 账号或密码不能为空")
-            return None
-        
-        if not extractor.login(username, password):
+        # 1. 登录（不传参数让login方法自动处理）
+        if not extractor.login():
             return None
         
         # 2. 获取班级列表
