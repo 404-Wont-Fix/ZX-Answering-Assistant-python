@@ -13,6 +13,7 @@ import subprocess
 from typing import Optional, List, Dict
 from src.extract import Extractor
 from src.export import DataExporter
+from src.settings import get_settings_manager
 
 
 class ExtractionView:
@@ -31,6 +32,7 @@ class ExtractionView:
         self.current_content = None  # 保存当前内容容器的引用
         self.username_field = None  # 用户名输入框
         self.password_field = None  # 密码输入框
+        self.remember_password_checkbox = None  # 记住密码复选框
 
         # 数据相关
         self.extractor = None  # Extractor实例
@@ -66,6 +68,9 @@ class ExtractionView:
         self.extract_progress_bar = None  # 进度条
         self.extract_log_text = None  # 日志文本
         self.extract_logs = []  # 日志列表
+
+        # 设置管理器
+        self.settings_manager = get_settings_manager()
 
     def get_content(self) -> ft.Column:
         """
@@ -177,22 +182,34 @@ class ExtractionView:
         Returns:
             ft.Column: 登录界面组件
         """
-        # 初始化输入框
+        # 加载已保存的凭据
+        saved_username, saved_password = self.settings_manager.get_teacher_credentials()
+
+        # 初始化输入框（自动填充已保存的凭据）
         self.username_field = ft.TextField(
             label="教师账号",
             hint_text="请输入教师端账号",
+            value=saved_username or "",
             width=400,
-            icon=ft.Icons.PERSON,
+            prefix_icon=ft.Icons.PERSON,
             autofocus=True,
         )
 
         self.password_field = ft.TextField(
             label="密码",
             hint_text="请输入教师端密码",
+            value=saved_password or "",
             width=400,
             password=True,
             can_reveal_password=True,
-            icon=ft.Icons.LOCK,
+            prefix_icon=ft.Icons.LOCK,
+        )
+
+        # 创建"记住我"复选框
+        self.remember_password_checkbox = ft.Checkbox(
+            label="记住我（自动保存账号和密码）",
+            value=bool(saved_username and saved_password),  # 如果已保存凭据，默认勾选
+            fill_color=ft.Colors.PURPLE,
         )
 
         return ft.Column(
@@ -218,6 +235,8 @@ class ExtractionView:
                                 self.username_field,
                                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                                 self.password_field,
+                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                                self.remember_password_checkbox,
                                 ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
                                 ft.Row(
                                     [
@@ -319,6 +338,15 @@ class ExtractionView:
 
                 if success:
                     self.access_token = self.extractor.access_token
+
+                    # 根据复选框状态保存凭据
+                    if self.remember_password_checkbox.value:
+                        print("💾 保存教师端凭据...")
+                        self.settings_manager.set_teacher_credentials(username, password)
+                    else:
+                        print("🗑️ 清除教师端凭据...")
+                        self.settings_manager.clear_teacher_credentials()
+
                     # 获取班级列表
                     self.class_list = self.extractor.get_class_list()
                     if self.class_list:

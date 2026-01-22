@@ -17,6 +17,7 @@ from src.student_login import (
     get_course_progress_from_page,
     get_access_token_from_browser,
 )
+from src.settings import get_settings_manager
 
 
 class AnsweringView:
@@ -35,6 +36,7 @@ class AnsweringView:
         self.current_content = None  # 保存当前内容容器的引用
         self.username_field = None  # 用户名输入框
         self.password_field = None  # 密码输入框
+        self.remember_password_checkbox = None  # 记住密码复选框
         self.access_token = None  # 存储获取的access_token
         self.progress_dialog = None  # 登录进度对话框
         self.course_list = []  # 存储课程列表
@@ -50,6 +52,9 @@ class AnsweringView:
         self.log_text = None  # 日志文本控件
         self.auto_answer_instance = None  # 自动答题实例
         self.should_stop_answering = False  # 停止答题标志
+
+        # 设置管理器
+        self.settings_manager = get_settings_manager()
 
     def get_content(self) -> ft.Column:
         """
@@ -147,22 +152,34 @@ class AnsweringView:
         Returns:
             ft.Column: 登录界面组件
         """
-        # 初始化输入框
+        # 加载已保存的凭据
+        saved_username, saved_password = self.settings_manager.get_student_credentials()
+
+        # 初始化输入框（自动填充已保存的凭据）
         self.username_field = ft.TextField(
             label="账号",
             hint_text="请输入学生端账号",
+            value=saved_username or "",
             width=400,
-            icon=ft.Icons.PERSON,
+            prefix_icon=ft.Icons.PERSON,
             autofocus=True,
         )
 
         self.password_field = ft.TextField(
             label="密码",
             hint_text="请输入学生端密码",
+            value=saved_password or "",
             width=400,
             password=True,
             can_reveal_password=True,
-            icon=ft.Icons.LOCK,
+            prefix_icon=ft.Icons.LOCK,
+        )
+
+        # 创建"记住我"复选框
+        self.remember_password_checkbox = ft.Checkbox(
+            label="记住我（自动保存账号和密码）",
+            value=bool(saved_username and saved_password),  # 如果已保存凭据，默认勾选
+            fill_color=ft.Colors.BLUE,
         )
 
         return ft.Column(
@@ -188,6 +205,8 @@ class AnsweringView:
                                 self.username_field,
                                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                                 self.password_field,
+                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                                self.remember_password_checkbox,
                                 ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
                                 ft.Row(
                                     [
@@ -307,6 +326,14 @@ class AnsweringView:
                 self.access_token = access_token
                 self.username = username
                 print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+
+                # 根据复选框状态保存凭据
+                if self.remember_password_checkbox.value:
+                    print("💾 保存学生端凭据...")
+                    self.settings_manager.set_student_credentials(username, password)
+                else:
+                    print("🗑️ 清除学生端凭据...")
+                    self.settings_manager.clear_student_credentials()
 
                 # 更新进度对话框
                 self.progress_dialog.content = ft.Column(
