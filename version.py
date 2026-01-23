@@ -19,7 +19,7 @@ if sys.platform == 'win32':
         # 如果设置失败，尝试通过环境变量
         os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-VERSION = "1.2.1"
+VERSION = "2.2.0"
 VERSION_NAME = "ZX Answering Assistant"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）

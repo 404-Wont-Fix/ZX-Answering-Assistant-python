@@ -24,6 +24,70 @@ from src.build_tools import ensure_browser_ready, get_browser_size
 from src.build_tools import ensure_flet_ready, get_flet_size
 
 
+def get_platform_info():
+    """
+    获取平台信息
+
+    Returns:
+        dict: 包含 platform 和 architecture 的字典
+    """
+    import platform
+
+    # 获取操作系统
+    system = platform.system().lower()
+    if system == "windows":
+        os_name = "windows"
+    elif system == "darwin":
+        os_name = "macos"
+    elif system == "linux":
+        os_name = "linux"
+    else:
+        os_name = system
+
+    # 获取架构
+    machine = platform.machine().lower()
+    if machine in ["x86_64", "amd64"]:
+        arch = "x64"
+    elif machine in ["arm64", "aarch64"]:
+        arch = "arm64"
+    elif machine in ["arm", "armv7l"]:
+        arch = "arm"
+    elif machine in ["i386", "i686"]:
+        arch = "x86"
+    else:
+        arch = machine
+
+    return {
+        "platform": os_name,
+        "architecture": arch
+    }
+
+
+def get_dist_name(mode, version, platform_info):
+    """
+    获取分发文件名（不含扩展名）
+
+    Args:
+        mode: 打包模式 ("onedir" 或 "onefile")
+        version: 版本号
+        platform_info: 平台信息字典
+
+    Returns:
+        str: 规范化的分发名称
+        目录模式: "ZX-Answering-Assistant-v2.2.0-windows-x64-installer"
+        单文件模式: "ZX-Answering-Assistant-v2.2.0-windows-x64-portable"
+    """
+    base_name = "ZX-Answering-Assistant"
+
+    # 添加模式标识
+    if mode == "onedir":
+        mode_suffix = "installer"  # 目录模式，类似安装器
+    else:  # onefile
+        mode_suffix = "portable"   # 单文件模式，便携版
+
+    return f"{base_name}-v{version}-{platform_info['platform']}-{platform_info['architecture']}-{mode_suffix}"
+
+
 def update_version_info():
     """更新版本信息（构建日期、时间、Git提交等）"""
     try:
@@ -88,6 +152,14 @@ def build_project(mode="onedir"):
     import importlib
     importlib.reload(version)
     print(f"[INFO] 完整版本: {version.get_full_version_string()}")
+
+    # 获取平台信息
+    platform_info = get_platform_info()
+    print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
+
+    # 生成分发名称
+    dist_name = get_dist_name(mode, version.VERSION, platform_info)
+    print(f"[INFO] 分发名称: {dist_name}")
 
     # 检查是否安装了PyInstaller
     try:
@@ -179,7 +251,7 @@ def build_project(mode="onedir"):
         "--exclude-module", "yaml",
         "--exclude-module", "dotenv",
         "--exclude-module", "pyyaml",
-        "--name", "ZX-Answering-Assistant",
+        "--name", dist_name,
         "main.py"
     ]
 
@@ -192,30 +264,46 @@ def build_project(mode="onedir"):
     print("=" * 60)
 
     if mode == "onefile":
-        exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant.exe'
+        # 单文件模式：生成 .exe 文件（Windows）或无扩展名（Linux/Mac）
+        if platform_info["platform"] == "windows":
+            exe_filename = f"{dist_name}.exe"
+        else:
+            exe_filename = dist_name
+
+        exe_path = Path.cwd() / 'dist' / exe_filename
         print(f"[PATH] 可执行文件位于: {exe_path}")
         print(f"[INFO] 版本: {version.get_full_version_string()}")
+        print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
         print("\n" + "=" * 60)
         print("[HELP] 使用说明:")
         print("=" * 60)
-        print("单文件模式：所有文件打包到一个exe中")
+        print("单文件模式：所有文件打包到一个可执行文件中")
         print("1. 首次运行可执行文件时，会自动解压到临时目录")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
-        print("4. 建议将exe文件放在单独的目录中运行")
+        print("4. 建议将可执行文件放在单独的目录中运行")
         print("5. 首次启动可能需要1-2分钟（解压文件）")
     else:
-        exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant' / 'ZX-Answering-Assistant.exe'
+        # 目录模式：生成文件夹
+        dist_dir = Path.cwd() / 'dist' / dist_name
+        if platform_info["platform"] == "windows":
+            exe_filename = f"{dist_name}.exe"
+        else:
+            exe_filename = dist_name
+
+        exe_path = dist_dir / exe_filename
         print(f"[PATH] 可执行文件位于: {exe_path}")
+        print(f"[PATH] 分发目录位于: {dist_dir}")
         print(f"[INFO] 版本: {version.get_full_version_string()}")
+        print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
         print("\n" + "=" * 60)
         print("[HELP] 使用说明:")
         print("=" * 60)
         print("目录模式：启动速度快10-20倍（推荐）")
-        print("1. 运行 dist/ZX-Answering-Assistant/ZX-Answering-Assistant.exe")
+        print(f"1. 运行 dist/{dist_name}/{exe_filename}")
         print("2. Playwright浏览器已内置，无需下载")
         print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
-        print("4. 可以将整个 ZX-Answering-Assistant 文件夹分发给用户")
+        print(f"4. 可以将整个 {dist_name} 文件夹分发给用户")
         print("5. 首次启动几乎秒开（无需解压）")
 
     print("=" * 60)
@@ -228,11 +316,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python build.py              # 编译两个版本（onedir + onefile）
-  python build.py --mode onefile   # 仅编译单文件版本
-  python build.py --mode onedir    # 仅编译目录版本
-  python build.py --copy-browser   # 仅复制浏览器
-  python build.py --copy-all       # 复制所有依赖
+  python build.py                    # 编译两个版本（onedir + onefile）
+  python build.py --mode onefile     # 仅编译单文件版本
+  python build.py --mode onedir      # 仅编译目录版本
+  python build.py --copy-browser     # 仅复制浏览器
+  python build.py --copy-all         # 复制所有依赖
+
+输出文件名格式:
+  目录模式: ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+  单文件:   ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+
+说明:
+  - installer: 目录模式，启动快，推荐使用
+  - portable: 单文件模式，所有文件打包到一个可执行文件
         """
     )
 
@@ -350,6 +446,15 @@ def main():
     # 正常打包流程
     if args.mode == 'both':
         print("[INFO] 打包模式: 两个版本（onedir + onefile）")
+
+        # 获取平台信息用于显示
+        platform_info = get_platform_info()
+        import version
+        onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+        onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+        if platform_info["platform"] == "windows":
+            onefile_name += ".exe"
+
         print("\n" + "=" * 60)
         print("开始编译: 目录模式（推荐）")
         print("=" * 60)
@@ -363,8 +468,8 @@ def main():
         print("\n\n" + "=" * 60)
         print("[SUCCESS] 两个版本编译完成！")
         print("=" * 60)
-        print("目录模式: dist/ZX-Answering-Assistant/")
-        print("单文件模式: dist/ZX-Answering-Assistant.exe")
+        print(f"目录模式: dist/{onedir_name}/")
+        print(f"单文件模式: dist/{onefile_name}")
         print("=" * 60)
     else:
         print(f"[INFO] 打包模式: {args.mode}")
