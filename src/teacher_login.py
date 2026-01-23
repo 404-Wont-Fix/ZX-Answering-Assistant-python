@@ -11,17 +11,41 @@ import time
 def get_access_token() -> Optional[str]:
     """
     使用Playwright模拟浏览器登录获取教师端access_token
-    
+
     Returns:
         Optional[str]: 获取到的access_token，如果失败则返回None
     """
     try:
         print("正在启动浏览器进行教师端登录...")
-        
-        # 获取用户输入的用户名和密码
-        username = input("请输入教师账户：").strip()
-        password = input("请输入教师密码：").strip()
-        
+
+        # 尝试从配置文件读取凭据
+        try:
+            from src.settings import get_settings_manager
+            settings = get_settings_manager()
+            config_username, config_password = settings.get_teacher_credentials()
+
+            if config_username and config_password:
+                print("\n💡 检测到已保存的教师端账号")
+                use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+                if use_saved in ['', 'yes', 'y', '是']:
+                    print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                    username = config_username
+                    password = config_password
+                else:
+                    print("💡 请手动输入账号密码")
+                    # 获取用户输入的用户名和密码
+                    username = input("请输入教师账户：").strip()
+                    password = input("请输入教师密码：").strip()
+            else:
+                # 获取用户输入的用户名和密码
+                username = input("请输入教师账户：").strip()
+                password = input("请输入教师密码：").strip()
+        except Exception:
+            # 如果读取配置失败，继续手动输入
+            username = input("请输入教师账户：").strip()
+            password = input("请输入教师密码：").strip()
+
         if not username or not password:
             print("❌ 用户名或密码不能为空")
             return None
