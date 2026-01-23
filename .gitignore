@@ -69,3 +69,5 @@ API
 ZX-Answering-Assistant.spec
 playwright_browsers/*
 AGENTS.md
+ZX-Answering-Assistant-v*
+cli_config.json
