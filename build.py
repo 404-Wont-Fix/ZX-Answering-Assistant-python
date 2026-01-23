@@ -10,6 +10,7 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 from src.build_tools import ensure_browser_ready, get_browser_size
+from src.build_tools import ensure_flet_ready, get_flet_size
 
 
 def update_version_info():
@@ -107,6 +108,18 @@ def build_project(mode="onedir"):
     else:
         print("⚠️ 浏览器准备失败，但继续打包...")
 
+    # 准备Flet可执行文件
+    print("\n正在准备Flet可执行文件用于打包...")
+    flet_result = ensure_flet_ready(project_root=project_root)
+
+    if flet_result["ready"]:
+        if flet_result["copied"]:
+            print(f"✅ Flet已下载 ({flet_result['size_mb']:.2f} MB)")
+        else:
+            print(f"✅ Flet已准备就绪 ({flet_result['size_mb']:.2f} MB)")
+    else:
+        print("⚠️ Flet准备失败，打包后将从GitHub下载（首次启动较慢）")
+
     # 获取Playwright安装路径
     try:
         from playwright.sync_api import sync_playwright
@@ -128,6 +141,7 @@ def build_project(mode="onedir"):
         "--noconfirm",
         "--add-data", "src" + os.pathsep + "src",
         "--add-data", "playwright_browsers" + os.pathsep + "playwright_browsers",
+        "--add-data", "flet_browsers/unpacked" + os.pathsep + "flet_browsers/unpacked",
         "--add-data", "version.py" + os.pathsep + ".",
         "--hidden-import", "playwright",
         "--hidden-import", "playwright.sync_api",
@@ -139,18 +153,17 @@ def build_project(mode="onedir"):
         "--hidden-import", "playwright._impl._element_handle",
         "--hidden-import", "playwright._impl._js_handle",
         "--hidden-import", "greenlet",
-        "--hidden-import", "loguru",
-        "--hidden-import", "pandas",
-        "--hidden-import", "openpyxl",
-        "--hidden-import", "aiohttp",
-        "--hidden-import", "tqdm",
         "--hidden-import", "keyboard",
         "--hidden-import", "requests",
+        "--hidden-import", "flet",
         "--collect-all", "playwright",
-        "--collect-all", "pandas",
-        "--collect-all", "openpyxl",
         "--exclude-module", "matplotlib",
         "--exclude-module", "numpy",
+        "--exclude-module", "pandas",
+        "--exclude-module", "openpyxl",
+        "--exclude-module", "loguru",
+        "--exclude-module", "aiohttp",
+        "--exclude-module", "tqdm",
         "--exclude-module", "scipy",
         "--exclude-module", "yaml",
         "--exclude-module", "dotenv",
@@ -174,11 +187,13 @@ def build_project(mode="onedir"):
         print("\n" + "=" * 60)
         print("📋 使用说明:")
         print("=" * 60)
-        print("✨ 零依赖运行：已包含Playwright浏览器，无需下载")
+        print("✨ 零依赖运行：已包含Playwright浏览器和Flet，无需下载")
         print("1. 首次运行可执行文件时，会自动解压到临时目录")
         print("2. Playwright浏览器已内置，无需下载")
-        print("3. 建议将exe文件放在单独的目录中运行")
-        print("4. 首次启动可能需要1-2分钟（解压文件）")
+        print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
+        print("4. 建议将exe文件放在单独的目录中运行")
+        print("5. 首次启动可能需要1-2分钟（解压文件）")
+        print("   注意：download/目录中的zip文件不会被打包，仅打包unpacked/目录")
     else:
         exe_path = Path.cwd() / 'dist' / 'ZX-Answering-Assistant' / 'ZX-Answering-Assistant.exe'
         print(f"📁 可执行文件位于: {exe_path}")
@@ -189,8 +204,10 @@ def build_project(mode="onedir"):
         print("✨ 优化版：使用目录模式，启动速度快10-20倍")
         print("1. 运行 dist/ZX-Answering-Assistant/ZX-Answering-Assistant.exe")
         print("2. Playwright浏览器已内置，无需下载")
-        print("3. 可以将整个 ZX-Answering-Assistant 文件夹分发给用户")
-        print("4. 首次启动几乎秒开（无需解压）")
+        print("3. Flet可执行文件已内置，首次启动无需从GitHub下载")
+        print("4. 可以将整个 ZX-Answering-Assistant 文件夹分发给用户")
+        print("5. 首次启动几乎秒开（无需解压）")
+        print("   注意：仅打包unpacked/目录，不包含download/目录中的zip文件")
     
     print("=" * 60)
 
@@ -216,9 +233,21 @@ def main():
     )
 
     parser.add_argument(
+        '--copy-flet',
+        action='store_true',
+        help='仅下载Flet可执行文件到项目目录（不进行打包）'
+    )
+
+    parser.add_argument(
+        '--copy-all',
+        action='store_true',
+        help='复制所有依赖（Playwright浏览器 + Flet）到项目目录（不进行打包）'
+    )
+
+    parser.add_argument(
         '--force-copy',
         action='store_true',
-        help='强制重新复制浏览器（覆盖已有文件）'
+        help='强制重新复制（覆盖已有文件）'
     )
 
     args = parser.parse_args()
@@ -227,10 +256,11 @@ def main():
     print("ZX Answering Assistant - 项目打包工具")
     print("=" * 60)
 
+    project_root = Path(__file__).parent
+
     # 如果只是复制浏览器
     if args.copy_browser:
         print("📦 任务: 复制Playwright浏览器")
-        project_root = Path(__file__).parent
         browser_result = ensure_browser_ready(
             project_root=project_root,
             force_copy=args.force_copy
@@ -243,6 +273,62 @@ def main():
         else:
             print("\n❌ 浏览器准备失败")
             return 1
+
+    # 如果只是下载Flet
+    if args.copy_flet:
+        print("📦 任务: 下载Flet可执行文件")
+        flet_result = ensure_flet_ready(
+            project_root=project_root,
+            force_copy=args.force_copy
+        )
+
+        if flet_result["ready"]:
+            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
+            print(f"\n✅ Flet{status} ({flet_result['size_mb']:.2f} MB)")
+            return 0
+        else:
+            print("\n❌ Flet准备失败")
+            return 1
+
+    # 如果复制所有依赖
+    if args.copy_all:
+        print("📦 任务: 复制所有依赖（Playwright浏览器 + Flet）")
+
+        # 复制Playwright浏览器
+        print("\n1️️⃣ 准备Playwright浏览器...")
+        browser_result = ensure_browser_ready(
+            project_root=project_root,
+            force_copy=args.force_copy
+        )
+
+        if browser_result["ready"]:
+            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
+            print(f"   ✅ 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
+        else:
+            print("   ❌ 浏览器准备失败")
+            return 1
+
+        # 下载Flet
+        print("\n2️️⃣ 准备Flet可执行文件...")
+        flet_result = ensure_flet_ready(
+            project_root=project_root,
+            force_copy=args.force_copy
+        )
+
+        if flet_result["ready"]:
+            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
+            print(f"   ✅ Flet{status} ({flet_result['size_mb']:.2f} MB)")
+        else:
+            print("   ❌ Flet准备失败")
+            return 1
+
+        print("\n" + "=" * 60)
+        print("✅ 所有依赖准备完成！")
+        print(f"📦 Playwright浏览器: {browser_result['size_mb']:.2f} MB")
+        print(f"📦 Flet可执行文件: {flet_result['size_mb']:.2f} MB")
+        print(f"📦 总计: {browser_result['size_mb'] + flet_result['size_mb']:.2f} MB")
+        print("=" * 60)
+        return 0
 
     # 正常打包流程
     print(f"📦 打包模式: {args.mode}")

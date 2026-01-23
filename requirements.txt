@@ -4,18 +4,7 @@ requests>=2.31.0
 # Browser automation
 playwright>=1.57.0
 
-# Logging and configuration
-loguru>=0.7.0
-
-# Data processing
-pandas>=2.0.0
-openpyxl>=3.1.0
-
-# Async support
-aiohttp>=3.9.0
-
 # Utility libraries
-tqdm>=4.66.0
 keyboard>=0.13.5
 
 # GUI framework

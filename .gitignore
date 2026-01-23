@@ -68,5 +68,9 @@ sign
 API
 ZX-Answering-Assistant.spec
 playwright_browsers/*
+
+# Flet浏览器（unpacked目录用于打包，download目录包含下载的zip）
+flet_browsers/download/
 AGENTS.md
 cli_config.json
+flet_browsers/*

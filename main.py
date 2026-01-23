@@ -32,7 +32,7 @@ def setup_playwright_browser():
             # 在打包环境中，使用临时目录中的浏览器
             import tempfile
             import shutil
-            
+
             # 获取打包的浏览器目录
             browsers_dir = Path(sys._MEIPASS) / "playwright_browsers"
             if browsers_dir.exists():
@@ -45,8 +45,33 @@ def setup_playwright_browser():
     except Exception as e:
         print(f"⚠️ 设置浏览器路径失败: {e}")
 
-# 在导入Playwright之前设置浏览器路径
+
+def setup_flet_executable():
+    """
+    设置Flet可执行文件
+    如果是打包环境，尝试将预先下载的Flet复制到临时目录
+    """
+    try:
+        if getattr(sys, 'frozen', False):
+            # 在打包环境中，尝试使用预下载的Flet
+            from src.build_tools import copy_flet_to_temp_on_startup
+
+            # 尝试将Flet复制到临时目录
+            success = copy_flet_to_temp_on_startup()
+            if success:
+                print("✅ 使用预下载的Flet可执行文件")
+            else:
+                print("⚠️ 未找到预下载的Flet，运行时将从GitHub下载")
+        else:
+            # 开发环境，Flet会自动处理
+            print("✅ 使用系统Flet")
+    except Exception as e:
+        print(f"⚠️ 设置Flet可执行文件失败: {e}")
+
+
+# 在导入Playwright和Flet之前设置路径
 setup_playwright_browser()
+setup_flet_executable()
 
 # 导入登录模块和题目提取模块
 from src.teacher_login import get_access_token
