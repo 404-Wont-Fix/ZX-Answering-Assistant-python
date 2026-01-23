@@ -16,6 +16,9 @@ from src.student_login import (
     navigate_to_course,
     get_course_progress_from_page,
     get_access_token_from_browser,
+    is_browser_alive,
+    clear_access_token,
+    cleanup_browser,
 )
 from src.settings import get_settings_manager
 
@@ -799,34 +802,73 @@ class AnsweringView:
         try:
             # 导航到课程页面
             print(f"正在导航到课程页面: {course_name}")
-            if navigate_to_course(course_id):
-                # 刷新token（如果需要）
-                new_token = get_access_token_from_browser()
-                if new_token:
-                    self.access_token = new_token
-                print("✅ 成功导航到课程页面")
+            success = navigate_to_course(course_id)
 
-                # 获取进度信息（从已加载的页面）
-                print("正在获取课程进度...")
-                progress = get_course_progress_from_page()
-                if progress:
-                    self.current_progress = progress
-                    print(f"✅ 成功获取进度: {progress}")
+            if not success:
+                # 检查浏览器是否挂掉
+                if not is_browser_alive():
+                    print("❌ 检测到浏览器已挂掉")
 
-                    # 获取未完成知识点列表
-                    print("正在获取未完成知识点列表...")
-                    uncompleted = get_uncompleted_chapters(self.access_token, course_id)
-                    self.current_uncompleted = uncompleted or []
-                    print(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
+                    # 清理旧浏览器实例
+                    cleanup_browser()
+                    clear_access_token()
 
-                    # 直接调用UI更新（Flet应该会自动处理线程切换）
-                    self._refresh_course_detail_ui()
+                    # 提示用户重新登录
+                    self.page.pop_dialog()  # 关闭进度对话框
+
+                    # 显示重新登录对话框
+                    relogin_dialog = ft.AlertDialog(
+                        title=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                                ft.Text("浏览器已断开", weight=ft.FontWeight.BOLD),
+                            ],
+                            spacing=10,
+                        ),
+                        content=ft.Text(
+                            "⚠️ 检测到浏览器已断开连接\n\n"
+                            "可能原因：\n"
+                            "• 浏览器进程意外退出\n"
+                            "• 网络连接中断\n\n"
+                            "请点击下方按钮重新登录"
+                        ),
+                        actions=[
+                            ft.TextButton("重新登录", on_click=self._on_relogin_from_navigation),
+                            ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
+                        ],
+                    )
+                    self.page.show_dialog(relogin_dialog)
+                    return
                 else:
-                    print("❌ 获取课程进度失败")
-                    self._show_error_dialog("获取进度失败", "无法获取课程进度信息，请查看控制台日志。")
+                    print("❌ 导航到课程页面失败（浏览器正常）")
+                    self._show_error_dialog("导航失败", "无法导航到课程页面，请查看控制台日志。")
+                    return
+
+            # 导航成功，继续后续流程
+            # 刷新token（如果需要）
+            new_token = get_access_token_from_browser()
+            if new_token:
+                self.access_token = new_token
+            print("✅ 成功导航到课程页面")
+
+            # 获取进度信息（从已加载的页面）
+            print("正在获取课程进度...")
+            progress = get_course_progress_from_page()
+            if progress:
+                self.current_progress = progress
+                print(f"✅ 成功获取进度: {progress}")
+
+                # 获取未完成知识点列表
+                print("正在获取未完成知识点列表...")
+                uncompleted = get_uncompleted_chapters(self.access_token, course_id)
+                self.current_uncompleted = uncompleted or []
+                print(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
+
+                # 直接调用UI更新（Flet应该会自动处理线程切换）
+                self._refresh_course_detail_ui()
             else:
-                print("❌ 导航到课程页面失败")
-                self._show_error_dialog("导航失败", "无法导航到课程页面，请查看控制台日志。")
+                print("❌ 获取课程进度失败")
+                self._show_error_dialog("获取进度失败", "无法获取课程进度信息，请查看控制台日志。")
         except Exception as ex:
             print(f"❌ 导航异常: {str(ex)}")
             import traceback
@@ -836,6 +878,39 @@ class AnsweringView:
     def _perform_progress_update(self):
         """在后台线程中执行进度更新（不包含浏览器操作）"""
         try:
+            # 检查浏览器是否存活
+            if not is_browser_alive():
+                print("❌ 检测到浏览器已挂掉")
+
+                # 清理旧浏览器实例
+                cleanup_browser()
+                clear_access_token()
+
+                # 提示用户重新登录
+                self.page.pop_dialog()  # 关闭进度对话框
+
+                # 显示重新登录对话框
+                relogin_dialog = ft.AlertDialog(
+                    title=ft.Row(
+                        [
+                            ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                            ft.Text("浏览器已断开", weight=ft.FontWeight.BOLD),
+                        ],
+                        spacing=10,
+                    ),
+                    content=ft.Text(
+                        "⚠️ 检测到浏览器已断开连接\n\n"
+                        "无法获取课程进度信息\n\n"
+                        "请点击下方按钮重新登录"
+                    ),
+                    actions=[
+                        ft.TextButton("重新登录", on_click=self._on_relogin_from_progress),
+                        ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
+                    ],
+                )
+                self.page.show_dialog(relogin_dialog)
+                return
+
             # 获取进度信息（从已加载的页面）
             print("正在获取课程进度...")
             progress = get_course_progress_from_page()
@@ -1605,6 +1680,29 @@ class AnsweringView:
         # 切换回课程列表界面
         courses_content = self._get_courses_content()
         self.current_content.content = courses_content
+
+    def _on_relogin_from_navigation(self, e):
+        """处理从导航失败后重新登录的按钮点击事件"""
+        print("🔄 用户选择重新登录")
+
+        # 关闭对话框
+        self.page.pop_dialog()
+
+        # 返回登录界面
+        login_content = self._get_login_content()
+        self.current_content.content = login_content
+        self.page.update()
+
+    def _on_relogin_from_progress(self, e):
+        """处理从进度更新失败后重新登录的按钮点击事件"""
+        print("🔄 用户选择重新登录")
+
+        # 关闭对话框
+        self.page.pop_dialog()
+
+        # 返回登录界面
+        login_content = self._get_login_content()
+        self.current_content.content = login_content
         self.page.update()
 
     def _on_course_card_click(self, e, course: dict):

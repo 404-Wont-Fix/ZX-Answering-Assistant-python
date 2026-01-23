@@ -81,6 +81,23 @@ class AutoAnswer:
         if hasattr(self, '_log_handler') and self._log_handler:
             logger.removeHandler(self._log_handler)
 
+    def _check_page_alive(self) -> bool:
+        """
+        检查 page 对象是否仍然可用
+
+        Returns:
+            bool: page 是否可用
+        """
+        try:
+            if not self.page:
+                return False
+            # 尝试访问 page 的 URL 属性来检查连接状态
+            _ = self.page.url
+            return True
+        except Exception as e:
+            logger.warning(f"⚠️ 页面连接检查失败: {str(e)}")
+            return False
+
     def load_question_bank(self, question_bank_data: Dict):
         """
         加载题库数据
@@ -1519,6 +1536,12 @@ class AutoAnswer:
         }
 
         try:
+            # 检查浏览器是否存活
+            if not self._check_page_alive():
+                logger.error("❌ 浏览器已挂掉，无法继续做题")
+                result['stopped'] = True
+                return result
+
             logger.info("🚀 开始自动做题流程（第一个知识点）")
             logger.info("=" * 60)
 
@@ -1590,6 +1613,12 @@ class AutoAnswer:
         }
 
         try:
+            # 检查浏览器是否存活
+            if not self._check_page_alive():
+                logger.error("❌ 浏览器已挂掉，无法继续做题")
+                result['stopped'] = True
+                return result
+
             logger.info("🚀 继续自动做题流程（网站已自动跳转）")
             logger.info("=" * 60)
 

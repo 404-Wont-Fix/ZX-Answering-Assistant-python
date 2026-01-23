@@ -62,6 +62,61 @@ def get_student_access_token(username: str = None, password: str = None, keep_br
     """
     global _browser_instance, _page_instance
 
+    # 检测是否在 asyncio 事件循环中
+    try:
+        import asyncio
+        asyncio.get_running_loop()
+        # 如果在 asyncio 事件循环中，使用新的事件循环运行
+        logger.info("检测到 asyncio 环境，使用独立事件循环")
+        import threading
+
+        # 在新线程中创建新的事件循环来运行同步代码
+        result = [None]
+        exception = [None]
+
+        def run_in_new_loop():
+            try:
+                # 创建新的事件循环
+                new_loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(new_loop)
+                # 运行登录函数
+                result[0] = _get_student_access_token_impl(username, password, keep_browser)
+            except Exception as e:
+                exception[0] = e
+            finally:
+                new_loop.close()
+
+        thread = threading.Thread(target=run_in_new_loop)
+        thread.start()
+        thread.join()
+
+        if exception[0]:
+            raise exception[0]
+
+        return result[0]
+
+    except RuntimeError:
+        # 没有运行的事件循环，直接执行
+        pass
+
+    # 正常执行（非 asyncio 环境）
+    return _get_student_access_token_impl(username, password, keep_browser)
+
+
+def _get_student_access_token_impl(username: str = None, password: str = None, keep_browser: bool = True) -> Optional[str]:
+    """
+    学生端登录的实际实现（内部方法）
+
+    Args:
+        username: 学生账户
+        password: 学生密码
+        keep_browser: 是否保持浏览器开启
+
+    Returns:
+        Optional[str]: 获取到的access_token，如果失败则返回None
+    """
+    global _browser_instance, _page_instance
+
     try:
         # 如果没有提供用户名和密码，尝试从配置读取或询问用户
         if username is None or password is None:
@@ -314,11 +369,18 @@ def get_student_access_token_with_credentials() -> Optional[str]:
 def get_browser_page() -> Optional[Tuple[Browser, Page]]:
     """
     获取当前的浏览器实例和页面
+    如果浏览器已挂掉，自动清理并返回None
 
     Returns:
         Optional[Tuple[Browser, Page]]: 浏览器和页面的元组，如果不存在则返回None
     """
     global _browser_instance, _page_instance
+
+    # 检查浏览器是否存活
+    if not is_browser_alive():
+        logger.warning("⚠️ 浏览器已挂掉，已自动清理")
+        return None
+
     if _browser_instance and _page_instance:
         return _browser_instance, _page_instance
     return None
@@ -426,6 +488,7 @@ def get_access_token_from_browser() -> Optional[str]:
 def navigate_to_course(course_id: str) -> bool:
     """
     使用已登录的浏览器导航到指定课程的答题页面
+    如果浏览器已挂掉，自动清理并返回False
 
     Args:
         course_id: 课程ID
@@ -436,6 +499,11 @@ def navigate_to_course(course_id: str) -> bool:
     global _browser_instance, _page_instance
 
     try:
+        # 检查浏览器是否存活
+        if not ensure_browser_alive():
+            logger.error("❌ 浏览器不可用，请重新登录")
+            return False
+
         if not _browser_instance or not _page_instance:
             logger.error("❌ 浏览器未初始化，请先登录")
             return False
@@ -445,16 +513,19 @@ def navigate_to_course(course_id: str) -> bool:
 
         logger.info(f"正在导航到课程页面: {evaluation_url}")
         _page_instance.goto(evaluation_url, wait_until="networkidle")
-        
+
         # 刷新页面以确保正确加载
         logger.info("正在刷新页面...")
         _page_instance.reload(wait_until="networkidle")
-        
+
         logger.info("✅ 成功导航到答题页面")
         return True
 
     except Exception as e:
         logger.error(f"❌ 导航到课程页面失败: {str(e)}")
+        # 如果操作失败，可能浏览器已挂掉，尝试清理
+        if not is_browser_alive():
+            logger.warning("⚠️ 浏览器可能在操作过程中挂掉，已自动清理")
         return False
 
 
@@ -579,6 +650,7 @@ def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 
 def get_course_progress_from_page() -> Optional[Dict]:
     """
     从当前页面解析课程进度信息
+    如果浏览器已挂掉，自动清理并返回None
 
     Returns:
         Optional[Dict]: 包含进度信息的字典:
@@ -594,6 +666,11 @@ def get_course_progress_from_page() -> Optional[Dict]:
     global _page_instance
 
     try:
+        # 检查浏览器是否存活
+        if not ensure_browser_alive():
+            logger.error("❌ 浏览器不可用，无法获取进度")
+            return None
+
         if not _page_instance:
             logger.error("❌ 页面未初始化")
             return None
@@ -901,5 +978,122 @@ def is_token_valid() -> bool:
     if not _cached_access_token:
         return False
     if _token_expiry_time and time.time() > _token_expiry_time:
+        return False
+    return True
+
+
+# ==================== 浏览器健康检查和恢复 ====================
+
+def is_browser_alive() -> bool:
+    """
+    检查浏览器实例是否仍然存活
+
+    Returns:
+        bool: 浏览器是否存活
+    """
+    global _browser_instance, _page_instance
+
+    if not _browser_instance or not _page_instance:
+        return False
+
+    try:
+        # 尝试检查浏览器的连接状态
+        # 通过检查页面URL来验证浏览器是否仍然连接
+        _page_instance.url
+        return True
+    except Exception as e:
+        logger.warning(f"⚠️ 浏览器连接检查失败: {str(e)}")
+        return False
+
+
+def ensure_browser_alive() -> bool:
+    """
+    确保浏览器实例存活，如果浏览器挂掉则清理并准备重新登录
+
+    Returns:
+        bool: 浏览器是否可用
+    """
+    global _browser_instance, _page_instance
+
+    if is_browser_alive():
+        return True
+
+    # 浏览器已挂掉，清理旧实例
+    logger.warning("⚠️ 检测到浏览器已挂掉，清理旧实例...")
+    cleanup_browser()
+
+    logger.info("✅ 浏览器实例已清理，请重新登录")
+    return False
+
+
+def cleanup_browser():
+    """
+    强制清理浏览器实例（包括挂掉的浏览器）
+    """
+    global _browser_instance, _page_instance, _cached_access_token, _token_expiry_time
+
+    try:
+        if _browser_instance:
+            try:
+                # 尝试正常关闭
+                _browser_instance.close()
+                logger.info("浏览器已正常关闭")
+            except Exception as e:
+                # 如果正常关闭失败，强制终止
+                logger.warning(f"正常关闭浏览器失败: {str(e)}")
+                try:
+                    # 尝试通过 context 关闭
+                    if _page_instance:
+                        _page_instance.context.close()
+                        logger.info("通过 context 关闭浏览器成功")
+                except Exception as e2:
+                    logger.warning(f"通过 context 关闭失败: {str(e2)}")
+                    # 最后的手段：停止 playwright
+                    try:
+                        _browser_instance.stop()
+                        logger.info("通过 stop() 强制停止浏览器")
+                    except:
+                        pass
+    except Exception as e:
+        logger.error(f"清理浏览器时发生错误: {str(e)}")
+    finally:
+        # 无论如何都清空全局变量
+        _browser_instance = None
+        _page_instance = None
+        _cached_access_token = None
+        _token_expiry_time = None
+        logger.info("✅ 浏览器实例已强制清理")
+
+
+def restart_browser(username: str = None, password: str = None) -> Optional[str]:
+    """
+    重启浏览器并重新登录
+
+    Args:
+        username: 学生账户（可选）
+        password: 学生密码（可选）
+
+    Returns:
+        Optional[str]: 新的access_token，如果失败则返回None
+    """
+    logger.info("🔄 正在重启浏览器...")
+
+    # 清理旧实例
+    cleanup_browser()
+
+    # 重新登录
+    return get_student_access_token(username, password, keep_browser=True)
+
+
+def check_and_recover_browser() -> bool:
+    """
+    检查浏览器状态并尝试恢复
+
+    Returns:
+        bool: 浏览器是否可用
+    """
+    if not is_browser_alive():
+        logger.warning("⚠️ 浏览器不可用，准备清理...")
+        cleanup_browser()
         return False
     return True

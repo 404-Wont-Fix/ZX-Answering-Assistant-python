@@ -915,9 +915,36 @@ def main():
                                                     break
                                             else:
                                                 print("❌ 打开答题页面失败")
-                                                print("提示: 浏览器可能未初始化，请确保已登录")
-                                                print("=" * 50 + "\n")
-                                                break
+                                                print("提示: 浏览器可能已挂掉或未初始化")
+
+                                                # 检查浏览器状态
+                                                from src.student_login import is_browser_alive
+                                                if not is_browser_alive():
+                                                    print("\n⚠️ 检测到浏览器已挂掉")
+                                                    relogin = input("是否重新登录？(yes/no): ").strip().lower()
+                                                    if relogin in ['yes', 'y', '是']:
+                                                        print("\n🔄 正在重新登录...")
+                                                        # 清除旧的 token
+                                                        from src.student_login import clear_access_token
+                                                        clear_access_token()
+
+                                                        # 重新获取 token（会启动新的浏览器）
+                                                        new_token = get_student_access_token()
+                                                        if new_token:
+                                                            print("✅ 重新登录成功！请重新选择课程开始答题")
+                                                            # 返回课程列表
+                                                            break
+                                                        else:
+                                                            print("❌ 重新登录失败")
+                                                            print("=" * 50 + "\n")
+                                                            break
+                                                    else:
+                                                        print("=" * 50 + "\n")
+                                                        break
+                                                else:
+                                                    print("提示: 请先确保已登录学生端")
+                                                    print("=" * 50 + "\n")
+                                                    break
                                         elif confirm in ['no', 'n', '否']:
                                             print("返回课程列表\n")
                                             # 重新显示课程列表
