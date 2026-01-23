@@ -509,6 +509,177 @@ CLI 模式支持通过配置文件管理账号密码和 API 设置，首次运�
 
 ---
 
+## 打包与分发
+
+### 编译可执行文件
+
+项目支持使用 PyInstaller 打包成独立的可执行文件。
+
+#### 基础编译
+
+```bash
+# 默认：编译两个版本（onedir + onefile）
+python build.py
+
+# 仅编译目录模式（推荐，启动快）
+python build.py --mode onedir
+
+# 仅编译单文件模式
+python build.py --mode onefile
+```
+
+#### 输出文件名格式
+
+编译后的文件名遵循规范命名格式：
+
+**目录模式（installer）**：
+```
+ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+```
+- `installer` 表示目录模式
+- 启动速度快（10-20倍）
+- 推荐用于分发
+
+**单文件模式（portable）**：
+```
+ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+```
+- `portable` 表示单文件模式
+- 所有文件打包到一个可执行文件
+- 便于携带，但首次启动较慢
+
+#### 文件名组成
+
+```
+ZX-Answering-Assistant-<版本>-<平台>-<架构>-<模式>
+```
+
+**示例**：
+- Windows x64: `ZX-Answering-Assistant-v2.2.0-windows-x64-installer`
+- Linux x64: `ZX-Answering-Assistant-v2.2.0-linux-x64-portable`
+- macOS ARM64: `ZX-Answering-Assistant-v2.2.0-macos-arm64-installer`
+
+### 体积优化
+
+编译后的文件较大（约 262-528 MB），主要因为包含：
+- Playwright 浏览器（~170-200 MB）
+- Flet 框架和 Flutter 引擎（~50-80 MB）
+- Python 运行时和依赖库（~50-100 MB）
+
+#### 使用 UPX 压缩（推荐）
+
+UPX 可以减小 30-50% 的体积：
+
+```bash
+# 1. 安装 UPX
+#    下载: https://github.com/upx/upx/releases
+#    Windows: 下载 upx-4.2.2-win64.zip
+#    解压后将 upx.exe 添加到系统 PATH
+
+# 2. 启用 UPX 压缩编译
+python build.py --upx
+
+# 3. 仅压缩特定版本
+python build.py --upx --mode onedir
+python build.py --upx --mode onefile
+```
+
+**效果对比**：
+
+| 方案 | 单文件 | 目录 | 分发（7z） |
+|------|--------|------|------------|
+| 原始 | 262 MB | 528 MB | - |
+| UPX 压缩 | 130-180 MB | 260-360 MB | - |
+| UPX + 7z | - | 260-360 MB | 150-200 MB |
+
+#### 7z 二次压缩（分发用）
+
+编译后使用 7z 压缩可进一步减小分发体积：
+
+```bash
+# Windows
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+
+# Linux/Mac
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-linux-x64-installer/
+```
+
+### 编译选项
+
+```bash
+# 查看所有编译选项
+python build.py --help
+
+# 可用选项：
+#   --mode, -m        打包模式: onefile, onedir, both
+#   --upx             启用 UPX 压缩（减小 30-50% 体积）
+#   --no-upx          禁用 UPX 压缩
+#   --copy-browser    仅复制浏览器（不打包）
+#   --copy-flet       仅下载 Flet（不打包）
+#   --copy-all        复制所有依赖（不打包）
+#   --force-copy      强制重新复制
+```
+
+### 编译后使用
+
+#### 目录模式（installer）
+
+```bash
+# 1. 进入输出目录
+cd dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+
+# 2. 运行程序
+# Windows:
+ZX-Answering-Assistant-v2.2.0-windows-x64-installer.exe
+
+# Linux:
+./ZX-Answering-Assistant-v2.2.0-linux-x64-installer
+```
+
+**特点**：
+- 首次启动几乎秒开（无需解压）
+- 可以将整个文件夹分发给用户
+- 占用磁盘空间较大
+
+#### 单文件模式（portable）
+
+```bash
+# 直接运行可执行文件
+# Windows:
+ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+
+# Linux:
+./ZX-Answering-Assistant-v2.2.0-linux-x64-portable
+```
+
+**特点**：
+- 单个文件，便于携带
+- 首次运行需要 1-2 分钟解压
+- 占用磁盘空间较小
+
+### 首次运行
+
+编译后的程序首次运行时：
+1. Playwright 浏览器已内置，无需下载
+2. Flet 可执行文件已内置，无需从 GitHub 下载
+3. 会自动创建配置文件（CLI 模式）
+4. 会自动创建日志目录
+
+### 优化建议
+
+**推荐方案（最佳用户体验）**：
+```bash
+# 1. 使用 UPX 压缩目录版本
+python build.py --upx --mode onedir
+
+# 2. 使用 7z 压缩分发
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+```
+
+最终分发体积：**~150-200 MB**（从 528 MB 减小约 60-70%）
+
+---
+
 ## 项目结构
 
 ```
@@ -599,7 +770,7 @@ ZX-Answering-Assistant-python/
 
 ### 主要版本更新
 
-**v2.2.0** (最新) - 浏览器健壮性版本
+**v2.2.0** (最新) - 浏览器健壮性与打包优化版本
 - 新增浏览器崩溃自动恢复功能
 - 新增浏览器健康状态监控机制
 - 实现 AsyncIO 环境兼容性（解决 Playwright Sync API 在 GUI 模式的问题）
@@ -609,6 +780,13 @@ ZX-Answering-Assistant-python/
 - CLI 模式：浏览器崩溃后提示用户重新登录
 - 优化浏览器重启流程
 - 改进错误提示信息
+
+**打包优化**：
+- 规范化编译输出文件名格式（版本-平台-架构-模式）
+- 添加 UPX 压缩支持（减小 30-50% 体积）
+- 改进打包脚本，支持灵活的编译选项
+- 添加体积优化指南文档
+- 优化分发流程（UPX + 7z 可减小 60-70% 体积）
 
 **v2.1.0** - 打包优化版本
 - 修复 Flet 可执行文件打包路径问题
@@ -778,7 +956,44 @@ Playwright Sync API inside the asyncio loop
 
 **A:** 在 GUI 界面的"设置"页面中调整日志级别，选择 DEBUG 级别即可查看详细日志。
 
-### Q10: 遇到问题如何获取帮助？
+### Q10: 编译后的文件为什么这么大？(v2.2.0)
+
+**A:** 编译后的文件较大（262-528 MB）是正常的，主要因为包含：
+
+1. **Playwright 浏览器** (~170-200 MB) - Chromium 浏览器完整包
+2. **Flet 框架** (~50-80 MB) - Flutter 引擎和 GUI 组件
+3. **Python 运行时** (~50-100 MB) - Python 解释器和依赖库
+
+**优化方案**：
+- 使用 UPX 压缩：`python build.py --upx`（减小 30-50%）
+- 使用 7z 二次压缩（分发时减小到 150-200 MB）
+
+### Q11: 如何减小编译文件的体积？
+
+**A:** 推荐使用以下优化方案：
+
+**方案 1：UPX 压缩**
+```bash
+# 1. 安装 UPX: https://github.com/upx/upx/releases
+# 2. 编译时启用压缩
+python build.py --upx --mode onedir
+```
+
+**方案 2：7z 二次压缩（分发推荐）**
+```bash
+# 先用 UPX 压缩
+python build.py --upx --mode onedir
+
+# 再用 7z 打包
+7z a -t7z -m0=lzma2 -mx=9 output.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+```
+
+**效果**：
+- 原始：528 MB
+- UPX 后：260-360 MB
+- UPX + 7z：150-200 MB（减小 60-70%）
+
+### Q12: 遇到问题如何获取帮助？
 
 **A:**
 1. 查看本文档

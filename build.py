@@ -134,12 +134,13 @@ def update_version_info():
         print(f"[WARN] 更新版本信息失败: {e}")
 
 
-def build_project(mode="onedir"):
+def build_project(mode="onedir", use_upx=False):
     """
     构建项目
 
     Args:
         mode: 打包模式，"onefile" 或 "onedir"
+        use_upx: 是否使用 UPX 压缩
     """
     # 导入版本信息
     import version
@@ -217,6 +218,24 @@ def build_project(mode="onedir"):
     mode_name = "单文件" if mode == "onefile" else "目录模式"
     print(f"\n[INFO] 正在打包项目（{mode_name}）...")
 
+    # 检查是否使用 UPX 压缩
+    if use_upx:
+        print("[INFO] UPX 压缩已启用（这将减小体积但会稍慢）")
+        # 检查 UPX 是否可用
+        try:
+            subprocess.run(["upx", "--version"], capture_output=True, check=True)
+            print("[OK] UPX 已安装并可用")
+            # PyInstaller 会自动检测并使用 PATH 中的 UPX，无需额外参数
+            upx_args = []
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            print("[WARN] UPX 未安装，将跳过压缩")
+            print("[INFO] 安装 UPX: https://upx.github.io/")
+            # 使用 --noupx 显式禁用 UPX
+            upx_args = ["--noupx"]
+    else:
+        # 显式禁用 UPX
+        upx_args = ["--noupx"]
+
     cmd = [
         "pyinstaller",
         f"--{mode}",
@@ -254,6 +273,9 @@ def build_project(mode="onedir"):
         "--name", dist_name,
         "main.py"
     ]
+
+    # 添加 UPX 参数（如果有）
+    cmd.extend(upx_args)
 
     print("[CMD] " + " ".join(cmd))
     subprocess.check_call(cmd)
@@ -329,6 +351,13 @@ def main():
 说明:
   - installer: 目录模式，启动快，推荐使用
   - portable: 单文件模式，所有文件打包到一个可执行文件
+
+体积优化:
+  python build.py --upx             # 启用 UPX 压缩（减小 30-50%% 体积）
+  python build.py --upx --mode onefile  # 压缩单文件版本
+
+  UPX 下载: https://upx.github.io/
+  Windows: 下载 upx-4.2.2-win64.zip，解压后将 upx.exe 添加到 PATH
         """
     )
 
@@ -361,6 +390,18 @@ def main():
         '--force-copy',
         action='store_true',
         help='强制重新复制（覆盖已有文件）'
+    )
+
+    parser.add_argument(
+        '--upx',
+        action='store_true',
+        help='使用 UPX 压缩可执行文件（减小 30-50%% 体积，但启动稍慢）'
+    )
+
+    parser.add_argument(
+        '--no-upx',
+        action='store_true',
+        help='禁用 UPX 压缩（即使安装了 UPX 也不使用）'
     )
 
     args = parser.parse_args()
@@ -447,6 +488,9 @@ def main():
     if args.mode == 'both':
         print("[INFO] 打包模式: 两个版本（onedir + onefile）")
 
+        # 检查是否使用 UPX
+        use_upx = args.upx and not args.no_upx
+
         # 获取平台信息用于显示
         platform_info = get_platform_info()
         import version
@@ -458,12 +502,12 @@ def main():
         print("\n" + "=" * 60)
         print("开始编译: 目录模式（推荐）")
         print("=" * 60)
-        build_project(mode="onedir")
+        build_project(mode="onedir", use_upx=use_upx)
 
         print("\n\n" + "=" * 60)
         print("开始编译: 单文件模式")
         print("=" * 60)
-        build_project(mode="onefile")
+        build_project(mode="onefile", use_upx=use_upx)
 
         print("\n\n" + "=" * 60)
         print("[SUCCESS] 两个版本编译完成！")
@@ -473,7 +517,8 @@ def main():
         print("=" * 60)
     else:
         print(f"[INFO] 打包模式: {args.mode}")
-        build_project(mode=args.mode)
+        use_upx = args.upx and not args.no_upx
+        build_project(mode=args.mode, use_upx=use_upx)
 
 
 if __name__ == "__main__":
