@@ -5,9 +5,27 @@ This module is responsible for the underlying structure setup of the UI using Fl
 It provides the foundation for building the graphical user interface with a collapsible navigation bar.
 """
 
+import sys
+from pathlib import Path
+
+# 添加项目根目录到Python路径（支持开发和打包环境）
+project_root = Path(__file__).parent.parent
+if str(project_root) not in sys.path:
+    sys.path.insert(0, str(project_root))
+
 import flet as ft
 import webbrowser
-import version
+
+# 动态导入 version 模块（支持打包环境）
+try:
+    import version
+except ImportError:
+    # 如果导入失败，使用默认版本
+    class DefaultVersion:
+        VERSION = "Unknown"
+        VERSION_NAME = "ZX Answering Assistant"
+    version = DefaultVersion()
+
 from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
