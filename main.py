@@ -63,13 +63,18 @@ def setup_playwright_browser():
                 print("[INFO] 检测到最小化构建版本")
 
                 # 使用用户数据目录作为浏览器路径（默认位置）
-                user_data_dir = Path.home() / ".cache" / "ms-playwright"
+                # Windows: AppData\Local\ms-playwright, Linux/Mac: ~/.cache/ms-playwright
+                if sys.platform == 'win32':
+                    user_data_dir = Path.home() / "AppData" / "Local" / "ms-playwright"
+                else:
+                    user_data_dir = Path.home() / ".cache" / "ms-playwright"
+
                 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(user_data_dir)
                 os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
 
-                # 检查浏览器是否已下载
+                # 检查浏览器是否已下载（支持 chrome-win 和 chrome-win64）
                 import glob
-                chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win" / "chrome.exe"))
+                chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
                 if not chromium_paths:
                     print("\n" + "=" * 60)
                     print("⚠️  Playwright 浏览器未安装")
