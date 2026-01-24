@@ -8,6 +8,45 @@ from typing import Optional
 import time
 
 
+def ensure_browser_installed():
+    """
+    检查浏览器是否已安装，如果未安装则提示用户
+
+    Returns:
+        bool: 浏览器是否可用
+    """
+    try:
+        # 尝试获取浏览器可执行文件路径
+        p = sync_playwright().start()
+
+        try:
+            # 尝试获取浏览器路径
+            executable_path = p.chromium.executable_path
+            p.stop()
+            return True
+        except Exception:
+            # 浏览器不存在，提示用户手动安装
+            p.stop()
+            print("\n" + "=" * 60)
+            print("⚠️  Playwright 浏览器未安装")
+            print("=" * 60)
+            print("请运行以下命令安装浏览器：")
+            print()
+            print("    python -m playwright install chromium")
+            print()
+            print("或者")
+            print()
+            print("    playwright install chromium")
+            print()
+            print("安装完成后重新运行程序即可")
+            print("=" * 60)
+            return False
+
+    except Exception as e:
+        print(f"[ERROR] 检查浏览器失败: {e}")
+        return False
+
+
 def get_access_token() -> Optional[str]:
     """
     使用Playwright模拟浏览器登录获取教师端access_token
@@ -49,7 +88,13 @@ def get_access_token() -> Optional[str]:
         if not username or not password:
             print("❌ 用户名或密码不能为空")
             return None
-        
+
+        # 确保浏览器已安装
+        print("\n正在检查浏览器...")
+        if not ensure_browser_installed():
+            print("[ERROR] 浏览器检查失败，无法继续登录")
+            return None
+
         # 使用playwright启动浏览器
         with sync_playwright() as p:
             # 启动浏览器（显示浏览器窗口）

@@ -13,6 +13,22 @@ import subprocess
 import os
 import argparse
 
+# 设置控制台编码为 UTF-8（Windows 打包环境必需）
+if sys.platform == 'win32':
+    try:
+        import codecs
+        # 确保 stdout 和 stderr 使用 UTF-8 编码
+        if hasattr(sys.stdout, 'buffer'):
+            sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
+            sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer)
+        else:
+            # 对于某些打包环境，可能没有 buffer 属性
+            sys.stdout.reconfigure(encoding='utf-8')
+            sys.stderr.reconfigure(encoding='utf-8')
+    except:
+        # 如果上述方法失败，使用环境变量
+        os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
@@ -42,9 +58,9 @@ def setup_playwright_browser():
                 os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
                 print(f"[OK] 使用打包的浏览器: {browsers_dir}")
             else:
-                # 最小化构建：浏览器不存在，需要自动下载
+                # 最小化构建：浏览器不存在，需要用户手动安装
                 print(f"[INFO] 打包的浏览器目录不存在: {browsers_dir}")
-                print("[INFO] 检测到最小化构建，正在自动下载 Playwright 浏览器...")
+                print("[INFO] 检测到最小化构建版本")
 
                 # 使用用户数据目录作为浏览器路径（默认位置）
                 user_data_dir = Path.home() / ".cache" / "ms-playwright"
@@ -55,28 +71,19 @@ def setup_playwright_browser():
                 import glob
                 chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win" / "chrome.exe"))
                 if not chromium_paths:
-                    print("[INFO] 正在首次下载 Chromium 浏览器...")
-                    print("[INFO] 这可能需要几分钟时间，请耐心等待...")
-
-                    try:
-                        # 使用 playwright.install() 下载浏览器
-                        import subprocess
-                        result = subprocess.run(
-                            [sys.executable, "-m", "playwright", "install", "chromium"],
-                            capture_output=True,
-                            text=True,
-                            timeout=600  # 10分钟超时
-                        )
-
-                        if result.returncode == 0:
-                            print("[OK] Chromium 浏览器下载完成")
-                        else:
-                            print("[WARN] 浏览器下载可能失败，将在首次使用时重试")
-                            if result.stderr:
-                                print(f"[INFO] 错误信息: {result.stderr}")
-                    except Exception as e:
-                        print(f"[WARN] 自动下载浏览器失败: {e}")
-                        print("[INFO] 将在首次使用浏览器时尝试下载")
+                    print("\n" + "=" * 60)
+                    print("⚠️  Playwright 浏览器未安装")
+                    print("=" * 60)
+                    print("首次使用需要安装浏览器，请运行以下命令：")
+                    print()
+                    print("    python -m playwright install chromium")
+                    print()
+                    print("或者")
+                    print()
+                    print("    playwright install chromium")
+                    print()
+                    print("安装完成后重新运行程序即可")
+                    print("=" * 60)
                 else:
                     print(f"[OK] 使用缓存的浏览器: {user_data_dir}")
         else:

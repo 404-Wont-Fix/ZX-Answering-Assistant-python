@@ -226,6 +226,7 @@ def build_project_minimal(mode="onedir", use_upx=False):
         f"--{mode}",
         "--clean",
         "--noconfirm",
+        "--console",  # 确保显示控制台窗口
         # 注意：最小化构建不打包浏览器和 Flet
         # 但需要添加数据目录结构（空目录会在运行时创建）
         "--hidden-import", "version",
