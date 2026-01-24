@@ -377,20 +377,20 @@ class SettingsView:
             hint_text="选择API请求速率",
             options=[
                 ft.dropdown.Option(
-                    key="low",
-                    text="低（50ms）- 无速率限制的API",
+                    key="one_second",
+                    text="1秒 - 快速请求",
                 ),
                 ft.dropdown.Option(
-                    key="medium",
-                    text="中（1秒）- 默认推荐",
+                    key="two_seconds",
+                    text="2秒 - 较快请求",
                 ),
                 ft.dropdown.Option(
-                    key="medium_high",
-                    text="中高（2秒）- 严格速率限制",
+                    key="three_seconds",
+                    text="3秒 - 较慢请求",
                 ),
                 ft.dropdown.Option(
-                    key="high",
-                    text="高（3秒）- 非常严格的速率限制",
+                    key="four_seconds",
+                    text="4秒 - 默认推荐",
                 ),
             ],
             value=rate_level.value,

@@ -12,10 +12,10 @@ from enum import Enum
 
 class APIRateLevel(Enum):
     """API请求速率级别"""
-    LOW = "low"           # 低: 50ms延迟
-    MEDIUM = "medium"     # 中: 1秒延迟
-    MEDIUM_HIGH = "medium_high"  # 中高: 2秒延迟
-    HIGH = "high"         # 高: 3秒延迟
+    ONE_SECOND = "one_second"      # 1秒延迟
+    TWO_SECONDS = "two_seconds"    # 2秒延迟
+    THREE_SECONDS = "three_seconds" # 3秒延迟
+    FOUR_SECONDS = "four_seconds"   # 4秒延迟
 
     @classmethod
     def from_name(cls, name: str) -> 'APIRateLevel':
@@ -23,25 +23,25 @@ class APIRateLevel(Enum):
         for level in cls:
             if level.value == name.lower():
                 return level
-        return cls.MEDIUM  # 默认中速
+        return cls.FOUR_SECONDS  # 默认4秒
 
     def get_delay_ms(self) -> int:
         """获取延迟毫秒数"""
         delays = {
-            APIRateLevel.LOW: 50,
-            APIRateLevel.MEDIUM: 1000,
-            APIRateLevel.MEDIUM_HIGH: 2000,
-            APIRateLevel.HIGH: 3000
+            APIRateLevel.ONE_SECOND: 1000,
+            APIRateLevel.TWO_SECONDS: 2000,
+            APIRateLevel.THREE_SECONDS: 3000,
+            APIRateLevel.FOUR_SECONDS: 4000
         }
         return delays[self]
 
     def get_display_name(self) -> str:
         """获取显示名称"""
         names = {
-            APIRateLevel.LOW: "低（50ms）",
-            APIRateLevel.MEDIUM: "中（1秒）",
-            APIRateLevel.MEDIUM_HIGH: "中高（2秒）",
-            APIRateLevel.HIGH: "高（3秒）"
+            APIRateLevel.ONE_SECOND: "1秒",
+            APIRateLevel.TWO_SECONDS: "2秒",
+            APIRateLevel.THREE_SECONDS: "3秒",
+            APIRateLevel.FOUR_SECONDS: "4秒"
         }
         return names[self]
 
@@ -107,7 +107,7 @@ class SettingsManager:
             },
             "api_settings": {
                 "max_retries": 3,
-                "rate_level": "medium"
+                "rate_level": "four_seconds"
             }
         }
 
