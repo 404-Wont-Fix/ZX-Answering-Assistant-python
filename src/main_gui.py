@@ -6,6 +6,8 @@ It provides the foundation for building the graphical user interface with a coll
 """
 
 import flet as ft
+import webbrowser
+import version
 from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
@@ -253,7 +255,7 @@ class MainApp:
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
                                     title=ft.Text("版本", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("v1.0.0"),
+                                    subtitle=ft.Text(f"v{version.VERSION}"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.CODE, color=ft.Colors.GREEN),
@@ -275,10 +277,14 @@ class MainApp:
                     elevation=2,
                 ),
                 ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Text(
-                    "© 2024 ZX Answering Assistant. All rights reserved.",
-                    size=12,
-                    color=ft.Colors.GREY_500,
+                ft.GestureDetector(
+                    content=ft.Text(
+                        "© 2025 TianJiaJi. All rights reserved.",
+                        size=12,
+                        color=ft.Colors.BLUE,
+                    ),
+                    mouse_cursor=ft.MouseCursor.CLICK,
+                    on_tap=lambda e: webbrowser.open("https://github.com/TianJiaJi/ZX-Answering-Assistant-python"),
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
