@@ -243,7 +243,7 @@ def build_project(mode="onedir", use_upx=False):
         "--noconfirm",
         "--add-data", "playwright_browsers" + os.pathsep + "playwright_browsers",
         "--add-data", "flet_browsers/unpacked" + os.pathsep + "flet_browsers/unpacked",
-        "--add-data", "version.py" + os.pathsep + ".",
+        "--hidden-import", "version",  # 编译 version.py 为 .pyc
         "--hidden-import", "playwright",
         "--hidden-import", "playwright.sync_api",
         "--hidden-import", "playwright._impl._api_types",
