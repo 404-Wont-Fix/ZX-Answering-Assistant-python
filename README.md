@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)]())
-[![Version](https://img.shields.io/badge/Version-v2.2.0-green)]()
+[![Version](https://img.shields.io/badge/Version-v2.3.0-green)]()
 
 一个基于 Playwright 的自动化答题系统，支持 **GUI 图形界面** 和 **CLI 命令行** 两种交互方式，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
@@ -49,8 +49,8 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 - **自动保存**：提取的答案自动保存为 JSON 文件
 - **可视化界面**：图形化操作流程，实时进度显示
 - **统一配置**：CLI 模式支持配置文件管理账号和设置
-- **浏览器自动恢复**：v2.2.0 新增 - 浏览器崩溃后可重新登录恢复
-- **AsyncIO 兼容**：v2.2.0 新增 - GUI 模式完全兼容 Playwright 同步 API
+- **浏览器自动恢复**：v2.3.0 新增 - 浏览器崩溃后可重新登录恢复
+- **AsyncIO 兼容**：v2.3.0 新增 - GUI 模式完全兼容 Playwright 同步 API
 
 ---
 
@@ -75,8 +75,8 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 | 随时停止 | 按 Q 键优雅退出 | ✅ |
 | 实时统计 | 显示答题成功率和进度 | ✅ |
 | 题库加载 | 支持导入 JSON 题库文件 | ✅ |
-| **浏览器崩溃恢复** | v2.2.0 - 浏览器意外退出后可重新登录恢复 | ✅ NEW |
-| **GUI AsyncIO 兼容** | v2.2.0 - 完美兼容 Flet 的 asyncio 事件循环 | ✅ NEW |
+| **浏览器崩溃恢复** | v2.3.0 - 浏览器意外退出后可重新登录恢复 | ✅ NEW |
+| **GUI AsyncIO 兼容** | v2.3.0 - 完美兼容 Flet 的 asyncio 事件循环 | ✅ NEW |
 
 ### 教师端功能
 
@@ -136,7 +136,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 │   │           │  • 自动答题     │     │  • 课程选择     │      │ │
 │   │           │  • 实时日志     │     │  • 进度显示     │      │ │
 │   │           │  • 浏览器恢复   │     │  • 结果保存     │      │ │
-│   │           │    (v2.2.0)    │     │                │      │ │
+│   │           │    (v2.3.0)    │     │                │      │ │
 │   │           └─────────────────┘     └───────────────┘      │ │
 │   │                                                           │ │
 │   └─────────────────────────────────────────────────────────┘ │
@@ -172,7 +172,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 └───────────────────────────────────────────────────────────────┘
 ```
 
-### 浏览器健康监控机制 (v2.2.0)
+### 浏览器健康监控机制 (v2.3.0)
 
 ```
 ┌─────────────────────────────────────────────────────────┐
@@ -272,7 +272,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/ZX-Answering-Assistant-python.git
+git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
 ```
 
@@ -362,7 +362,7 @@ python main.py
    - 实时显示答题日志
    - 显示完成统计
 
-#### 浏览器崩溃恢复 (v2.2.0)
+#### 浏览器崩溃恢复 (v2.3.0)
 
 当浏览器意外退出时：
 
@@ -534,7 +534,7 @@ python build.py --mode onefile
 
 **目录模式（installer）**：
 ```
-ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 ```
 - `installer` 表示目录模式
 - 启动速度快（10-20倍）
@@ -542,7 +542,7 @@ ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
 
 **单文件模式（portable）**：
 ```
-ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 ```
 - `portable` 表示单文件模式
 - 所有文件打包到一个可执行文件
@@ -555,9 +555,9 @@ ZX-Answering-Assistant-<版本>-<平台>-<架构>-<模式>
 ```
 
 **示例**：
-- Windows x64: `ZX-Answering-Assistant-v2.2.0-windows-x64-installer`
-- Linux x64: `ZX-Answering-Assistant-v2.2.0-linux-x64-portable`
-- macOS ARM64: `ZX-Answering-Assistant-v2.2.0-macos-arm64-installer`
+- Windows x64: `ZX-Answering-Assistant-v2.3.0-windows-x64-installer`
+- Linux x64: `ZX-Answering-Assistant-v2.3.0-linux-x64-portable`
+- macOS ARM64: `ZX-Answering-Assistant-v2.3.0-macos-arm64-installer`
 
 ### 体积优化
 
@@ -598,10 +598,10 @@ python build.py --upx --mode onefile
 
 ```bash
 # Windows
-7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.3.0.7z dist/ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 
 # Linux/Mac
-7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-linux-x64-installer/
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.3.0.7z dist/ZX-Answering-Assistant-v2.3.0-linux-x64-installer/
 ```
 
 ### 编译选项
@@ -626,14 +626,14 @@ python build.py --help
 
 ```bash
 # 1. 进入输出目录
-cd dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+cd dist/ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 
 # 2. 运行程序
 # Windows:
-ZX-Answering-Assistant-v2.2.0-windows-x64-installer.exe
+ZX-Answering-Assistant-v2.3.0-windows-x64-installer.exe
 
 # Linux:
-./ZX-Answering-Assistant-v2.2.0-linux-x64-installer
+./ZX-Answering-Assistant-v2.3.0-linux-x64-installer
 ```
 
 **特点**：
@@ -646,10 +646,10 @@ ZX-Answering-Assistant-v2.2.0-windows-x64-installer.exe
 ```bash
 # 直接运行可执行文件
 # Windows:
-ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 
 # Linux:
-./ZX-Answering-Assistant-v2.2.0-linux-x64-portable
+./ZX-Answering-Assistant-v2.3.0-linux-x64-portable
 ```
 
 **特点**：
@@ -673,7 +673,7 @@ ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
 python build.py --upx --mode onedir
 
 # 2. 使用 7z 压缩分发
-7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.2.0.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+7z a -t7z -m0=lzma2 -mx=9 ZX-Answering-Assistant-v2.3.0.7z dist/ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 ```
 
 最终分发体积：**~150-200 MB**（从 528 MB 减小约 60-70%）
@@ -766,11 +766,20 @@ ZX-Answering-Assistant-python/
 
 ### 版本信息
 
-当前版本：**v2.2.0**
+当前版本：**v2.3.0**
 
 ### 主要版本更新
 
-**v2.2.0** (最新) - 浏览器健壮性与打包优化版本
+**v2.3.0** (最新) - 版本信息与打包增强版本
+- 新增 Windows EXE 版本信息属性支持
+- 为编译后的 exe 添加完整的版本信息（文件说明、版本号、产品名称等）
+- 版本信息中集成 Apache License 2.0 协议声明
+- 添加作者信息（TianJiaJi）
+- 版本信息管理模块化，统一在 version.py 中配置
+- 支持自定义 EXE 文件属性（公司名、版权、备注等）
+- 多语言版本信息支持（中文/英文）
+
+**v2.2.0** - 浏览器健壮性与打包优化版本
 - 新增浏览器崩溃自动恢复功能
 - 新增浏览器健康状态监控机制
 - 实现 AsyncIO 环境兼容性（解决 Playwright Sync API 在 GUI 模式的问题）
@@ -869,9 +878,9 @@ ZX-Answering-Assistant-python/
 
 **推荐**：日常使用选择 **API 模式**，验证答案选择 **兼容模式**。
 
-### Q3: 浏览器崩溃了怎么办？(v2.2.0)
+### Q3: 浏览器崩溃了怎么办？(v2.3.0)
 
-**A:** v2.2.0 版本已实现浏览器崩溃自动恢复：
+**A:** v2.3.0 版本已实现浏览器崩溃自动恢复：
 
 **GUI 模式：**
 1. 系统自动检测浏览器状态
@@ -932,9 +941,9 @@ ZX-Answering-Assistant-python/
    - Playwright 浏览器会自动下载（需要网络连接）
    - Flet 可执行文件已内置，无需从网络下载
 
-### Q8: GUI 模式出现 Playwright 错误怎么办？(v2.2.0)
+### Q8: GUI 模式出现 Playwright 错误怎么办？(v2.3.0)
 
-**A:** v2.2.0 已修复 AsyncIO 兼容性问题：
+**A:** v2.3.0 已修复 AsyncIO 兼容性问题：
 
 之前的错误：
 ```
@@ -948,7 +957,7 @@ Playwright Sync API inside the asyncio loop
 4. 完美兼容 Flet 的异步架构
 
 **如果仍有问题**，请确保：
-- 使用最新版本（v2.2.0+）
+- 使用最新版本（v2.3.0+）
 - 安装了所有依赖：`pip install -r requirements.txt`
 - 安装了 Playwright 浏览器：`python -m playwright install chromium`
 
@@ -956,7 +965,7 @@ Playwright Sync API inside the asyncio loop
 
 **A:** 在 GUI 界面的"设置"页面中调整日志级别，选择 DEBUG 级别即可查看详细日志。
 
-### Q10: 编译后的文件为什么这么大？(v2.2.0)
+### Q10: 编译后的文件为什么这么大？(v2.3.0)
 
 **A:** 编译后的文件较大（262-528 MB）是正常的，主要因为包含：
 
@@ -985,7 +994,7 @@ python build.py --upx --mode onedir
 python build.py --upx --mode onedir
 
 # 再用 7z 打包
-7z a -t7z -m0=lzma2 -mx=9 output.7z dist/ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+7z a -t7z -m0=lzma2 -mx=9 output.7z dist/ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 ```
 
 **效果**：
@@ -1078,8 +1087,9 @@ Closes #123
 
 ## 联系方式
 
-- **问题反馈**: [GitHub Issues](https://github.com/yourusername/ZX-Answering-Assistant-python/issues)
-- **功能建议**: [GitHub Discussions](https://github.com/yourusername/ZX-Answering-Assistant-python/discussions)
+- **问题反馈**: [GitHub Issues](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/issues)
+- **功能建议**: [GitHub Discussions](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/discussions)
+- **联系邮箱**: blog@mali.tianjiaji.top
 
 ---
 
@@ -1087,6 +1097,6 @@ Closes #123
 
 **如果这个项目对你有帮助，请给个 Star 支持一下！**
 
-Made with ❤️ by [Your Name]
+Made with ❤️ by TianJiaJi
 
 </div>
