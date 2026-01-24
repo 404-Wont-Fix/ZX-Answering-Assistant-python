@@ -58,14 +58,16 @@ def setup_flet_executable():
     try:
         if getattr(sys, 'frozen', False):
             # 在打包环境中，尝试使用预下载的Flet
-            from src.build_tools import copy_flet_to_temp_on_startup
-
-            # 尝试将Flet复制到临时目录
-            success = copy_flet_to_temp_on_startup()
-            if success:
-                print("✅ 使用预下载的Flet可执行文件")
-            else:
-                print("⚠️ 未找到预下载的Flet，运行时将从GitHub下载")
+            try:
+                from src.build_tools import copy_flet_to_temp_on_startup
+                # 尝试将Flet复制到临时目录
+                success = copy_flet_to_temp_on_startup()
+                if success:
+                    print("✅ 使用预下载的Flet可执行文件")
+                else:
+                    print("⚠️ 未找到预下载的Flet，运行时将从GitHub下载")
+            except ImportError:
+                print("⚠️ build_tools 模块未打包，Flet将在运行时从GitHub下载")
         else:
             # 开发环境，Flet会自动处理
             print("✅ 使用系统Flet")
