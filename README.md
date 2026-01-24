@@ -1,6 +1,7 @@
 <div align="center">
 
 # ZX Answering Assistant
+
 ### 智能答题助手系统
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
@@ -58,47 +59,47 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 
 ### 用户界面
 
-| 界面类型 | 描述 | 状态 |
-|---------|------|------|
-| **GUI 模式** | 现代化图形界面，操作简单直观 | ✅ |
-| **CLI 模式** | 传统命令行界面，功能完整 | ✅ |
+| 界面类型           | 描述                         | 状态 |
+| ------------------ | ---------------------------- | ---- |
+| **GUI 模式** | 现代化图形界面，操作简单直观 | ✅   |
+| **CLI 模式** | 传统命令行界面，功能完整     | ✅   |
 
 ### 学生端功能
 
-| 功能 | 描述 | 状态 |
-|------|------|------|
-| 自动登录 | 支持账户密码自动登录学生端 | ✅ |
-| 课程管理 | 图形化显示课程列表和完成进度 | ✅ |
-| 自动答题 | 浏览器模拟点击，自动匹配答案 | ✅ |
-| API 模式 | 直接调用 API，无需浏览器操作 | ✅ |
-| 网络重试 | 连接失败自动重试（3次） | ✅ |
-| 随时停止 | 按 Q 键优雅退出 | ✅ |
-| 实时统计 | 显示答题成功率和进度 | ✅ |
-| 题库加载 | 支持导入 JSON 题库文件 | ✅ |
-| **浏览器崩溃恢复** | v2.3.0 - 浏览器意外退出后可重新登录恢复 | ✅ NEW |
+| 功能                       | 描述                                       | 状态   |
+| -------------------------- | ------------------------------------------ | ------ |
+| 自动登录                   | 支持账户密码自动登录学生端                 | ✅     |
+| 课程管理                   | 图形化显示课程列表和完成进度               | ✅     |
+| 自动答题                   | 浏览器模拟点击，自动匹配答案               | ✅     |
+| API 模式                   | 直接调用 API，无需浏览器操作               | ✅     |
+| 网络重试                   | 连接失败自动重试（3次）                    | ✅     |
+| 随时停止                   | 按 Q 键优雅退出                            | ✅     |
+| 实时统计                   | 显示答题成功率和进度                       | ✅     |
+| 题库加载                   | 支持导入 JSON 题库文件                     | ✅     |
+| **浏览器崩溃恢复**   | v2.3.0 - 浏览器意外退出后可重新登录恢复    | ✅ NEW |
 | **GUI AsyncIO 兼容** | v2.3.0 - 完美兼容 Flet 的 asyncio 事件循环 | ✅ NEW |
 
 ### 教师端功能
 
-| 功能 | 描述 | 状态 |
-|------|------|------|
-| 教师登录 | 图形化登录界面，紫色主题 | ✅ |
-| 班级选择 | 左右分栏选择年级和班级 | ✅ |
-| 课程选择 | 卡片化展示所有课程 | ✅ |
-| 答案提取 | 一键提取课程答案，实时进度显示 | ✅ |
-| 自动保存 | 提取完成自动保存为 JSON 文件 | ✅ |
-| 提取统计 | 显示知识点、题目、选项数量 | ✅ |
-| 文件管理 | 打开文件夹、复制文件路径 | ✅ |
+| 功能     | 描述                           | 状态 |
+| -------- | ------------------------------ | ---- |
+| 教师登录 | 图形化登录界面，紫色主题       | ✅   |
+| 班级选择 | 左右分栏选择年级和班级         | ✅   |
+| 课程选择 | 卡片化展示所有课程             | ✅   |
+| 答案提取 | 一键提取课程答案，实时进度显示 | ✅   |
+| 自动保存 | 提取完成自动保存为 JSON 文件   | ✅   |
+| 提取统计 | 显示知识点、题目、选项数量     | ✅   |
+| 文件管理 | 打开文件夹、复制文件路径       | ✅   |
 
 ### 答题模式对比
 
-| 特性 | 浏览器兼容模式 | API 暴力模式 |
-|------|----------------|--------------|
-| 速度 | 较慢 | 极快 |
-| 稳定性 | 高 | 高 |
-| 资源占用 | 高（需浏览器） | 低 |
-| 检测风险 | 较高 | 中等 |
-| 推荐场景 | 验证答案准确性 | 快速刷题 |
+| 特性     | 浏览器兼容模式 | API 暴力模式 |
+| -------- | -------------- | ------------ |
+| 速度     | 较慢           | 极快         |
+| 稳定性   | 中             | 中           |
+| 资源占用 | 高（需浏览器） | 低           |
+| 检测风险 | 一般           | 较高         |
+| 推荐场景 | 网络不好       | 快速刷题     |
 
 ---
 
@@ -221,6 +222,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 ```
 
 **健康监控功能：**
+
 - **自动检测**：每次操作前检查浏览器连接状态
 - **智能清理**：发现崩溃时自动清理僵尸进程
 - **用户提示**：GUI 模式弹出对话框提示重新登录
@@ -229,32 +231,39 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 ### 核心模块说明
 
 **主程序**
+
 - [main.py](main.py) - 双模式入口，GUI/CLI 切换
 - [src/main_gui.py](src/main_gui.py) - GUI 主程序（Flet 框架）
 
 **GUI 界面模块**
+
 - [src/ui/views/answering_view.py](src/ui/views/answering_view.py) - 学生答题界面（含浏览器恢复）
 - [src/ui/views/extraction_view.py](src/ui/views/extraction_view.py) - 答案提取界面
 - [src/ui/views/settings_view.py](src/ui/views/settings_view.py) - 设置管理界面
 
 **学生端模块**
+
 - [src/student_login.py](src/student_login.py) - 学生端登录、浏览器健康监控、AsyncIO 兼容
 - [src/auto_answer.py](src/auto_answer.py) - 浏览器兼容模式答题
 - [src/api_auto_answer.py](src/api_auto_answer.py) - API 暴力模式答题
 
 **教师端模块**
+
 - [src/teacher_login.py](src/teacher_login.py) - 教师端登录
 - [src/extract.py](src/extract.py) - 答案提取（带进度回调）
 
 **数据管理**
+
 - [src/export.py](src/export.py) - 数据导出（JSON）
 - [src/question_bank_importer.py](src/question_bank_importer.py) - 题库导入
 
 **系统配置**
+
 - [src/api_client.py](src/api_client.py) - 统一 API 请求客户端（支持速率限制和重试）
 - [src/settings.py](src/settings.py) - CLI 设置管理（账号、速率级别等）
 
 **构建工具**
+
 - [build.py](build.py) - PyInstaller 打包脚本（支持双版本编译）
 - [src/build_tools/flet_handler.py](src/build_tools/flet_handler.py) - Flet 可执行文件处理
 
@@ -279,12 +288,14 @@ cd ZX-Answering-Assistant-python
 ### 2. 创建虚拟环境
 
 **Windows:**
+
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
 **Linux/Mac:**
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -367,17 +378,19 @@ python main.py
 当浏览器意外退出时：
 
 1. **GUI 模式**：
+
    - 系统自动检测浏览器状态
    - 弹出提示对话框："浏览器已断开连接"
    - 点击"重新登录"按钮
    - 系统自动重启浏览器并继续操作
-
 2. **CLI 模式**：
+
    - 系统提示"检测到浏览器已挂掉"
    - 询问是否重新登录
    - 输入 yes 确认后自动重新登录
 
 **恢复特点：**
+
 - 无需重启程序
 - 自动清理僵尸进程
 - 保留当前操作状态
@@ -457,10 +470,10 @@ python main.py
 
 ### 操作快捷键
 
-| 快捷键 | 功能 |
-|--------|------|
-| `Q` | 停止当前答题操作 |
-| `Ctrl + C` | 强制退出程序 |
+| 快捷键       | 功能             |
+| ------------ | ---------------- |
+| `Q`        | 停止当前答题操作 |
+| `Ctrl + C` | 强制退出程序     |
 
 ### CLI 设置功能
 
@@ -469,10 +482,12 @@ CLI 模式支持通过配置文件管理账号密码和 API 设置，首次运�
 #### 可配置项
 
 **账号管理**
+
 - 学生端账号和密码
 - 教师端账号和密码
 
 **API 设置**
+
 - **请求速率级别**：控制 API 请求之间的延迟
   - `low` - 50ms（快速，适合无限制的 API）
   - `medium` - 1秒（默认，平衡速度和稳定性）
@@ -533,17 +548,21 @@ python build.py --mode onefile
 编译后的文件名遵循规范命名格式：
 
 **目录模式（installer）**：
+
 ```
 ZX-Answering-Assistant-v2.3.0-windows-x64-installer/
 ```
+
 - `installer` 表示目录模式
 - 启动速度快（10-20倍）
 - 推荐用于分发
 
 **单文件模式（portable）**：
+
 ```
 ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 ```
+
 - `portable` 表示单文件模式
 - 所有文件打包到一个可执行文件
 - 便于携带，但首次启动较慢
@@ -555,6 +574,7 @@ ZX-Answering-Assistant-<版本>-<平台>-<架构>-<模式>
 ```
 
 **示例**：
+
 - Windows x64: `ZX-Answering-Assistant-v2.3.0-windows-x64-installer`
 - Linux x64: `ZX-Answering-Assistant-v2.3.0-linux-x64-portable`
 - macOS ARM64: `ZX-Answering-Assistant-v2.3.0-macos-arm64-installer`
@@ -562,6 +582,7 @@ ZX-Answering-Assistant-<版本>-<平台>-<架构>-<模式>
 ### 体积优化
 
 编译后的文件较大（约 262-528 MB），主要因为包含：
+
 - Playwright 浏览器（~170-200 MB）
 - Flet 框架和 Flutter 引擎（~50-80 MB）
 - Python 运行时和依赖库（~50-100 MB）
@@ -586,11 +607,11 @@ python build.py --upx --mode onefile
 
 **效果对比**：
 
-| 方案 | 单文件 | 目录 | 分发（7z） |
-|------|--------|------|------------|
-| 原始 | 262 MB | 528 MB | - |
-| UPX 压缩 | 130-180 MB | 260-360 MB | - |
-| UPX + 7z | - | 260-360 MB | 150-200 MB |
+| 方案     | 单文件     | 目录       | 分发（7z） |
+| -------- | ---------- | ---------- | ---------- |
+| 原始     | 262 MB     | 528 MB     | -          |
+| UPX 压缩 | 130-180 MB | 260-360 MB | -          |
+| UPX + 7z | -          | 260-360 MB | 150-200 MB |
 
 #### 7z 二次压缩（分发用）
 
@@ -637,6 +658,7 @@ ZX-Answering-Assistant-v2.3.0-windows-x64-installer.exe
 ```
 
 **特点**：
+
 - 首次启动几乎秒开（无需解压）
 - 可以将整个文件夹分发给用户
 - 占用磁盘空间较大
@@ -653,6 +675,7 @@ ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 ```
 
 **特点**：
+
 - 单个文件，便于携带
 - 首次运行需要 1-2 分钟解压
 - 占用磁盘空间较小
@@ -660,6 +683,7 @@ ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 ### 首次运行
 
 编译后的程序首次运行时：
+
 1. Playwright 浏览器已内置，无需下载
 2. Flet 可执行文件已内置，无需从 GitHub 下载
 3. 会自动创建配置文件（CLI 模式）
@@ -668,6 +692,7 @@ ZX-Answering-Assistant-v2.3.0-windows-x64-portable.exe
 ### 优化建议
 
 **推荐方案（最佳用户体验）**：
+
 ```bash
 # 1. 使用 UPX 压缩目录版本
 python build.py --upx --mode onedir
@@ -731,27 +756,29 @@ ZX-Answering-Assistant-python/
 
 ### 核心依赖
 
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| **flet** | ≥0.80.0 | GUI 框架 |
-| **playwright** | ≥1.57.0 | 浏览器自动化 |
-| **requests** | ≥2.31.0 | HTTP 请求 |
-| **loguru** | ≥0.7.0 | 日志管理 |
-| **pandas** | ≥2.0.0 | 数据处理 |
-| **openpyxl** | ≥3.1.0 | Excel 文件处理 |
-| **keyboard** | ≥0.13.5 | 键盘监听 |
-| **aiohttp** | ≥3.9.0 | 异步 HTTP |
-| **tqdm** | ≥4.66.0 | 进度条显示 |
+| 依赖                 | 版本     | 用途           |
+| -------------------- | -------- | -------------- |
+| **flet**       | ≥0.80.0 | GUI 框架       |
+| **playwright** | ≥1.57.0 | 浏览器自动化   |
+| **requests**   | ≥2.31.0 | HTTP 请求      |
+| **loguru**     | ≥0.7.0  | 日志管理       |
+| **pandas**     | ≥2.0.0  | 数据处理       |
+| **openpyxl**   | ≥3.1.0  | Excel 文件处理 |
+| **keyboard**   | ≥0.13.5 | 键盘监听       |
+| **aiohttp**    | ≥3.9.0  | 异步 HTTP      |
+| **tqdm**       | ≥4.66.0 | 进度条显示     |
 
 ### API 端点
 
 **学生端**
+
 - 基础地址: `https://ai.cqzuxia.com/`
 - `/connect/token` - OAuth2 令牌获取
 - 课程列表和进度接口
 - 答题提交接口
 
 **教师端**
+
 - 基础地址: `https://admin.cqzuxia.com/`
 - `/evaluation/api/TeacherEvaluation/GetClassByTeacherID` - 班级列表
 - `/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID` - 课程摘要
@@ -771,6 +798,7 @@ ZX-Answering-Assistant-python/
 ### 主要版本更新
 
 **v2.3.0** (最新) - 版本信息与打包增强版本
+
 - 新增 Windows EXE 版本信息属性支持
 - 为编译后的 exe 添加完整的版本信息（文件说明、版本号、产品名称等）
 - 版本信息中集成 Apache License 2.0 协议声明
@@ -780,6 +808,7 @@ ZX-Answering-Assistant-python/
 - 多语言版本信息支持（中文/英文）
 
 **v2.2.0** - 浏览器健壮性与打包优化版本
+
 - 新增浏览器崩溃自动恢复功能
 - 新增浏览器健康状态监控机制
 - 实现 AsyncIO 环境兼容性（解决 Playwright Sync API 在 GUI 模式的问题）
@@ -791,6 +820,7 @@ ZX-Answering-Assistant-python/
 - 改进错误提示信息
 
 **打包优化**：
+
 - 规范化编译输出文件名格式（版本-平台-架构-模式）
 - 添加 UPX 压缩支持（减小 30-50% 体积）
 - 改进打包脚本，支持灵活的编译选项
@@ -798,6 +828,7 @@ ZX-Answering-Assistant-python/
 - 优化分发流程（UPX + 7z 可减小 60-70% 体积）
 
 **v2.1.0** - 打包优化版本
+
 - 修复 Flet 可执行文件打包路径问题
 - 修复 Windows GBK 编码导致的程序崩溃
 - 改进打包脚本，默认编译两个版本（onedir + onefile）
@@ -805,6 +836,7 @@ ZX-Answering-Assistant-python/
 - 添加 UTF-8 控制台编码设置
 
 **v2.0.0** - 架构重构版本
+
 - 重构浏览器处理逻辑并模块化
 - 新增统一 API 客户端（支持速率限制和自动重试）
 - 实现 CLI 配置文件管理功能
@@ -812,6 +844,7 @@ ZX-Answering-Assistant-python/
 - 改进系统架构，提升代码可维护性
 
 **v1.2.1**
+
 - 修复 API 客户端速率限制逻辑
 - 实现可配置的 API 请求速率控制（50ms-3秒）
 - 新增 CLI 配置文件管理（cli_config.json）
@@ -819,6 +852,7 @@ ZX-Answering-Assistant-python/
 - 添加账号密码持久化存储
 
 **v1.2.0**
+
 - 新增现代化 GUI 界面（Flet 框架）
 - 优化用户体验：图形化操作流程
 - 实时进度显示和日志输出
@@ -827,6 +861,7 @@ ZX-Answering-Assistant-python/
 - 文件路径一键复制和打开
 
 **v1.1.0**
+
 - 添加浏览器兼容模式
 - 实现 API 暴力模式
 - 支持题库导入/导出
@@ -851,14 +886,16 @@ ZX-Answering-Assistant-python/
 ### Q1: 如何选择使用 GUI 还是 CLI 模式？
 
 **A:**
+
 - **GUI 模式**（推荐）：操作简单直观，适合大多数用户
+
   - 图形化界面，无需记忆命令
   - 实时进度显示
   - 可视化文件管理
   - 浏览器崩溃自动恢复
   - 运行命令：`python main.py` 或 `python main.py --mode gui`
-
 - **CLI 模式**：适合高级用户和自动化脚本
+
   - 完整功能访问
   - 可用于自动化脚本
   - 浏览器崩溃后可重新登录
@@ -868,13 +905,13 @@ ZX-Answering-Assistant-python/
 
 **A:**
 
-| 特性 | 兼容模式 | API 模式 |
-|------|----------|----------|
-| 实现方式 | 浏览器模拟点击 | 直接调用 API |
-| 速度 | 较慢（需要页面加载） | 极快（纯 HTTP 请求） |
-| 资源占用 | 高（需要浏览器） | 低（仅网络请求） |
-| 稳定性 | 高 | 高 |
-| 适用场景 | 验证答案、学习用途 | 快速刷题 |
+| 特性     | 兼容模式             | API 模式             |
+| -------- | -------------------- | -------------------- |
+| 实现方式 | 浏览器模拟点击       | 直接调用 API         |
+| 速度     | 较慢（需要页面加载） | 极快（纯 HTTP 请求） |
+| 资源占用 | 高（需要浏览器）     | 低（仅网络请求）     |
+| 稳定性   | 高                   | 高                   |
+| 适用场景 | 验证答案、学习用途   | 快速刷题             |
 
 **推荐**：日常使用选择 **API 模式**，验证答案选择 **兼容模式**。
 
@@ -883,12 +920,14 @@ ZX-Answering-Assistant-python/
 **A:** v2.3.0 版本已实现浏览器崩溃自动恢复：
 
 **GUI 模式：**
+
 1. 系统自动检测浏览器状态
 2. 弹出对话框提示"浏览器已断开连接"
 3. 点击"重新登录"按钮
 4. 系统自动重启浏览器并继续
 
 **CLI 模式：**
+
 1. 系统提示"检测到浏览器已挂掉"
 2. 询问是否重新登录
 3. 输入 yes 确认
@@ -905,6 +944,7 @@ ZX-Answering-Assistant-python/
 ```
 
 例如：
+
 ```
 24级大数据技术2班_Linux操作系统（云林选用2025）_20260121_225414.json
 ```
@@ -912,12 +952,14 @@ ZX-Answering-Assistant-python/
 ### Q5: 如何停止正在运行的答题？
 
 **A:**
+
 - **GUI 模式**：点击停止按钮或关闭窗口
 - **CLI 模式**：按 `Q` 键优雅退出
 
 ### Q6: Token 过期了怎么办？
 
 **A:** 系统会自动处理：
+
 - Token 有效期：5 小时
 - 提前检测并自动重新获取
 - 无需手动干预
@@ -927,17 +969,18 @@ ZX-Answering-Assistant-python/
 **A:**
 
 1. **打包项目**：
+
    ```bash
    python build.py  # 默认打包两个版本（onedir + onefile）
    python build.py --mode onedir  # 仅目录模式
    python build.py --mode onefile  # 仅单文件模式
    ```
-
 2. **运行程序**：
+
    - **onedir 模式**：进入 `dist/ZX-Answering-Assistant/` 文件夹，双击 exe 文件
    - **onefile 模式**：直接双击 `dist/ZX-Answering-Assistant.exe`
-
 3. **首次运行**：
+
    - Playwright 浏览器会自动下载（需要网络连接）
    - Flet 可执行文件已内置，无需从网络下载
 
@@ -946,17 +989,20 @@ ZX-Answering-Assistant-python/
 **A:** v2.3.0 已修复 AsyncIO 兼容性问题：
 
 之前的错误：
+
 ```
 Playwright Sync API inside the asyncio loop
 ```
 
 现在系统会：
+
 1. 自动检测 asyncio 事件循环
 2. 在独立线程中创建新的事件循环
 3. 隔离运行 Playwright 同步 API
 4. 完美兼容 Flet 的异步架构
 
 **如果仍有问题**，请确保：
+
 - 使用最新版本（v2.3.0+）
 - 安装了所有依赖：`pip install -r requirements.txt`
 - 安装了 Playwright 浏览器：`python -m playwright install chromium`
@@ -974,6 +1020,7 @@ Playwright Sync API inside the asyncio loop
 3. **Python 运行时** (~50-100 MB) - Python 解释器和依赖库
 
 **优化方案**：
+
 - 使用 UPX 压缩：`python build.py --upx`（减小 30-50%）
 - 使用 7z 二次压缩（分发时减小到 150-200 MB）
 
@@ -982,6 +1029,7 @@ Playwright Sync API inside the asyncio loop
 **A:** 推荐使用以下优化方案：
 
 **方案 1：UPX 压缩**
+
 ```bash
 # 1. 安装 UPX: https://github.com/upx/upx/releases
 # 2. 编译时启用压缩
@@ -989,6 +1037,7 @@ python build.py --upx --mode onedir
 ```
 
 **方案 2：7z 二次压缩（分发推荐）**
+
 ```bash
 # 先用 UPX 压缩
 python build.py --upx --mode onedir
@@ -998,6 +1047,7 @@ python build.py --upx --mode onedir
 ```
 
 **效果**：
+
 - 原始：528 MB
 - UPX 后：260-360 MB
 - UPX + 7z：150-200 MB（减小 60-70%）
@@ -1005,6 +1055,7 @@ python build.py --upx --mode onedir
 ### Q12: 遇到问题如何获取帮助？
 
 **A:**
+
 1. 查看本文档
 2. 查看 [CLAUDE.md](CLAUDE.md) 获取开发指导
 3. 在 GitHub 提交 Issue
@@ -1032,6 +1083,7 @@ python build.py --upx --mode onedir
 ```
 
 **类型 (type):**
+
 - `feat`: 新功能
 - `fix`: 修复 bug
 - `docs`: 文档更新

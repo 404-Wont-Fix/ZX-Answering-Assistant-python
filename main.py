@@ -42,7 +42,43 @@ def setup_playwright_browser():
                 os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
                 print(f"[OK] 使用打包的浏览器: {browsers_dir}")
             else:
-                print(f"[WARN] 打包的浏览器目录不存在: {browsers_dir}")
+                # 最小化构建：浏览器不存在，需要自动下载
+                print(f"[INFO] 打包的浏览器目录不存在: {browsers_dir}")
+                print("[INFO] 检测到最小化构建，正在自动下载 Playwright 浏览器...")
+
+                # 使用用户数据目录作为浏览器路径（默认位置）
+                user_data_dir = Path.home() / ".cache" / "ms-playwright"
+                os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(user_data_dir)
+                os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
+
+                # 检查浏览器是否已下载
+                import glob
+                chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win" / "chrome.exe"))
+                if not chromium_paths:
+                    print("[INFO] 正在首次下载 Chromium 浏览器...")
+                    print("[INFO] 这可能需要几分钟时间，请耐心等待...")
+
+                    try:
+                        # 使用 playwright.install() 下载浏览器
+                        import subprocess
+                        result = subprocess.run(
+                            [sys.executable, "-m", "playwright", "install", "chromium"],
+                            capture_output=True,
+                            text=True,
+                            timeout=600  # 10分钟超时
+                        )
+
+                        if result.returncode == 0:
+                            print("[OK] Chromium 浏览器下载完成")
+                        else:
+                            print("[WARN] 浏览器下载可能失败，将在首次使用时重试")
+                            if result.stderr:
+                                print(f"[INFO] 错误信息: {result.stderr}")
+                    except Exception as e:
+                        print(f"[WARN] 自动下载浏览器失败: {e}")
+                        print("[INFO] 将在首次使用浏览器时尝试下载")
+                else:
+                    print(f"[OK] 使用缓存的浏览器: {user_data_dir}")
         else:
             # 开发环境，使用系统浏览器
             print("[OK] 使用系统浏览器")

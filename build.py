@@ -22,6 +22,7 @@ if sys.platform == 'win32':
 
 from src.build_tools import ensure_browser_ready, get_browser_size
 from src.build_tools import ensure_flet_ready, get_flet_size
+from src.build_tools import build_project_minimal, build_all_minimal_variants
 
 
 def get_platform_info():
@@ -388,19 +389,26 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python build.py                    # 编译两个版本（onedir + onefile）
-  python build.py --mode onefile     # 仅编译单文件版本
-  python build.py --mode onedir      # 仅编译目录版本
-  python build.py --copy-browser     # 仅复制浏览器
-  python build.py --copy-all         # 复制所有依赖
+  python build.py                           # 编译所有4个版本（完整 + 最小化，onedir + onefile）
+  python build.py --minimal                 # 仅编译最小化版本（onedir + onefile）
+  python build.py --full                    # 仅编译完整版本（onedir + onefile）
+  python build.py --mode onefile            # 仅编译单文件版本（完整）
+  python build.py --mode onedir             # 仅编译目录版本（完整）
+  python build.py --minimal --mode onefile  # 仅编译最小化单文件版本
+  python build.py --copy-browser            # 仅复制浏览器
+  python build.py --copy-all                # 复制所有依赖
 
 输出文件名格式:
-  目录模式: ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
-  单文件:   ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+  完整目录模式:   ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+  完整单文件:     ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
+  最小化目录模式: ZX-Answering-Assistant-v2.2.0-windows-x64-minimal-installer/
+  最小化单文件:   ZX-Answering-Assistant-v2.2.0-windows-x64-minimal-portable.exe
 
 说明:
   - installer: 目录模式，启动快，推荐使用
   - portable: 单文件模式，所有文件打包到一个可执行文件
+  - minimal: 最小化构建，不打包浏览器和 Flet，运行时下载（体积小，首次启动慢）
+  - full: 完整构建，包含所有依赖（体积大，启动快）
 
 体积优化:
   python build.py --upx             # 启用 UPX 压缩（减小 30-50%% 体积）
@@ -416,6 +424,18 @@ def main():
         choices=['onefile', 'onedir', 'both'],
         default='both',
         help='打包模式: onefile(单文件), onedir(目录模式), both(两个版本，默认)'
+    )
+
+    parser.add_argument(
+        '--minimal',
+        action='store_true',
+        help='使用最小化构建模式（不打包 Playwright 浏览器和 Flet）'
+    )
+
+    parser.add_argument(
+        '--full',
+        action='store_true',
+        help='使用完整构建模式（打包所有依赖，默认行为）'
     )
 
     parser.add_argument(
@@ -535,40 +555,132 @@ def main():
         return 0
 
     # 正常打包流程
-    if args.mode == 'both':
-        print("[INFO] 打包模式: 两个版本（onedir + onefile）")
+    use_upx = args.upx and not args.no_upx
 
-        # 检查是否使用 UPX
-        use_upx = args.upx and not args.no_upx
+    # 判断构建类型：默认构建所有版本
+    if args.minimal and args.full:
+        print("[ERROR] 不能同时指定 --minimal 和 --full")
+        return 1
 
-        # 获取平台信息用于显示
-        platform_info = get_platform_info()
-        import version
-        onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+    # 如果没有指定 --minimal 或 --full，默认构建所有版本
+    build_all = not args.minimal and not args.full
+
+    # 获取平台信息用于显示
+    platform_info = get_platform_info()
+    import version
+
+    # 构建完整版本（默认或明确指定 --full）
+    if build_all or args.full:
+        if build_all:
+            print("[INFO] 构建所有4个版本（完整 + 最小化，onedir + onefile）")
+        else:
+            print("[INFO] 构建完整版本（包含所有依赖）")
+
+        # 完整版本的文件名
+        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
         if platform_info["platform"] == "windows":
-            onefile_name += ".exe"
+            full_onefile_name += ".exe"
 
-        print("\n" + "=" * 60)
-        print("开始编译: 目录模式（推荐）")
-        print("=" * 60)
-        build_project(mode="onedir", use_upx=use_upx)
+        if args.mode == 'both':
+            print("\n" + "=" * 60)
+            print("开始编译: 完整目录模式（推荐）")
+            print("=" * 60)
+            build_project(mode="onedir", use_upx=use_upx)
 
-        print("\n\n" + "=" * 60)
-        print("开始编译: 单文件模式")
-        print("=" * 60)
-        build_project(mode="onefile", use_upx=use_upx)
+            print("\n\n" + "=" * 60)
+            print("开始编译: 完整单文件模式")
+            print("=" * 60)
+            build_project(mode="onefile", use_upx=use_upx)
+        elif args.mode == 'onedir':
+            print("\n" + "=" * 60)
+            print("开始编译: 完整目录模式")
+            print("=" * 60)
+            build_project(mode="onedir", use_upx=use_upx)
+        elif args.mode == 'onefile':
+            print("\n" + "=" * 60)
+            print("开始编译: 完整单文件模式")
+            print("=" * 60)
+            build_project(mode="onefile", use_upx=use_upx)
 
-        print("\n\n" + "=" * 60)
-        print("[SUCCESS] 两个版本编译完成！")
-        print("=" * 60)
-        print(f"目录模式: dist/{onedir_name}/")
-        print(f"单文件模式: dist/{onefile_name}")
-        print("=" * 60)
-    else:
-        print(f"[INFO] 打包模式: {args.mode}")
-        use_upx = args.upx and not args.no_upx
-        build_project(mode=args.mode, use_upx=use_upx)
+    # 构建最小化版本（默认或明确指定 --minimal）
+    if build_all or args.minimal:
+        if args.minimal:
+            print("[INFO] 构建最小化版本（不打包浏览器和 Flet，运行时下载）")
+
+        if args.mode == 'both':
+            if build_all:
+                print("\n\n" + "=" * 60)
+                print("开始编译: 最小化目录模式")
+                print("=" * 60)
+            build_project_minimal(mode="onedir", use_upx=use_upx)
+
+            if build_all:
+                print("\n\n" + "=" * 60)
+                print("开始编译: 最小化单文件模式")
+                print("=" * 60)
+            build_project_minimal(mode="onefile", use_upx=use_upx)
+        elif args.mode == 'onedir':
+            print("\n" + "=" * 60)
+            print("开始编译: 最小化目录模式")
+            print("=" * 60)
+            build_project_minimal(mode="onedir", use_upx=use_upx)
+        elif args.mode == 'onefile':
+            print("\n" + "=" * 60)
+            print("开始编译: 最小化单文件模式")
+            print("=" * 60)
+            build_project_minimal(mode="onefile", use_upx=use_upx)
+
+    # 构建完成总结
+    print("\n\n" + "=" * 60)
+    print("[SUCCESS] 构建完成！")
+    print("=" * 60)
+
+    if build_all:
+        # 显示所有4个版本
+        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+        minimal_onedir_name = full_onedir_name.replace("installer", "minimal-installer")
+        minimal_onefile_name = full_onefile_name.replace("portable", "minimal-portable")
+        if platform_info["platform"] == "windows":
+            full_onefile_name += ".exe"
+            minimal_onefile_name += ".exe"
+
+        print("已构建以下4个版本：")
+        print(f"  1. 完整目录模式: dist/{full_onedir_name}/")
+        print(f"  2. 完整单文件模式: dist/{full_onefile_name}")
+        print(f"  3. 最小化目录模式: dist/{minimal_onedir_name}/")
+        print(f"  4. 最小化单文件模式: dist/{minimal_onefile_name}")
+    elif args.full:
+        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+        if platform_info["platform"] == "windows":
+            full_onefile_name += ".exe"
+
+        print("已构建完整版本：")
+        if args.mode == 'both':
+            print(f"  1. 完整目录模式: dist/{full_onedir_name}/")
+            print(f"  2. 完整单文件模式: dist/{full_onefile_name}")
+        elif args.mode == 'onedir':
+            print(f"  完整目录模式: dist/{full_onedir_name}/")
+        elif args.mode == 'onefile':
+            print(f"  完整单文件模式: dist/{full_onefile_name}")
+    elif args.minimal:
+        minimal_onedir_name = get_dist_name("onedir", version.VERSION, platform_info).replace("installer", "minimal-installer")
+        minimal_onefile_name = get_dist_name("onefile", version.VERSION, platform_info).replace("portable", "minimal-portable")
+        if platform_info["platform"] == "windows":
+            minimal_onefile_name += ".exe"
+
+        print("已构建最小化版本：")
+        if args.mode == 'both':
+            print(f"  1. 最小化目录模式: dist/{minimal_onedir_name}/")
+            print(f"  2. 最小化单文件模式: dist/{minimal_onefile_name}")
+        elif args.mode == 'onedir':
+            print(f"  最小化目录模式: dist/{minimal_onedir_name}/")
+        elif args.mode == 'onefile':
+            print(f"  最小化单文件模式: dist/{minimal_onefile_name}")
+
+    print("=" * 60)
 
 
 if __name__ == "__main__":
