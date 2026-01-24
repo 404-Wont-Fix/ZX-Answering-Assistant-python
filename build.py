@@ -134,6 +134,32 @@ def update_version_info():
         print(f"[WARN] 更新版本信息失败: {e}")
 
 
+def generate_exe_version_file():
+    """
+    生成 Windows EXE 版本信息文件
+
+    Returns:
+        Path: 版本文件路径，如果平台不是 Windows 则返回 None
+    """
+    platform_info = get_platform_info()
+
+    # 只在 Windows 平台生成版本文件
+    if platform_info["platform"] != "windows":
+        print("[INFO] 非 Windows 平台，跳过版本文件生成")
+        return None
+
+    try:
+        import version
+        version_file_path = version.create_version_file()
+        print(f"[OK] 版本文件已生成: {version_file_path}")
+        print(f"[INFO] 文件版本: {'.'.join(map(str, version.VERSION_INFO['file_version']))}")
+        print(f"[INFO] 产品版本: {'.'.join(map(str, version.VERSION_INFO['product_version']))}")
+        return version_file_path
+    except Exception as e:
+        print(f"[WARN] 生成版本文件失败: {e}")
+        return None
+
+
 def build_project(mode="onedir", use_upx=False):
     """
     构建项目
@@ -161,6 +187,9 @@ def build_project(mode="onedir", use_upx=False):
     # 生成分发名称
     dist_name = get_dist_name(mode, version.VERSION, platform_info)
     print(f"[INFO] 分发名称: {dist_name}")
+
+    # 生成 EXE 版本信息文件（仅 Windows）
+    version_file_path = generate_exe_version_file()
 
     # 检查是否安装了PyInstaller
     try:
@@ -289,6 +318,11 @@ def build_project(mode="onedir", use_upx=False):
         "--name", dist_name,
         "main.py"
     ]
+
+    # 添加版本文件（仅 Windows）
+    if version_file_path:
+        cmd.insert(4, "--version-file")
+        cmd.insert(5, str(version_file_path))
 
     # 添加 UPX 参数（如果有）
     cmd.extend(upx_args)
