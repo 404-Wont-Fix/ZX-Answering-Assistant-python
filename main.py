@@ -320,23 +320,28 @@ def course_certification_menu():
         print("\n" + "=" * 50)
         print("🎓 课程认证")
         print("=" * 50)
-        print("1. 获取access_token")
-        print("2. 返回")
+        print("1. 开始做题")
+        print("2. 获取access_token")
+        print("3. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-2): ").strip()
+        choice = input("\n请选择操作 (1-3): ").strip()
 
         if choice == "1":
+            # 开始做题（待实现）
+            print("\n⚠️ 开始做题功能待实现")
+            # TODO: 实现课程认证的做题功能
+        elif choice == "2":
             # 调用课程认证模块的登录功能
             access_token = course_get_access_token()
             # TODO: 可以在这里保存 token 到全局变量或文件，供后续使用
             if access_token:
                 print("\n💡 token 已获取，可以用于后续的 API 调用")
-        elif choice == "2":
+        elif choice == "3":
             print("\n🔙 返回主菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-2之间的数字")
+            print("\n❌ 无效的选择，请输入1-3之间的数字")
 
 
 def display_progress_bar(progress_info: dict):
