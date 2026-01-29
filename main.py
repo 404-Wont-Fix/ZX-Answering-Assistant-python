@@ -79,7 +79,7 @@ from src.student_login import (get_student_access_token, get_student_access_toke
                                get_student_courses, get_uncompleted_chapters, navigate_to_course,
                                close_browser, get_course_progress_from_page, get_browser_page,
                                get_cached_access_token)
-from src.course_certification import hello_world, get_access_token as course_get_access_token
+from src.course_certification import get_access_token as course_get_access_token
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -327,10 +327,11 @@ def course_certification_menu():
         choice = input("\n请选择操作 (1-2): ").strip()
 
         if choice == "1":
-            # 调用课程认证模块的函数
-            hello_world()
-            # 可以在这里调用 course_get_access_token() 来获取 token
-            # access_token = course_get_access_token()
+            # 调用课程认证模块的登录功能
+            access_token = course_get_access_token()
+            # TODO: 可以在这里保存 token 到全局变量或文件，供后续使用
+            if access_token:
+                print("\n💡 token 已获取，可以用于后续的 API 调用")
         elif choice == "2":
             print("\n🔙 返回主菜单")
             break
