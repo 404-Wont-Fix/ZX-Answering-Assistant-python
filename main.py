@@ -322,10 +322,11 @@ def course_certification_menu():
         print("=" * 50)
         print("1. 开始做题")
         print("2. 获取access_token")
-        print("3. 返回")
+        print("3. 导入题库")
+        print("4. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-3): ").strip()
+        choice = input("\n请选择操作 (1-4): ").strip()
 
         if choice == "1":
             # 开始做题
@@ -338,10 +339,30 @@ def course_certification_menu():
                 print("\n💡 token 已获取，可以用于后续的 API 调用")
             # TODO: 可以在这里保存 token 到全局变量或文件，供后续使用
         elif choice == "3":
+            # 导入题库
+            print("\n📚 导入题库功能")
+            print("=" * 50)
+            print("请输入题库JSON文件的路径（例如：output/course_20250129_123456.json）：")
+            file_path = input("文件路径: ").strip()
+
+            if not file_path:
+                print("❌ 文件路径不能为空")
+                continue
+
+            # 调用题库导入功能
+            from src.course_certification import import_question_bank
+            success = import_question_bank(file_path)
+
+            if success:
+                print("\n✅ 题库导入成功！")
+                print("💡 现在可以选择'开始做题'使用导入的题库进行答题")
+            else:
+                print("\n❌ 题库导入失败")
+        elif choice == "4":
             print("\n🔙 返回主菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-3之间的数字")
+            print("\n❌ 无效的选择，请输入1-4之间的数字")
 
 
 def display_progress_bar(progress_info: dict):

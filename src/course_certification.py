@@ -14,6 +14,106 @@ _global_browser = None
 _global_page = None
 _global_playwright = None
 
+# 全局变量，保存导入的题库
+_global_question_bank = None
+
+
+def import_question_bank(file_path: str) -> bool:
+    """
+    导入题库文件
+
+    Args:
+        file_path: 题库JSON文件路径
+
+    Returns:
+        bool: 导入是否成功
+    """
+    global _global_question_bank
+
+    try:
+        from src.question_bank_importer import QuestionBankImporter
+
+        print(f"\n正在导入题库文件: {file_path}")
+
+        # 创建题库导入器
+        importer = QuestionBankImporter()
+
+        # 导入题库
+        success = importer.import_from_file(file_path)
+
+        if not success:
+            print("❌ 题库文件导入失败")
+            return False
+
+        # 保存到全局变量
+        _global_question_bank = importer.data
+
+        # 显示简化的题库统计信息
+        print("\n" + "=" * 60)
+        print("📊 题库信息")
+        print("=" * 60)
+
+        # 获取题库类型
+        bank_type = importer.get_bank_type()
+
+        if bank_type == "single":
+            # 单个课程
+            parsed = importer.parse_single_course()
+            if parsed:
+                print("\n📖 班级信息：")
+                print(f"  {parsed['class']['name']} ({parsed['class']['grade']})")
+
+                print("\n📚 课程信息：")
+                print(f"  {parsed['course']['courseName']}")
+
+                print("\n📊 统计信息：")
+                stats = parsed['statistics']
+                print(f"  章节：{stats['totalChapters']} 章")
+                print(f"  知识点：{stats['totalKnowledges']} 个")
+                print(f"  题目：{stats['totalQuestions']} 题")
+                print(f"  选项：{stats['totalOptions']} 个")
+
+        elif bank_type == "multiple":
+            # 多个课程
+            parsed = importer.parse_multiple_courses()
+            if parsed:
+                print("\n📖 班级信息：")
+                print(f"  {parsed['class']['name']} ({parsed['class']['grade']})")
+
+                print("\n📚 课程列表：")
+                for i, course in enumerate(parsed['courses'], 1):
+                    print(f"  {i}. {course['courseName']}")
+
+                print("\n📊 统计信息：")
+                stats = parsed['statistics']
+                print(f"  课程：{stats['totalCourses']} 门")
+                print(f"  章节：{stats['totalChapters']} 章")
+                print(f"  知识点：{stats['totalKnowledges']} 个")
+                print(f"  题目：{stats['totalQuestions']} 题")
+                print(f"  选项：{stats['totalOptions']} 个")
+
+        print("=" * 60)
+        print(f"✅ 题库已保存到全局变量")
+
+        return True
+
+    except Exception as e:
+        print(f"❌ 导入题库异常: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return False
+
+
+def get_question_bank() -> Optional[Dict]:
+    """
+    获取全局题库数据
+
+    Returns:
+        Optional[Dict]: 题库数据，如果未导入则返回None
+    """
+    global _global_question_bank
+    return _global_question_bank
+
 
 def hello_world():
     """测试函数 - 打印 Hello World"""
@@ -328,126 +428,290 @@ def navigate_to_course_page(ecourse_id: str, page):
 
         page.goto(course_url)
 
-        # 等待题目列表加载
-        print("⏳ 等待题目列表加载...")
-        time.sleep(3)
+        # 外层循环：持续显示题目列表和菜单
+        should_exit = False
+        while not should_exit:
+            # 等待题目列表加载
+            print("⏳ 等待题目列表加载...")
+            time.sleep(3)
 
-        # 提取题目列表
-        print("\n正在提取题目列表...")
+            # 提取题目列表
+            print("\n正在提取题目列表...")
 
-        # 等待题目菜单元素出现
-        try:
-            page.wait_for_selector(".el-menu.el-menu--vertical", timeout=10000)
-        except:
-            print("⚠️ 未找到题目列表，页面可能加载失败")
-            print("\n💡 浏览器将保持打开状态，你可以手动查看")
-            input("按回车键关闭浏览器...")
-            return
-
-        # 获取所有题目项
-        all_items = page.query_selector_all("li.el-menu-item")
-
-        # 过滤掉章节标题项（章节标题的span在el-sub-menu__title内）
-        question_items = []
-        for item in all_items:
+            # 等待题目菜单元素出现
             try:
-                # 检查是否有直接的span子元素（不包含嵌套的）
-                direct_span = item.query_selector("span")
-                # 检查是否有 pass-status
-                has_pass_status = item.query_selector(".pass-status")
-
-                if direct_span and has_pass_status:
-                    question_items.append(item)
+                page.wait_for_selector(".el-menu.el-menu--vertical", timeout=10000)
             except:
-                continue
+                print("⚠️ 未找到题目列表，页面可能加载失败")
+                print("\n💡 浏览器将保持打开状态，你可以手动查看")
+                input("按回车键关闭浏览器...")
+                return
 
-        if not question_items:
-            print("📭 未找到任何题目")
-        else:
-            print("\n" + "=" * 60)
-            print(f"📝 题目列表（共 {len(question_items)} 题）")
-            print("=" * 60 + "\n")
+            # 获取所有题目项
+            all_items = page.query_selector_all("li.el-menu-item")
 
-            for i, item in enumerate(question_items, 1):
+            # 过滤掉章节标题项（章节标题的span在el-sub-menu__title内）
+            question_items = []
+            for item in all_items:
                 try:
-                    # 获取题目名称
-                    span = item.query_selector("span")
-                    if span:
-                        question_name = span.inner_text().strip()
-                    else:
-                        question_name = "未命名题目"
+                    # 检查是否有直接的span子元素（不包含嵌套的）
+                    direct_span = item.query_selector("span")
+                    # 检查是否有 pass-status
+                    has_pass_status = item.query_selector(".pass-status")
 
-                    # 检查完成状态
-                    pass_status_div = item.query_selector(".pass-status")
-                    is_completed = False
+                    if direct_span and has_pass_status:
+                        question_items.append(item)
+                except:
+                    continue
 
-                    if pass_status_div:
-                        # 获取两个图标
-                        icons = pass_status_div.query_selector_all(".el-icon")
-                        if len(icons) >= 2:
-                            # 检查第一个图标是否隐藏
-                            first_icon_style = icons[0].get_attribute("style") or ""
-                            second_icon_style = icons[1].get_attribute("style") or ""
+            if not question_items:
+                print("📭 未找到任何题目")
+            else:
+                print("\n" + "=" * 60)
+                print(f"📝 题目列表（共 {len(question_items)} 题）")
+                print("=" * 60 + "\n")
 
-                            # 如果第一个图标不隐藏（显示✓），则已完成
-                            if "display: none" not in first_icon_style:
-                                is_completed = True
-                            # 如果第二个图标不隐藏（显示✕），则未完成
-                            elif "display: none" not in second_icon_style:
-                                is_completed = False
+                for i, item in enumerate(question_items, 1):
+                    try:
+                        # 获取题目名称
+                        span = item.query_selector("span")
+                        if span:
+                            question_name = span.inner_text().strip()
+                        else:
+                            question_name = "未命名题目"
 
-                    # 状态标记
-                    status_mark = "✅" if is_completed else "❌"
+                        # 检查完成状态
+                        pass_status_div = item.query_selector(".pass-status")
+                        is_completed = False
 
-                    # 如果已完成，使用灰色显示
-                    if is_completed:
-                        print(f"{i}. {status_mark} {question_name} (已完成)")
-                    else:
-                        print(f"{i}. {status_mark} {question_name}")
+                        if pass_status_div:
+                            # 获取两个图标
+                            icons = pass_status_div.query_selector_all(".el-icon")
+                            if len(icons) >= 2:
+                                # 检查第一个图标是否隐藏
+                                first_icon_style = icons[0].get_attribute("style") or ""
+                                second_icon_style = icons[1].get_attribute("style") or ""
 
-                except Exception as e:
-                    print(f"{i}. ❌ 解析题目失败: {e}")
+                                # 如果第一个图标不隐藏（显示✓），则已完成
+                                if "display: none" not in first_icon_style:
+                                    is_completed = True
+                                # 如果第二个图标不隐藏（显示✕），则未完成
+                                elif "display: none" not in second_icon_style:
+                                    is_completed = False
 
-            print("\n" + "=" * 60)
-            completed_count = sum(1 for item in question_items if "已完成" in str(item.get_attribute("outerHTML")))
-            print(f"📊 统计：已完成 {completed_count}/{len(question_items)} 题")
-            print("=" * 60)
+                        # 状态标记
+                        status_mark = "✅" if is_completed else "❌"
 
-            # 显示操作菜单
-            print("\n" + "=" * 60)
-            print("📋 操作菜单")
-            print("=" * 60)
-            print("1. 开始做题（兼容模式）")
-            print("2. 开始做题（API模式）")
-            print("3. 重新作答（兼容模式）")
-            print("4. 重新作答（API模式）")
-            print("5. 退出")
-            print("=" * 60)
+                        # 如果已完成，使用灰色显示
+                        if is_completed:
+                            print(f"{i}. {status_mark} {question_name} (已完成)")
+                        else:
+                            print(f"{i}. {status_mark} {question_name}")
 
-            while True:
-                choice = input("\n请选择操作 (1-5): ").strip()
+                    except Exception as e:
+                        print(f"{i}. ❌ 解析题目失败: {e}")
+
+                print("\n" + "=" * 60)
+                completed_count = sum(1 for item in question_items if "已完成" in str(item.get_attribute("outerHTML")))
+                print(f"📊 统计：已完成 {completed_count}/{len(question_items)} 题")
+                print("=" * 60)
+
+                # 显示操作菜单
+                print("\n" + "=" * 60)
+                print("📋 操作菜单")
+                print("=" * 60)
+                print("1. 开始做题（兼容模式）")
+                print("2. 开始做题（API模式）")
+                print("3. 重新作答（兼容模式）")
+                print("4. 重新作答（API模式）")
+                print("5. 导入题库")
+                print("6. 退出")
+                print("=" * 60)
+
+                # 内层循环：处理用户操作选择
+                while True:
+                    choice = input("\n请选择操作 (1-6): ").strip()
 
                 if choice == "1":
+                    # 开始做题（兼容模式）
                     print("\n✅ 选择了：开始做题（兼容模式）")
-                    print("💡 功能开发中...")
-                    # TODO: 实现兼容模式做题功能
+
+                    # 检查是否已导入题库
+                    question_bank = get_question_bank()
+                    if not question_bank:
+                        print("⚠️ 未检测到题库，请先导入题库")
+                        print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                        continue
+
+                    # 让用户选择要做的题目
+                    print("\n请选择要做的题目（输入题目编号）:")
+                    question_choice = input("题目编号: ").strip()
+
+                    try:
+                        question_idx = int(question_choice) - 1
+                        if 0 <= question_idx < len(question_items):
+                            selected_item = question_items[question_idx]
+                            question_name = selected_item.query_selector("span").inner_text().strip()
+
+                            print(f"\n你选择了: {question_name}")
+                            confirm = input("确认开始做题？(yes/no): ").strip().lower()
+
+                            if confirm in ['yes', 'y', '是']:
+                                # 点击题目进入答题界面
+                                print("\n正在进入答题界面...")
+                                selected_item.click()
+                                time.sleep(2)
+
+                                # 点击"开始测评"按钮
+                                try:
+                                    start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
+                                    start_button.click()
+                                    print("✅ 已点击开始测评按钮")
+                                    time.sleep(2)  # 等待答题界面加载
+
+                                    # 创建自动做题器并开始做题
+                                    auto_answer = CourseAutoAnswer(page)
+                                    result = auto_answer.answer_with_bank(question_bank)
+
+                                    print(f"\n✅ 做题完成！")
+                                    print(f"📊 结果: 成功 {result['success']}/{result['total']} 题")
+
+                                    # 返回题目列表
+                                    print("\n按回车键返回题目列表...")
+                                    input()
+
+                                    # 刷新页面返回题目列表
+                                    page.goto(course_url)
+                                    time.sleep(2)
+
+                                    # 退出内层循环，重新显示题目列表和菜单
+                                    break
+
+                                except Exception as e:
+                                    print(f"❌ 做题失败: {str(e)}")
+                                    print("按回车键返回...")
+                                    input()
+                                    # 刷新页面返回题目列表
+                                    page.goto(course_url)
+                                    time.sleep(2)
+                                    # 退出内层循环，重新显示题目列表和菜单
+                                    break
+
+                            else:
+                                print("已取消")
+                        else:
+                            print(f"❌ 无效的选择，请输入 1-{len(question_items)} 之间的数字")
+                    except ValueError:
+                        print("❌ 请输入有效的数字")
+
                 elif choice == "2":
                     print("\n✅ 选择了：开始做题（API模式）")
                     print("💡 功能开发中...")
                     # TODO: 实现API模式做题功能
                 elif choice == "3":
+                    # 重新作答（兼容模式）- 无视完成状态，重新做题
                     print("\n✅ 选择了：重新作答（兼容模式）")
-                    print("💡 功能开发中...")
-                    # TODO: 实现兼容模式重新作答功能
+                    print("💡 注意：这将重新答题，包括已完成的题目")
+
+                    # 检查是否已导入题库
+                    question_bank = get_question_bank()
+                    if not question_bank:
+                        print("⚠️ 未检测到题库，请先导入题库")
+                        print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                        continue
+
+                    # 让用户选择要做的题目
+                    print("\n请选择要重新作答的题目（输入题目编号）:")
+                    question_choice = input("题目编号: ").strip()
+
+                    try:
+                        question_idx = int(question_choice) - 1
+                        if 0 <= question_idx < len(question_items):
+                            selected_item = question_items[question_idx]
+                            question_name = selected_item.query_selector("span").inner_text().strip()
+
+                            print(f"\n你选择了: {question_name}")
+                            confirm = input("确认重新作答？(yes/no): ").strip().lower()
+
+                            if confirm in ['yes', 'y', '是']:
+                                # 点击题目进入答题界面
+                                print("\n正在进入答题界面...")
+                                selected_item.click()
+                                time.sleep(2)
+
+                                # 点击"开始测评"按钮
+                                try:
+                                    start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
+                                    start_button.click()
+                                    print("✅ 已点击开始测评按钮")
+                                    time.sleep(2)  # 等待答题界面加载
+
+                                    # 创建自动做题器并开始做题
+                                    auto_answer = CourseAutoAnswer(page)
+                                    result = auto_answer.answer_with_bank(question_bank)
+
+                                    print(f"\n✅ 重新作答完成！")
+                                    print(f"📊 结果: 成功 {result['success']}/{result['total']} 题")
+
+                                    # 返回题目列表
+                                    print("\n按回车键返回题目列表...")
+                                    input()
+
+                                    # 刷新页面返回题目列表
+                                    page.goto(course_url)
+                                    time.sleep(2)
+
+                                    # 退出内层循环，重新显示题目列表和菜单
+                                    break
+
+                                except Exception as e:
+                                    print(f"❌ 做题失败: {str(e)}")
+                                    print("按回车键返回...")
+                                    input()
+                                    # 刷新页面返回题目列表
+                                    page.goto(course_url)
+                                    time.sleep(2)
+                                    # 退出内层循环，重新显示题目列表和菜单
+                                    break
+
+                            else:
+                                print("已取消")
+                        else:
+                            print(f"❌ 无效的选择，请输入 1-{len(question_items)} 之间的数字")
+                    except ValueError:
+                        print("❌ 请输入有效的数字")
                 elif choice == "4":
                     print("\n✅ 选择了：重新作答（API模式）")
                     print("💡 功能开发中...")
                     # TODO: 实现API模式重新作答功能
                 elif choice == "5":
+                    # 导入题库
+                    print("\n✅ 选择了：导入题库")
+                    print("=" * 60)
+                    print("💡 请输入题库JSON文件的路径")
+                    print("提示：可以直接拖拽文件到此处")
+                    print("=" * 60)
+
+                    file_path = input("\n文件路径: ").strip().strip('"').strip("'")
+
+                    if not file_path:
+                        print("❌ 文件路径不能为空")
+                        continue
+
+                    # 调用题库导入功能
+                    success = import_question_bank(file_path)
+
+                    if success:
+                        print("\n✅ 题库导入成功！")
+                        print("💡 现在可以选择'开始做题'或'重新作答'使用导入的题库")
+                    else:
+                        print("\n❌ 题库导入失败")
+                elif choice == "6":
                     print("\n🔙 退出")
+                    should_exit = True
                     break
                 else:
-                    print("\n❌ 无效的选择，请输入1-5之间的数字")
+                    print("\n❌ 无效的选择，请输入1-6之间的数字")
 
     except KeyboardInterrupt:
         print("\n\n⚠️ 用户中断")
@@ -455,3 +719,789 @@ def navigate_to_course_page(ecourse_id: str, page):
         print(f"❌ 跳转页面异常: {str(e)}")
         import traceback
         traceback.print_exc()
+
+
+class CourseAutoAnswer:
+    """课程认证自动做题类（兼容模式）"""
+
+    def __init__(self, page):
+        """
+        初始化自动做题器
+
+        Args:
+            page: Playwright页面对象
+        """
+        self.page = page
+        self.api_question_ids = []  # 存储从API获取的题目ID
+        self.api_listener_active = False  # API监听器是否激活
+        self.current_question_index = 0  # 当前题目索引（用于API模式）
+
+    def _setup_api_listener(self):
+        """设置API监听器，捕获题目ID"""
+        def handle_route(route, request):
+            # 监听 GetQuesionListByKPId API
+            if "GetQuesionListByKPId" in request.url and self.api_listener_active:
+                try:
+                    # 继续请求并获取响应
+                    response = route.fetch()
+                    body = response.json()
+
+                    if body.get('code') == 0 and 'data' in body:
+                        # 提取题目ID
+                        self.api_question_ids = [
+                            q.get('questionID') for q in body.get('data', [])
+                        ]
+                        print(f"✅ 监听到API，获取到 {len(self.api_question_ids)} 个题目ID")
+                        # 打印前3个题目ID用于调试
+                        if self.api_question_ids:
+                            print(f"   题目ID: {self.api_question_ids[0]}...")
+
+                except Exception as e:
+                    print(f"⚠️ API监听异常: {str(e)}")
+
+                return route.continue_()
+
+            return route.continue_()
+
+        # 注册路由监听
+        self.page.route('**/*', handle_route)
+
+    def _start_api_listener(self):
+        """启动API监听"""
+        if not self.api_listener_active:
+            self.api_listener_active = True
+            self._setup_api_listener()
+            print("✅ API监听器已启动")
+
+    def _stop_api_listener(self):
+        """停止API监听"""
+        self.api_listener_active = False
+        print("✅ API监听器已停止")
+
+    def _normalize_text(self, text: str) -> str:
+        """
+        标准化文本（参考学生端逻辑）
+
+        Args:
+            text: 原始文本
+
+        Returns:
+            str: 标准化后的文本
+        """
+        if not text:
+            return ""
+
+        import html
+        import re
+
+        # 解码HTML实体
+        text = html.unescape(text)
+
+        # 移除HTML注释
+        text = re.sub(r'<!--.*?-->', '', text)
+
+        # 移除HTML标签
+        text = re.sub(r'<[^>]+>', '', text)
+
+        # 移除多余空白
+        text = re.sub(r'\s+', ' ', text)
+
+        return text.strip()
+
+    def _parse_question_type(self) -> tuple:
+        """
+        解析题目类型
+
+        Returns:
+            tuple: (题目类型代码, 题目类型名称)
+                - 题目类型代码: 'single' (单选/判断), 'multiple' (多选)
+                - 题目类型名称: '单选/判断', '多选'
+        """
+        try:
+            # 检查是否存在单选组（单选或判断题）
+            radio_group = self.page.query_selector(".el-radio-group")
+            if radio_group:
+                return "single", "单选/判断"
+
+            # 检查是否存在多选组
+            checkbox_group = self.page.query_selector(".el-checkbox-group")
+            if checkbox_group:
+                return "multiple", "多选"
+
+            # 默认为单选
+            return "single", "单选/判断"
+
+        except Exception as e:
+            print(f"❌ 解析题目类型失败: {str(e)}")
+            return "single", "单选/判断"
+
+    def _parse_current_question(self) -> Optional[Dict]:
+        """
+        解析当前题目的信息
+
+        Returns:
+            Optional[Dict]: 题目信息字典，包含:
+                {
+                    'type': str,  # 题目类型: 'single', 'multiple'
+                    'type_name': str,  # 题目类型名称
+                    'title': str,  # 题目内容
+                    'options': List[Dict],  # 选项列表
+                        [
+                            {
+                                'label': str,  # 选项标签 (A, B, C, D)
+                                'content': str,  # 选项内容
+                                'value': str  # 选项value值
+                            }
+                        ]
+                    'options_hash': str  # 选项内容的组合哈希，用于精确匹配
+                }
+        """
+        try:
+            # 解析题目类型
+            question_type, type_name = self._parse_question_type()
+
+            # 获取题目标题
+            title_element = self.page.query_selector(".question-title")
+            if not title_element:
+                print("❌ 未找到题目标题元素")
+                return None
+
+            title_text = title_element.inner_text().strip()
+
+            # 获取选项
+            options = []
+            options_contents = []  # 存储选项内容用于生成哈希
+
+            if question_type == "single":
+                # 单选题或判断题 - 使用 el-radio
+                radio_labels = self.page.query_selector_all(".el-radio")
+                for label in radio_labels:
+                    # 获取选项标签（A、B、C、D）
+                    label_element = label.query_selector(".option-answer")
+                    label_text = label_element.inner_text().strip() if label_element else ""
+
+                    # 获取选项内容
+                    content_element = label.query_selector(".option-content")
+                    content_text = content_element.inner_text().strip() if content_element else ""
+
+                    # 获取value值
+                    input_element = label.query_selector("input[type='radio']")
+                    value = input_element.get_attribute("value") if input_element else ""
+
+                    if value:  # 只添加有value的选项
+                        options.append({
+                            'label': label_text,
+                            'content': content_text,
+                            'value': value
+                        })
+                        options_contents.append(content_text)
+
+            elif question_type == "multiple":
+                # 多选题 - 使用 el-checkbox
+                checkbox_labels = self.page.query_selector_all(".el-checkbox")
+                for label in checkbox_labels:
+                    # 获取选项标签（A、B、C、D）
+                    label_element = label.query_selector(".option-answer")
+                    label_text = label_element.inner_text().strip() if label_element else ""
+
+                    # 获取选项内容
+                    content_element = label.query_selector(".option-content")
+                    content_text = content_element.inner_text().strip() if content_element else ""
+
+                    # 获取value值
+                    input_element = label.query_selector("input[type='checkbox']")
+                    value = input_element.get_attribute("value") if input_element else ""
+
+                    if value:  # 只添加有value的选项
+                        options.append({
+                            'label': label_text,
+                            'content': content_text,
+                            'value': value
+                        })
+                        options_contents.append(content_text)
+
+            # 生成选项哈希（将所有选项内容拼接并排序）
+            options_hash = "|".join(sorted(options_contents))
+
+            return {
+                'type': question_type,
+                'type_name': type_name,
+                'title': title_text,
+                'options': options,
+                'options_hash': options_hash
+            }
+
+        except Exception as e:
+            print(f"❌ 解析当前题目失败: {str(e)}")
+            return None
+
+    def _get_current_question_number(self) -> int:
+        """
+        获取当前题目序号
+
+        Returns:
+            int: 当前题目序号（1-based），如果获取失败返回0
+        """
+        try:
+            # 查找所有题目序号元素
+            question_items = self.page.query_selector_all(".question-item")
+
+            for i, item in enumerate(question_items, 1):
+                # 检查是否有"selected"类
+                class_attr = item.get_attribute("class") or ""
+                if "selected" in class_attr:
+                    print(f"📍 当前题目序号: {i}/{len(question_items)}")
+                    return i
+
+            # 如果没有找到selected，返回0
+            return 0
+
+        except Exception as e:
+            print(f"❌ 获取当前题目序号失败: {str(e)}")
+            return 0
+
+    def _select_single_answer(self, question: Dict, correct_values: List[str]) -> bool:
+        """
+        选择单选题/判断题的答案
+
+        Args:
+            question: 题目信息
+            correct_values: 正确选项的value列表
+
+        Returns:
+            bool: 是否成功选择
+        """
+        try:
+            if not correct_values:
+                print("❌ 没有正确答案")
+                return False
+
+            correct_value = correct_values[0]  # 单选题只有一个正确答案
+
+            # 查找对应的选项并点击
+            for option in question['options']:
+                if option['value'] == correct_value:
+                    # 点击选项
+                    option_label = option['label']
+                    print(f"   选择答案: {option_label}")
+
+                    # 点击label元素
+                    selector = f".el-radio:has(input[value='{correct_value}'])"
+                    self.page.click(selector, timeout=10000)
+                    time.sleep(0.5)  # 等待选择完成
+                    return True
+
+            print(f"❌ 未找到value为 {correct_value} 的选项")
+            return False
+
+        except Exception as e:
+            print(f"❌ 选择单选答案失败: {str(e)}")
+            return False
+
+    def _select_multiple_answers(self, question: Dict, correct_values: List[str]) -> bool:
+        """
+        选择多选题的答案
+
+        Args:
+            question: 题目信息
+            correct_values: 正确选项的value列表
+
+        Returns:
+            bool: 是否成功选择
+        """
+        try:
+            if not correct_values:
+                print("❌ 没有正确答案")
+                return False
+
+            selected_count = 0
+
+            # 查找对应的选项并点击
+            for correct_value in correct_values:
+                for option in question['options']:
+                    if option['value'] == correct_value:
+                        # 点击选项
+                        option_label = option['label']
+                        option_content = option['content'][:30]
+                        print(f"   选择答案: {option_label} - {option_content}...")
+
+                        # 点击label元素
+                        selector = f".el-checkbox:has(input[value='{correct_value}'])"
+                        self.page.click(selector, timeout=10000)
+                        selected_count += 1
+
+                        # 延迟，防止点击过快导致选择失败
+                        time.sleep(0.3)
+                        break
+
+            if selected_count == len(correct_values):
+                print(f"✅ 成功选择 {selected_count} 个答案")
+                return True
+            else:
+                print(f"⚠️ 只选择了 {selected_count}/{len(correct_values)} 个答案")
+                return False
+
+        except Exception as e:
+            print(f"❌ 选择多选答案失败: {str(e)}")
+            return False
+
+    def click_next_button(self) -> bool:
+        """
+        点击下一题按钮
+
+        Returns:
+            bool: 是否成功点击
+        """
+        try:
+            # 查找"下一题"按钮
+            next_button = self.page.wait_for_selector("button.el-button--success:has-text('下一题')", timeout=5000)
+
+            if next_button:
+                next_button.click()
+                print("✅ 已点击下一题按钮")
+                time.sleep(1)  # 等待下一题加载
+                return True
+            else:
+                print("❌ 未找到下一题按钮")
+                return False
+
+        except Exception as e:
+            print(f"❌ 点击下一题按钮失败: {str(e)}")
+            return False
+
+    def _find_answer_from_bank(self, question: Dict, question_bank: Dict) -> Optional[List[str]]:
+        """
+        从题库中查找当前题目的答案（优先API模式，备用多维度匹配）
+
+        Args:
+            question: 当前题目信息
+            question_bank: 题库数据
+
+        Returns:
+            Optional[List[str]]: 正确选项的字母列表（如 ['A'] 或 ['A', 'B', 'C']），如果未找到则返回None
+        """
+        if not question_bank:
+            print("⚠️ 题库未加载")
+            return None
+
+        try:
+            question_title = question['title']
+            question_options = question.get('options', [])
+
+            # 方式1：优先使用API监听的questionID
+            if self.api_question_ids and self.current_question_index < len(self.api_question_ids):
+                current_question_id = self.api_question_ids[self.current_question_index]
+                print(f"🎯 使用API模式，题目ID: {current_question_id}")
+
+                # 在题库中查找匹配的questionID
+                chapters = []
+                if "class" in question_bank and "course" in question_bank["class"]:
+                    chapters = question_bank["class"]["course"].get("chapters", [])
+                elif "chapters" in question_bank:
+                    chapters = question_bank["chapters"]
+
+                for chapter in chapters:
+                    for knowledge in chapter.get("knowledges", []):
+                        for bank_question in knowledge.get("questions", []):
+                            if bank_question.get("QuestionID") == current_question_id:
+                                knowledge_name = knowledge.get("Knowledge", "")
+                                print(f"✅ API模式匹配成功（知识点: {knowledge_name}）")
+
+                                # 获取正确答案的选项内容
+                                bank_options = bank_question.get("options", [])
+                                correct_answer_contents = []
+
+                                for opt in bank_options:
+                                    if opt.get("isTrue"):
+                                        content = opt.get("oppentionContent", "")
+                                        if content:
+                                            correct_answer_contents.append(content)
+
+                                if correct_answer_contents:
+                                    print(f"   正确答案: {', '.join(correct_answer_contents)}")
+                                    return correct_answer_contents
+
+                print("⚠️ API模式未找到匹配题目，降级到题库匹配")
+
+            # 方式2：备用 - 多维度匹配（标题 + 选项评分）
+            print("🔍 使用题库匹配模式...")
+
+            # 标准化当前题目标题
+            current_title_normalized = self._normalize_text(question_title)
+
+            # 标准化当前选项内容
+            current_option_contents = []
+            for opt in question_options:
+                content = self._normalize_text(opt.get('content', ''))
+                if content:
+                    current_option_contents.append(content)
+
+            # 遍历题库查找匹配的题目
+            chapters = []
+            if "class" in question_bank and "course" in question_bank["class"]:
+                chapters = question_bank["class"]["course"].get("chapters", [])
+            elif "chapters" in question_bank:
+                chapters = question_bank["chapters"]
+
+            # 收集候选题目
+            candidates = []
+
+            for chapter in chapters:
+                for knowledge in chapter.get("knowledges", []):
+                    knowledge_id = knowledge.get("KnowledgeID", "")
+                    knowledge_name = knowledge.get("Knowledge", "")
+
+                    for bank_question in knowledge.get("questions", []):
+                        # 标准化题库中的题目标题
+                        bank_title_raw = bank_question.get("QuestionTitle", "")
+                        bank_title_normalized = self._normalize_text(bank_title_raw)
+
+                        # 检查标题是否匹配（使用包含匹配，提高容错率）
+                        if (current_title_normalized == bank_title_normalized or
+                            current_title_normalized in bank_title_normalized or
+                            bank_title_normalized in current_title_normalized):
+
+                            # 计算选项匹配评分
+                            bank_options = bank_question.get("options", [])
+                            bank_option_contents = []
+                            for opt in bank_options:
+                                content = opt.get("oppentionContent", "")
+                                content_normalized = self._normalize_text(content)
+                                if content_normalized:
+                                    bank_option_contents.append(content_normalized)
+
+                            # 计算匹配的选项数量
+                            matched_count = 0
+                            for curr_content in current_option_contents:
+                                for bank_content in bank_option_contents:
+                                    # 双向包含匹配
+                                    if (curr_content == bank_content or
+                                        curr_content in bank_content or
+                                        bank_content in curr_content):
+                                        matched_count += 1
+                                        break
+
+                            # 计算匹配得分
+                            if current_option_contents:
+                                match_score = matched_count / len(current_option_contents)
+                            else:
+                                match_score = 0
+
+                            candidates.append({
+                                'question': bank_question,
+                                'knowledge_id': knowledge_id,
+                                'knowledge_name': knowledge_name,
+                                'match_score': match_score,
+                                'matched_count': matched_count,
+                                'total_count': len(current_option_contents)
+                            })
+
+            # 如果没有找到任何匹配的题目
+            if not candidates:
+                print("⚠️ 在题库中未找到匹配的题目")
+                return None
+
+            # 按匹配评分排序，选择最佳匹配
+            candidates.sort(key=lambda x: x['match_score'], reverse=True)
+
+            best_match = candidates[0]
+
+            if best_match['match_score'] >= 0.8:
+                # 高匹配度（≥80%）
+                print(f"✅ 高匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+            elif best_match['match_score'] >= 0.5:
+                # 中等匹配度（50%-80%）
+                print(f"⚠️ 中等匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+            else:
+                # 低匹配度（<50%）
+                print(f"⚠️ 低匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+
+            print(f"   选项匹配: {best_match['matched_count']}/{best_match['total_count']}")
+
+            # 获取正确答案的选项内容（而不是ID）
+            bank_options = best_match['question'].get("options", [])
+            correct_answer_contents = []  # 存储正确答案的内容文本
+
+            for opt in bank_options:
+                if opt.get("isTrue"):
+                    content = opt.get("oppentionContent", "")
+                    if content:
+                        correct_answer_contents.append(content)
+
+            if correct_answer_contents:
+                print(f"   正确答案: {', '.join(correct_answer_contents)}")
+                return correct_answer_contents
+            else:
+                print("⚠️ 题库中未标记正确答案")
+                return None
+
+        except Exception as e:
+            print(f"❌ 从题库查找答案失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return None
+
+    def answer_with_bank(self, question_bank: Dict) -> Dict:
+        """
+        使用题库进行做题（兼容模式，支持API监听）
+
+        Args:
+            question_bank: 题库数据
+
+        Returns:
+            Dict: 做题结果统计
+        """
+        result = {
+            'total': 0,
+            'success': 0,
+            'failed': 0,
+            'skipped': 0
+        }
+
+        try:
+            print("🚀 开始自动做题（兼容模式 - 智能匹配）")
+            print("=" * 60)
+
+            # 启动API监听器
+            self._start_api_listener()
+
+            # 获取题目总数
+            question_items = self.page.query_selector_all(".question-item")
+            total_questions = len(question_items)
+            print(f"📋 总共 {total_questions} 道题")
+            print("=" * 60)
+
+            # 重置当前题目索引
+            self.current_question_index = 0
+
+            # 循环做题
+            while True:
+                # 获取当前题目序号
+                current_num = self._get_current_question_number()
+
+                if current_num == 0:
+                    print("⚠️ 无法获取当前题目序号，可能已完成")
+                    break
+
+                print(f"\n📌 第 {current_num}/{total_questions} 题")
+
+                # 解析当前题目
+                question = self._parse_current_question()
+                if not question:
+                    print("❌ 解析题目失败")
+                    result['failed'] += 1
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    continue
+
+                print(f"   题目类型: {question['type_name']}")
+                print(f"   题目内容: {question['title'][:80]}...")
+                print(f"   选项数量: {len(question['options'])}")
+
+                # 从题库中查找答案（优先API模式）
+                print("🔍 正在题库中查找答案...")
+                answer_letters = self._find_answer_from_bank(question, question_bank)
+
+                if not answer_letters:
+                    print("⚠️ 未在题库中找到答案，跳过该题")
+                    result['skipped'] += 1
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    # 更新题目索引
+                    self.current_question_index += 1
+                    continue
+
+                # 将答案内容转换为选项value（通过选项内容匹配）
+                correct_values = []
+                for answer_content in answer_letters:
+                    for option in question['options']:
+                        # 标准化选项内容进行比较
+                        option_content_normalized = self._normalize_text(option['content'])
+                        answer_content_normalized = self._normalize_text(answer_content)
+
+                        if option_content_normalized == answer_content_normalized:
+                            correct_values.append(option['value'])
+                            print(f"   匹配选项: {option['label']} - {option['content'][:30]}...")
+                            break
+
+                if not correct_values:
+                    print(f"❌ 未找到匹配的选项")
+                    print(f"   题库答案: {answer_letters}")
+                    print(f"   当前选项: {[opt['content'][:30] for opt in question['options']]}")
+                    result['failed'] += 1
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    self.current_question_index += 1
+                    continue
+
+                # 根据题目类型选择答案
+                if question['type'] == "single":
+                    success = self._select_single_answer(question, correct_values)
+                elif question['type'] == "multiple":
+                    success = self._select_multiple_answers(question, correct_values)
+                else:
+                    print(f"❌ 未知的题目类型: {question['type']}")
+                    success = False
+
+                result['total'] += 1
+
+                if success:
+                    result['success'] += 1
+                    print("✅ 题目回答完成")
+                else:
+                    result['failed'] += 1
+                    print("❌ 题目回答失败")
+
+                # 点击下一题
+                if not self.click_next_button():
+                    print("⚠️ 未找到下一题按钮，可能已是最后一题")
+                    break
+
+                # 更新题目索引
+                self.current_question_index += 1
+
+            # 停止API监听器
+            self._stop_api_listener()
+
+            print("\n" + "=" * 60)
+            print("✅ 做题完成")
+            print(f"📊 统计: 总计 {result['total']} 题, 成功 {result['success']} 题, 失败 {result['failed']} 题, 跳过 {result['skipped']} 题")
+            print("=" * 60)
+
+            return result
+
+        except Exception as e:
+            print(f"❌ 做题流程失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            # 确保停止API监听器
+            self._stop_api_listener()
+            return result
+
+    def answer_with_manual_answers(self, answers_dict: Dict) -> Dict:
+        """
+        使用手动提供的答案进行做题（兼容模式）
+
+        Args:
+            answers_dict: 答案字典，格式为:
+                {
+                    1: ["A"],  # 第1题答案是A
+                    2: ["A", "B", "C"],  # 第2题答案是ABC（多选）
+                    ...
+                }
+
+        Returns:
+            Dict: 做题结果统计
+            {
+                'total': int,  # 总题数
+                'success': int,  # 成功题数
+                'failed': int,  # 失败题数
+            }
+        """
+        result = {
+            'total': 0,
+            'success': 0,
+            'failed': 0
+        }
+
+        try:
+            print("🚀 开始自动做题（兼容模式）")
+            print("=" * 60)
+
+            # 获取题目总数
+            question_items = self.page.query_selector_all(".question-item")
+            total_questions = len(question_items)
+            print(f"📋 总共 {total_questions} 道题")
+            print("=" * 60)
+
+            # 循环做题
+            while True:
+                # 获取当前题目序号
+                current_num = self._get_current_question_number()
+
+                if current_num == 0:
+                    print("⚠️ 无法获取当前题目序号，可能已完成")
+                    break
+
+                # 检查是否超出答案字典范围
+                if current_num not in answers_dict:
+                    print(f"⚠️ 第{current_num}题没有提供答案，跳过")
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    continue
+
+                print(f"\n📌 第 {current_num}/{total_questions} 题")
+
+                # 解析当前题目
+                question = self._parse_current_question()
+                if not question:
+                    print("❌ 解析题目失败")
+                    result['failed'] += 1
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    continue
+
+                print(f"   题目类型: {question['type_name']}")
+                print(f"   题目内容: {question['title'][:80]}...")
+                print(f"   选项数量: {len(question['options'])}")
+
+                # 获取答案（字母）
+                answer_letters = answers_dict[current_num]
+                print(f"   正确答案: {''.join(answer_letters)}")
+
+                # 将答案字母转换为选项value
+                correct_values = []
+                for letter in answer_letters:
+                    for option in question['options']:
+                        if option['label'] == f"{letter}、":
+                            correct_values.append(option['value'])
+                            break
+
+                if not correct_values:
+                    print(f"❌ 未找到匹配的选项: {answer_letters}")
+                    result['failed'] += 1
+                    # 点击下一题
+                    if not self.click_next_button():
+                        break
+                    continue
+
+                # 根据题目类型选择答案
+                if question['type'] == "single":
+                    success = self._select_single_answer(question, correct_values)
+                elif question['type'] == "multiple":
+                    success = self._select_multiple_answers(question, correct_values)
+                else:
+                    print(f"❌ 未知的题目类型: {question['type']}")
+                    success = False
+
+                result['total'] += 1
+
+                if success:
+                    result['success'] += 1
+                    print("✅ 题目回答完成")
+                else:
+                    result['failed'] += 1
+                    print("❌ 题目回答失败")
+
+                # 点击下一题
+                if not self.click_next_button():
+                    print("⚠️ 未找到下一题按钮，可能已是最后一题")
+                    break
+
+            print("\n" + "=" * 60)
+            print("✅ 做题完成")
+            print(f"📊 统计: 总计 {result['total']} 题, 成功 {result['success']} 题, 失败 {result['failed']} 题")
+            print("=" * 60)
+
+            return result
+
+        except Exception as e:
+            print(f"❌ 做题流程失败: {str(e)}")
+            import traceback
+            traceback.print_exc()
+            return result
