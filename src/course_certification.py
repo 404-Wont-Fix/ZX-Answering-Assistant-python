@@ -417,27 +417,37 @@ def navigate_to_course_page(ecourse_id: str, page):
             print("\n" + "=" * 60)
             print("📋 操作菜单")
             print("=" * 60)
-            print("1. 开始做题")
-            print("2. 重新做题")
-            print("3. 退出")
+            print("1. 开始做题（兼容模式）")
+            print("2. 开始做题（API模式）")
+            print("3. 重新作答（兼容模式）")
+            print("4. 重新作答（API模式）")
+            print("5. 退出")
             print("=" * 60)
 
             while True:
-                choice = input("\n请选择操作 (1-3): ").strip()
+                choice = input("\n请选择操作 (1-5): ").strip()
 
                 if choice == "1":
-                    print("\n✅ 选择了：开始做题")
+                    print("\n✅ 选择了：开始做题（兼容模式）")
                     print("💡 功能开发中...")
-                    # TODO: 实现做题功能
+                    # TODO: 实现兼容模式做题功能
                 elif choice == "2":
-                    print("\n✅ 选择了：重新做题")
+                    print("\n✅ 选择了：开始做题（API模式）")
                     print("💡 功能开发中...")
-                    # TODO: 实现重新做题功能
+                    # TODO: 实现API模式做题功能
                 elif choice == "3":
+                    print("\n✅ 选择了：重新作答（兼容模式）")
+                    print("💡 功能开发中...")
+                    # TODO: 实现兼容模式重新作答功能
+                elif choice == "4":
+                    print("\n✅ 选择了：重新作答（API模式）")
+                    print("💡 功能开发中...")
+                    # TODO: 实现API模式重新作答功能
+                elif choice == "5":
                     print("\n🔙 退出")
                     break
                 else:
-                    print("\n❌ 无效的选择，请输入1-3之间的数字")
+                    print("\n❌ 无效的选择，请输入1-5之间的数字")
 
     except KeyboardInterrupt:
         print("\n\n⚠️ 用户中断")
