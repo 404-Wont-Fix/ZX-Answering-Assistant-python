@@ -312,7 +312,7 @@ def start_answering():
 
 def navigate_to_course_page(ecourse_id: str, page):
     """
-    使用已有的浏览器实例跳转到课程评估页面
+    使用已有的浏览器实例跳转到课程评估页面，并提取题目列表
 
     Args:
         ecourse_id: 课程ID
@@ -328,12 +328,116 @@ def navigate_to_course_page(ecourse_id: str, page):
 
         page.goto(course_url)
 
-        print("\n✅ 已在浏览器中打开课程页面")
-        print("💡 浏览器将保持打开状态，你可以手动操作")
-        print("\n提示：按回车键关闭浏览器并返回菜单")
+        # 等待题目列表加载
+        print("⏳ 等待题目列表加载...")
+        time.sleep(3)
 
-        # 等待用户操作
-        input("按回车键关闭浏览器...")
+        # 提取题目列表
+        print("\n正在提取题目列表...")
+
+        # 等待题目菜单元素出现
+        try:
+            page.wait_for_selector(".el-menu.el-menu--vertical", timeout=10000)
+        except:
+            print("⚠️ 未找到题目列表，页面可能加载失败")
+            print("\n💡 浏览器将保持打开状态，你可以手动查看")
+            input("按回车键关闭浏览器...")
+            return
+
+        # 获取所有题目项
+        all_items = page.query_selector_all("li.el-menu-item")
+
+        # 过滤掉章节标题项（章节标题的span在el-sub-menu__title内）
+        question_items = []
+        for item in all_items:
+            try:
+                # 检查是否有直接的span子元素（不包含嵌套的）
+                direct_span = item.query_selector("span")
+                # 检查是否有 pass-status
+                has_pass_status = item.query_selector(".pass-status")
+
+                if direct_span and has_pass_status:
+                    question_items.append(item)
+            except:
+                continue
+
+        if not question_items:
+            print("📭 未找到任何题目")
+        else:
+            print("\n" + "=" * 60)
+            print(f"📝 题目列表（共 {len(question_items)} 题）")
+            print("=" * 60 + "\n")
+
+            for i, item in enumerate(question_items, 1):
+                try:
+                    # 获取题目名称
+                    span = item.query_selector("span")
+                    if span:
+                        question_name = span.inner_text().strip()
+                    else:
+                        question_name = "未命名题目"
+
+                    # 检查完成状态
+                    pass_status_div = item.query_selector(".pass-status")
+                    is_completed = False
+
+                    if pass_status_div:
+                        # 获取两个图标
+                        icons = pass_status_div.query_selector_all(".el-icon")
+                        if len(icons) >= 2:
+                            # 检查第一个图标是否隐藏
+                            first_icon_style = icons[0].get_attribute("style") or ""
+                            second_icon_style = icons[1].get_attribute("style") or ""
+
+                            # 如果第一个图标不隐藏（显示✓），则已完成
+                            if "display: none" not in first_icon_style:
+                                is_completed = True
+                            # 如果第二个图标不隐藏（显示✕），则未完成
+                            elif "display: none" not in second_icon_style:
+                                is_completed = False
+
+                    # 状态标记
+                    status_mark = "✅" if is_completed else "❌"
+
+                    # 如果已完成，使用灰色显示
+                    if is_completed:
+                        print(f"{i}. {status_mark} {question_name} (已完成)")
+                    else:
+                        print(f"{i}. {status_mark} {question_name}")
+
+                except Exception as e:
+                    print(f"{i}. ❌ 解析题目失败: {e}")
+
+            print("\n" + "=" * 60)
+            completed_count = sum(1 for item in question_items if "已完成" in str(item.get_attribute("outerHTML")))
+            print(f"📊 统计：已完成 {completed_count}/{len(question_items)} 题")
+            print("=" * 60)
+
+            # 显示操作菜单
+            print("\n" + "=" * 60)
+            print("📋 操作菜单")
+            print("=" * 60)
+            print("1. 开始做题")
+            print("2. 重新做题")
+            print("3. 退出")
+            print("=" * 60)
+
+            while True:
+                choice = input("\n请选择操作 (1-3): ").strip()
+
+                if choice == "1":
+                    print("\n✅ 选择了：开始做题")
+                    print("💡 功能开发中...")
+                    # TODO: 实现做题功能
+                elif choice == "2":
+                    print("\n✅ 选择了：重新做题")
+                    print("💡 功能开发中...")
+                    # TODO: 实现重新做题功能
+                elif choice == "3":
+                    print("\n🔙 退出")
+                    break
+                else:
+                    print("\n❌ 无效的选择，请输入1-3之间的数字")
 
     except KeyboardInterrupt:
         print("\n\n⚠️ 用户中断")
