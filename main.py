@@ -313,6 +313,27 @@ def settings_rate_level(settings):
         return
 
 
+def course_certification_menu():
+    """课程认证菜单（待实现）"""
+    while True:
+        print("\n" + "=" * 50)
+        print("🎓 课程认证")
+        print("=" * 50)
+        print("1. 获取access_token")
+        print("2. 返回")
+        print("=" * 50)
+
+        choice = input("\n请选择操作 (1-2): ").strip()
+
+        if choice == "1":
+            print("\n⚠️ 此功能待实现")
+        elif choice == "2":
+            print("\n🔙 返回主菜单")
+            break
+        else:
+            print("\n❌ 无效的选择，请输入1-2之间的数字")
+
+
 def display_progress_bar(progress_info: dict):
     """
     显示课程进度条
@@ -758,8 +779,9 @@ def main():
         print("欢迎使用智能答题助手系统")
         print("1. 开始答题")
         print("2. 题目抓取")
-        print("3. 设置")
-        print("4. 退出系统")
+        print("3. 课程认证")
+        print("4. 设置")
+        print("5. 退出系统")
         choice = input("请选择操作：")
         if choice == "1":
             # 调用开始答题功能
@@ -1033,9 +1055,12 @@ def main():
             else:
                 print("无效的选择，请重新输入")
         elif choice == "3":
+            # 课程认证功能
+            course_certification_menu()
+        elif choice == "4":
             # 设置功能
             settings_menu()
-        elif choice == "4":
+        elif choice == "5":
             # 退出系统
             print("退出系统，再见！")
             # 关闭浏览器
