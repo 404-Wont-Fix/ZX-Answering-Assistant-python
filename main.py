@@ -108,10 +108,10 @@ def settings_menu():
         print("2. 设置 API 请求超时重试次数")
         print("3. 设置 API 请求速率")
         print("4. 查看当前设置")
-        print("5. 返回")
+        print("0. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 设置账号密码
@@ -125,12 +125,12 @@ def settings_menu():
         elif choice == "4":
             # 查看当前设置
             settings.display_current_settings()
-        elif choice == "5":
+        elif choice == "0":
             # 返回
             print("\n🔙 返回主菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
 
 
 def settings_account_password(settings):
@@ -143,10 +143,10 @@ def settings_account_password(settings):
         print("2. 设置教师端账号密码")
         print("3. 删除学生端账号密码")
         print("4. 删除教师端账号密码")
-        print("5. 返回")
+        print("0. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 设置学生端账号密码
@@ -228,12 +228,12 @@ def settings_account_password(settings):
             else:
                 print("\n❌ 已取消")
 
-        elif choice == "5":
+        elif choice == "0":
             # 返回
             print("\n🔙 返回设置菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
 
 
 def settings_max_retries(settings):
@@ -323,10 +323,10 @@ def course_certification_menu():
         print("1. 开始做题")
         print("2. 获取access_token")
         print("3. 导入题库")
-        print("4. 返回")
+        print("0. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-4): ").strip()
+        choice = input("\n请选择操作 (1-3 或 0): ").strip()
 
         if choice == "1":
             # 开始做题
@@ -358,11 +358,11 @@ def course_certification_menu():
                 print("💡 现在可以选择'开始做题'使用导入的题库进行答题")
             else:
                 print("\n❌ 题库导入失败")
-        elif choice == "4":
+        elif choice == "0":
             print("\n🔙 返回主菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-4之间的数字")
+            print("\n❌ 无效的选择，请输入 1-3 或 0")
 
 
 def display_progress_bar(progress_info: dict):
@@ -446,10 +446,10 @@ def show_answer_menu(course_info: dict) -> bool:
         print("2. 使用JSON题库")
         print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(兼容模式)")
         print("4. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(暴力模式)")
-        print("5. 退出")
+        print("0. 退出")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 提取该课程的答案
@@ -795,13 +795,13 @@ def show_answer_menu(course_info: dict) -> bool:
                 traceback.print_exc()
                 continue
 
-        elif choice == "5":
+        elif choice == "0":
             # 退出
             print("\n🔙 返回课程列表")
             return True
 
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
             continue
 
 
@@ -812,14 +812,14 @@ def main():
         print("2. 题目抓取")
         print("3. 课程认证")
         print("4. 设置")
-        print("5. 退出系统")
+        print("0. 退出系统")
         choice = input("请选择操作：")
         if choice == "1":
             # 调用开始答题功能
             print("开始答题功能")
             print("1. 开始答题")
             print("2. 获取access_token")
-            print("3. 返回")
+            print("0. 返回")
             sub_choice = input("请选择：")
 
             if sub_choice == "1":
@@ -1033,7 +1033,7 @@ def main():
                     print(f"有效期: 5小时 (18000秒)")
                 else:
                     print(f"\n❌ 获取学生端access_token失败！")
-            elif sub_choice == "3":
+            elif sub_choice == "0":
                 print("返回主菜单")
                 continue
             else:
@@ -1046,7 +1046,7 @@ def main():
             print("2. 全部提取")
             print("3. 提取单个课程")
             print("4. 结果导出")
-            print("5. 返回")
+            print("0. 返回")
             choice2 = input("请选择：")
             if choice2 == "1":
                 # 获取access_token
@@ -1080,7 +1080,7 @@ def main():
                         print(f"✅ 导出成功！文件路径：{file_path}")
                     except Exception as e:
                         print(f"❌ 导出失败：{str(e)}")
-            elif choice2 == "5":
+            elif choice2 == "0":
                 print("返回主菜单")
                 continue
             else:
@@ -1091,7 +1091,7 @@ def main():
         elif choice == "4":
             # 设置功能
             settings_menu()
-        elif choice == "5":
+        elif choice == "0":
             # 退出系统
             print("退出系统，再见！")
             # 关闭浏览器

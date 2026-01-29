@@ -8,6 +8,7 @@ from playwright.sync_api import sync_playwright
 from typing import Optional, List, Dict
 import time
 import requests
+from src.api_client import get_api_client
 
 # 全局变量，保存浏览器实例
 _global_browser = None
@@ -323,7 +324,9 @@ def start_answering():
         }
 
         try:
-            response = requests.get(api_url, headers=headers, timeout=10)
+            # 使用 API 客户端以获得自动重试功能
+            api_client = get_api_client()
+            response = api_client.get(api_url, headers=headers)
 
             if response.status_code == 200:
                 data = response.json()
@@ -418,6 +421,20 @@ def navigate_to_course_page(ecourse_id: str, page):
         ecourse_id: 课程ID
         page: Playwright page实例
     """
+
+    def show_operation_menu():
+        """显示操作菜单"""
+        print("\n" + "=" * 60)
+        print("📋 操作菜单")
+        print("=" * 60)
+        print("1. 开始做题（兼容模式）")
+        print("2. 开始做题（API模式）")
+        print("3. 重新作答（兼容模式）")
+        print("4. 重新作答（API模式）")
+        print("5. 导入题库")
+        print("0. 退出")
+        print("=" * 60)
+
     try:
         print(f"\n正在跳转到课程页面...")
 
@@ -517,201 +534,455 @@ def navigate_to_course_page(ecourse_id: str, page):
                 print("=" * 60)
 
                 # 显示操作菜单
-                print("\n" + "=" * 60)
-                print("📋 操作菜单")
-                print("=" * 60)
-                print("1. 开始做题（兼容模式）")
-                print("2. 开始做题（API模式）")
-                print("3. 重新作答（兼容模式）")
-                print("4. 重新作答（API模式）")
-                print("5. 导入题库")
-                print("6. 退出")
-                print("=" * 60)
+                show_operation_menu()
 
                 # 内层循环：处理用户操作选择
                 while True:
-                    choice = input("\n请选择操作 (1-6): ").strip()
+                    choice = input("\n请选择操作 (1-5 或 0): ").strip()
 
-                if choice == "1":
-                    # 开始做题（兼容模式）
-                    print("\n✅ 选择了：开始做题（兼容模式）")
+                    if choice == "1":
+                        # 开始做题（兼容模式）- 自动遍历所有未完成的题目
+                        print("\n✅ 选择了：开始做题（兼容模式）")
+                        print("💡 将自动遍历所有未完成的题目")
 
-                    # 检查是否已导入题库
-                    question_bank = get_question_bank()
-                    if not question_bank:
-                        print("⚠️ 未检测到题库，请先导入题库")
-                        print("💡 提示：在操作菜单选择'5. 导入题库'功能")
-                        continue
+                        # 检查是否已导入题库
+                        question_bank = get_question_bank()
+                        if not question_bank:
+                            print("⚠️ 未检测到题库，请先导入题库")
+                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            continue
 
-                    # 让用户选择要做的题目
-                    print("\n请选择要做的题目（输入题目编号）:")
-                    question_choice = input("题目编号: ").strip()
+                        # 自动遍历所有题目
+                        print("\n" + "=" * 60)
+                        print("🚀 开始自动遍历所有题目")
+                        print("=" * 60)
 
-                    try:
-                        question_idx = int(question_choice) - 1
-                        if 0 <= question_idx < len(question_items):
-                            selected_item = question_items[question_idx]
-                            question_name = selected_item.query_selector("span").inner_text().strip()
+                        # 获取所有章节（包括折叠的）
+                        chapters = page.query_selector_all(".el-sub-menu")
+                        print(f"📋 找到 {len(chapters)} 个章节")
 
-                            print(f"\n你选择了: {question_name}")
-                            confirm = input("确认开始做题？(yes/no): ").strip().lower()
+                        total_completed = 0
+                        total_failed = 0
 
-                            if confirm in ['yes', 'y', '是']:
-                                # 点击题目进入答题界面
-                                print("\n正在进入答题界面...")
-                                selected_item.click()
-                                time.sleep(2)
+                        # 遍历每个章节
+                        for chapter_idx, chapter in enumerate(chapters):
+                            try:
+                                # 获取章节标题
+                                chapter_title_elem = chapter.query_selector(".el-sub-menu__title span")
+                                chapter_title = chapter_title_elem.inner_text().strip() if chapter_title_elem else f"第{chapter_idx+1}章"
+                                print(f"\n📖 章节 {chapter_idx+1}: {chapter_title}")
 
-                                # 点击"开始测评"按钮
-                                try:
-                                    start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
-                                    start_button.click()
-                                    print("✅ 已点击开始测评按钮")
-                                    time.sleep(2)  # 等待答题界面加载
+                                # 检查章节是否折叠
+                                chapter_title_div = chapter.query_selector(".el-sub-menu__title")
+                                if chapter_title_div:
+                                    chapter_class = chapter.get_attribute("class") or ""
+                                    is_opened = "is-opened" in chapter_class
 
-                                    # 创建自动做题器并开始做题
-                                    auto_answer = CourseAutoAnswer(page)
-                                    result = auto_answer.answer_with_bank(question_bank)
+                                    if not is_opened:
+                                        # 章节是折叠的，需要点击展开
+                                        print(f"   ↕️  正在展开折叠的章节...")
+                                        chapter_title_div.click()
+                                        time.sleep(0.5)  # 等待展开动画
+                                        print(f"   ✅ 章节已展开")
+                                    else:
+                                        print(f"   ✅ 章节已展开")
 
-                                    print(f"\n✅ 做题完成！")
-                                    print(f"📊 结果: 成功 {result['success']}/{result['total']} 题")
+                                # 获取该章节下的所有题目
+                                question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                print(f"   📝 该章节有 {len(question_items_in_chapter)} 个题目")
 
-                                    # 返回题目列表
-                                    print("\n按回车键返回题目列表...")
-                                    input()
+                                # 检查每个题目的完成状态
+                                for q_idx, item in enumerate(question_items_in_chapter):
+                                    try:
+                                        # 获取题目名称
+                                        span = item.query_selector("span")
+                                        if not span:
+                                            continue
+                                        question_name = span.inner_text().strip()
 
-                                    # 刷新页面返回题目列表
-                                    page.goto(course_url)
-                                    time.sleep(2)
+                                        # 检查完成状态
+                                        pass_status_div = item.query_selector(".pass-status")
+                                        is_completed = False
 
-                                    # 退出内层循环，重新显示题目列表和菜单
-                                    break
+                                        if pass_status_div:
+                                            icons = pass_status_div.query_selector_all(".el-icon")
+                                            if len(icons) >= 2:
+                                                first_icon_style = icons[0].get_attribute("style") or ""
+                                                if "display: none" not in first_icon_style:
+                                                    is_completed = True
 
-                                except Exception as e:
-                                    print(f"❌ 做题失败: {str(e)}")
-                                    print("按回车键返回...")
-                                    input()
-                                    # 刷新页面返回题目列表
-                                    page.goto(course_url)
-                                    time.sleep(2)
-                                    # 退出内层循环，重新显示题目列表和菜单
-                                    break
+                                        # 如果已完成，跳过
+                                        if is_completed:
+                                            print(f"      ⏭️  [{q_idx+1}] {question_name[:40]}... (已完成)")
+                                            continue
 
-                            else:
-                                print("已取消")
+                                        # 未完成，开始做题
+                                        print(f"\n      🎯 开始做题: [{q_idx+1}] {question_name[:40]}...")
+
+                                        # 创建自动做题器
+                                        auto_answer = CourseAutoAnswer(page)
+
+                                        # 点击题目进入答题界面
+                                        item.click()
+                                        time.sleep(2)
+
+                                        # 点击"开始测评"按钮
+                                        try:
+                                            start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
+                                            start_button.click()
+                                            print("      ✅ 已点击开始测评按钮")
+                                            time.sleep(2)  # 等待答题界面加载
+
+                                            # 开始做题
+                                            result = auto_answer.answer_with_bank(question_bank)
+
+                                            if result['total'] > 0:
+                                                success_rate = result['success'] / result['total']
+                                                print(f"      ✅ 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
+                                                total_completed += result['success']
+                                                total_failed += result['failed']
+                                            else:
+                                                print(f"      ⚠️ 没有题目被回答")
+
+                                            # 等待网站自动跳转（参考学生端逻辑）
+                                            print(f"      ⏳ 等待网站显示成功提示并自动跳转...")
+
+                                            # 检测成功提示（最多等待10秒）
+                                            start_time = time.time()
+                                            success_detected = False
+
+                                            while time.time() - start_time < 10:
+                                                try:
+                                                    # 检查是否有成功提示（.eva-success）
+                                                    success_element = page.query_selector(".eva-success")
+                                                    if success_element and not success_detected:
+                                                        print(f"      ✅ 检测到成功提示，等待5秒自动跳转...")
+                                                        success_detected = True
+                                                        break
+                                                    time.sleep(0.5)
+                                                except:
+                                                    time.sleep(0.5)
+
+                                            if success_detected:
+                                                # 等待5秒倒计时+1秒缓冲
+                                                time.sleep(6)
+
+                                                # 检测是否成功跳转
+                                                print(f"      🔍 检测是否自动跳转...")
+
+                                                # 方法1：检测答题页面元素是否消失
+                                                auto_jumped = False
+                                                try:
+                                                    page.wait_for_selector(".question-type", state="hidden", timeout=3000)
+                                                    print(f"      ✅ 已自动跳转到题目列表")
+                                                    auto_jumped = True
+                                                except:
+                                                    print(f"      ⚠️ 答题页面元素仍然存在")
+
+                                                # 方法2：检测是否出现"开始测评"按钮
+                                                if not auto_jumped:
+                                                    try:
+                                                        start_button = page.query_selector("button:has-text('开始测评')", timeout=2000)
+                                                        if start_button:
+                                                            print(f"      ✅ 检测到'开始测评'按钮，已自动跳转")
+                                                            auto_jumped = True
+                                                    except:
+                                                        pass
+
+                                                # 如果成功自动跳转，标记知识点处理完成
+                                                if auto_jumped:
+                                                    print(f"      🎉 网站已自动跳转，继续下一题")
+                                                    # 重新获取章节和题目元素（因为页面可能变化了）
+                                                    time.sleep(1)
+                                                    chapters_list = page.query_selector_all(".el-sub-menu")
+                                                    if chapter_idx < len(chapters_list):
+                                                        chapter = chapters_list[chapter_idx]
+                                                        question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                    continue
+                                                else:
+                                                    print(f"      ⚠️ 未检测到自动跳转，手动返回题目列表")
+                                                    page.goto(course_url)
+                                                    time.sleep(2)
+                                                    # 重新获取章节和题目元素
+                                                    chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                                    question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                    continue
+                                            else:
+                                                print(f"      ⚠️ 超时未检测到成功提示，手动返回题目列表")
+                                                page.goto(course_url)
+                                                time.sleep(2)
+                                                # 重新获取章节和题目元素
+                                                chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                                question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                continue
+
+                                        except Exception as e:
+                                            print(f"      ❌ 做题失败: {str(e)}")
+                                            total_failed += 1
+                                            # 出错时也要返回题目列表
+                                            page.goto(course_url)
+                                            time.sleep(2)
+                                            # 重新获取章节和题目元素
+                                            chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                            question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                            continue
+
+                                    except Exception as e:
+                                        print(f"      ⚠️ 题目处理失败: {str(e)}")
+                                        continue
+
+                            except Exception as e:
+                                print(f"   ⚠️ 章节处理失败: {str(e)}")
+                                continue
+
+                        # 所有题目处理完成
+                        print("\n" + "=" * 60)
+                        print("✅ 所有题目遍历完成")
+                        print(f"📊 总计: 成功 {total_completed} 题, 失败 {total_failed} 题")
+                        print("=" * 60)
+
+                        # 退出内层循环，重新显示题目列表和菜单
+                        break
+
+                    elif choice == "2":
+                        print("\n✅ 选择了：开始做题（API模式）")
+                        print("💡 功能开发中...")
+                        # TODO: 实现API模式做题功能
+                    elif choice == "3":
+                        # 重新作答（兼容模式）- 自动遍历所有题目（包括已完成的）
+                        print("\n✅ 选择了：重新作答（兼容模式）")
+                        print("💡 将自动遍历所有题目（包括已完成的题目）")
+
+                        # 检查是否已导入题库
+                        question_bank = get_question_bank()
+                        if not question_bank:
+                            print("⚠️ 未检测到题库，请先导入题库")
+                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            continue
+
+                        # 自动遍历所有题目（包括已完成的）
+                        print("\n" + "=" * 60)
+                        print("🚀 开始重新作答所有题目")
+                        print("=" * 60)
+
+                        # 获取所有章节（包括折叠的）
+                        chapters = page.query_selector_all(".el-sub-menu")
+                        print(f"📋 找到 {len(chapters)} 个章节")
+
+                        total_completed = 0
+                        total_failed = 0
+
+                        # 遍历每个章节
+                        for chapter_idx, chapter in enumerate(chapters):
+                            try:
+                                # 获取章节标题
+                                chapter_title_elem = chapter.query_selector(".el-sub-menu__title span")
+                                chapter_title = chapter_title_elem.inner_text().strip() if chapter_title_elem else f"第{chapter_idx+1}章"
+                                print(f"\n📖 章节 {chapter_idx+1}: {chapter_title}")
+
+                                # 检查章节是否折叠
+                                chapter_title_div = chapter.query_selector(".el-sub-menu__title")
+                                if chapter_title_div:
+                                    chapter_class = chapter.get_attribute("class") or ""
+                                    is_opened = "is-opened" in chapter_class
+
+                                    if not is_opened:
+                                        # 章节是折叠的，需要点击展开
+                                        print(f"   ↕️  正在展开折叠的章节...")
+                                        chapter_title_div.click()
+                                        time.sleep(0.5)  # 等待展开动画
+                                        print(f"   ✅ 章节已展开")
+                                    else:
+                                        print(f"   ✅ 章节已展开")
+
+                                # 获取该章节下的所有题目
+                                question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                print(f"   📝 该章节有 {len(question_items_in_chapter)} 个题目")
+
+                                # 检查每个题目的完成状态（但不跳过）
+                                for q_idx, item in enumerate(question_items_in_chapter):
+                                    try:
+                                        # 获取题目名称
+                                        span = item.query_selector("span")
+                                        if not span:
+                                            continue
+                                        question_name = span.inner_text().strip()
+
+                                        # 检查完成状态
+                                        pass_status_div = item.query_selector(".pass-status")
+                                        is_completed = False
+
+                                        if pass_status_div:
+                                            icons = pass_status_div.query_selector_all(".el-icon")
+                                            if len(icons) >= 2:
+                                                first_icon_style = icons[0].get_attribute("style") or ""
+                                                if "display: none" not in first_icon_style:
+                                                    is_completed = True
+
+                                        # 显示状态但不跳过
+                                        status_text = "已完成" if is_completed else "未完成"
+                                        print(f"\n      🎯 重新作答: [{q_idx+1}] {question_name[:40]}... ({status_text})")
+
+                                        # 点击题目进入答题界面
+                                        item.click()
+                                        time.sleep(2)
+
+                                        # 点击"开始测评"按钮
+                                        try:
+                                            start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
+                                            start_button.click()
+                                            print("      ✅ 已点击开始测评按钮")
+                                            time.sleep(2)  # 等待答题界面加载
+
+                                            # 创建自动做题器并开始做题
+                                            auto_answer = CourseAutoAnswer(page)
+                                            result = auto_answer.answer_with_bank(question_bank)
+
+                                            if result['total'] > 0:
+                                                success_rate = result['success'] / result['total']
+                                                print(f"      ✅ 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
+                                                total_completed += result['success']
+                                                total_failed += result['failed']
+                                            else:
+                                                print(f"      ⚠️ 没有题目被回答")
+
+                                            # 等待网站自动跳转（参考学生端逻辑）
+                                            print(f"      ⏳ 等待网站显示成功提示并自动跳转...")
+
+                                            # 检测成功提示（最多等待10秒）
+                                            start_time = time.time()
+                                            success_detected = False
+
+                                            while time.time() - start_time < 10:
+                                                try:
+                                                    # 检查是否有成功提示（.eva-success）
+                                                    success_element = page.query_selector(".eva-success")
+                                                    if success_element and not success_detected:
+                                                        print(f"      ✅ 检测到成功提示，等待5秒自动跳转...")
+                                                        success_detected = True
+                                                        break
+                                                    time.sleep(0.5)
+                                                except:
+                                                    time.sleep(0.5)
+
+                                            if success_detected:
+                                                # 等待5秒倒计时+1秒缓冲
+                                                time.sleep(6)
+
+                                                # 检测是否成功跳转
+                                                print(f"      🔍 检测是否自动跳转...")
+
+                                                # 方法1：检测答题页面元素是否消失
+                                                auto_jumped = False
+                                                try:
+                                                    page.wait_for_selector(".question-type", state="hidden", timeout=3000)
+                                                    print(f"      ✅ 已自动跳转到题目列表")
+                                                    auto_jumped = True
+                                                except:
+                                                    print(f"      ⚠️ 答题页面元素仍然存在")
+
+                                                # 方法2：检测是否出现"开始测评"按钮
+                                                if not auto_jumped:
+                                                    try:
+                                                        start_button = page.query_selector("button:has-text('开始测评')", timeout=2000)
+                                                        if start_button:
+                                                            print(f"      ✅ 检测到'开始测评'按钮，已自动跳转")
+                                                            auto_jumped = True
+                                                    except:
+                                                        pass
+
+                                                # 如果成功自动跳转，标记知识点处理完成
+                                                if auto_jumped:
+                                                    print(f"      🎉 网站已自动跳转，继续下一题")
+                                                    # 重新获取章节和题目元素（因为页面可能变化了）
+                                                    time.sleep(1)
+                                                    chapters_list = page.query_selector_all(".el-sub-menu")
+                                                    if chapter_idx < len(chapters_list):
+                                                        chapter = chapters_list[chapter_idx]
+                                                        question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                    continue
+                                                else:
+                                                    print(f"      ⚠️ 未检测到自动跳转，手动返回题目列表")
+                                                    page.goto(course_url)
+                                                    time.sleep(2)
+                                                    # 重新获取章节和题目元素
+                                                    chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                                    question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                    continue
+                                            else:
+                                                print(f"      ⚠️ 超时未检测到成功提示，手动返回题目列表")
+                                                page.goto(course_url)
+                                                time.sleep(2)
+                                                # 重新获取章节和题目元素
+                                                chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                                question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                                continue
+
+                                        except Exception as e:
+                                            print(f"      ❌ 做题失败: {str(e)}")
+                                            total_failed += 1
+                                            # 出错时也要返回题目列表
+                                            page.goto(course_url)
+                                            time.sleep(2)
+                                            # 重新获取章节和题目元素
+                                            chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
+                                            question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
+                                            continue
+
+                                    except Exception as e:
+                                        print(f"      ⚠️ 题目处理失败: {str(e)}")
+                                        continue
+
+                            except Exception as e:
+                                print(f"   ⚠️ 章节处理失败: {str(e)}")
+                                continue
+
+                        # 所有题目处理完成
+                        print("\n" + "=" * 60)
+                        print("✅ 所有题目重新作答完成")
+                        print(f"📊 总计: 成功 {total_completed} 题, 失败 {total_failed} 题")
+                        print("=" * 60)
+
+                        # 退出内层循环，重新显示题目列表和菜单
+                        break
+                    elif choice == "4":
+                        print("\n✅ 选择了：重新作答（API模式）")
+                        print("💡 功能开发中...")
+                        # TODO: 实现API模式重新作答功能
+                    elif choice == "5":
+                        # 导入题库
+                        print("\n✅ 选择了：导入题库")
+                        print("=" * 60)
+                        print("💡 请输入题库JSON文件的路径")
+                        print("提示：可以直接拖拽文件到此处")
+                        print("=" * 60)
+
+                        file_path = input("\n文件路径: ").strip().strip('"').strip("'")
+
+                        if not file_path:
+                            print("❌ 文件路径不能为空")
+                            continue
+
+                        # 调用题库导入功能
+                        success = import_question_bank(file_path)
+
+                        if success:
+                            print("\n✅ 题库导入成功！")
+                            print("💡 现在可以选择'开始做题'或'重新作答'使用导入的题库")
+                            # 重新显示操作菜单
+                            show_operation_menu()
                         else:
-                            print(f"❌ 无效的选择，请输入 1-{len(question_items)} 之间的数字")
-                    except ValueError:
-                        print("❌ 请输入有效的数字")
-
-                elif choice == "2":
-                    print("\n✅ 选择了：开始做题（API模式）")
-                    print("💡 功能开发中...")
-                    # TODO: 实现API模式做题功能
-                elif choice == "3":
-                    # 重新作答（兼容模式）- 无视完成状态，重新做题
-                    print("\n✅ 选择了：重新作答（兼容模式）")
-                    print("💡 注意：这将重新答题，包括已完成的题目")
-
-                    # 检查是否已导入题库
-                    question_bank = get_question_bank()
-                    if not question_bank:
-                        print("⚠️ 未检测到题库，请先导入题库")
-                        print("💡 提示：在操作菜单选择'5. 导入题库'功能")
-                        continue
-
-                    # 让用户选择要做的题目
-                    print("\n请选择要重新作答的题目（输入题目编号）:")
-                    question_choice = input("题目编号: ").strip()
-
-                    try:
-                        question_idx = int(question_choice) - 1
-                        if 0 <= question_idx < len(question_items):
-                            selected_item = question_items[question_idx]
-                            question_name = selected_item.query_selector("span").inner_text().strip()
-
-                            print(f"\n你选择了: {question_name}")
-                            confirm = input("确认重新作答？(yes/no): ").strip().lower()
-
-                            if confirm in ['yes', 'y', '是']:
-                                # 点击题目进入答题界面
-                                print("\n正在进入答题界面...")
-                                selected_item.click()
-                                time.sleep(2)
-
-                                # 点击"开始测评"按钮
-                                try:
-                                    start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
-                                    start_button.click()
-                                    print("✅ 已点击开始测评按钮")
-                                    time.sleep(2)  # 等待答题界面加载
-
-                                    # 创建自动做题器并开始做题
-                                    auto_answer = CourseAutoAnswer(page)
-                                    result = auto_answer.answer_with_bank(question_bank)
-
-                                    print(f"\n✅ 重新作答完成！")
-                                    print(f"📊 结果: 成功 {result['success']}/{result['total']} 题")
-
-                                    # 返回题目列表
-                                    print("\n按回车键返回题目列表...")
-                                    input()
-
-                                    # 刷新页面返回题目列表
-                                    page.goto(course_url)
-                                    time.sleep(2)
-
-                                    # 退出内层循环，重新显示题目列表和菜单
-                                    break
-
-                                except Exception as e:
-                                    print(f"❌ 做题失败: {str(e)}")
-                                    print("按回车键返回...")
-                                    input()
-                                    # 刷新页面返回题目列表
-                                    page.goto(course_url)
-                                    time.sleep(2)
-                                    # 退出内层循环，重新显示题目列表和菜单
-                                    break
-
-                            else:
-                                print("已取消")
-                        else:
-                            print(f"❌ 无效的选择，请输入 1-{len(question_items)} 之间的数字")
-                    except ValueError:
-                        print("❌ 请输入有效的数字")
-                elif choice == "4":
-                    print("\n✅ 选择了：重新作答（API模式）")
-                    print("💡 功能开发中...")
-                    # TODO: 实现API模式重新作答功能
-                elif choice == "5":
-                    # 导入题库
-                    print("\n✅ 选择了：导入题库")
-                    print("=" * 60)
-                    print("💡 请输入题库JSON文件的路径")
-                    print("提示：可以直接拖拽文件到此处")
-                    print("=" * 60)
-
-                    file_path = input("\n文件路径: ").strip().strip('"').strip("'")
-
-                    if not file_path:
-                        print("❌ 文件路径不能为空")
-                        continue
-
-                    # 调用题库导入功能
-                    success = import_question_bank(file_path)
-
-                    if success:
-                        print("\n✅ 题库导入成功！")
-                        print("💡 现在可以选择'开始做题'或'重新作答'使用导入的题库")
+                            print("\n❌ 题库导入失败")
+                            # 重新显示操作菜单
+                            show_operation_menu()
+                    elif choice == "0":
+                        print("\n🔙 退出")
+                        should_exit = True
+                        break
                     else:
-                        print("\n❌ 题库导入失败")
-                elif choice == "6":
-                    print("\n🔙 退出")
-                    should_exit = True
-                    break
-                else:
-                    print("\n❌ 无效的选择，请输入1-6之间的数字")
+                        print("\n❌ 无效的选择，请输入 1-5 或 0")
+                        # 重新显示操作菜单
+                        show_operation_menu()
 
     except KeyboardInterrupt:
         print("\n\n⚠️ 用户中断")
