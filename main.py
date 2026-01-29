@@ -74,11 +74,12 @@ setup_playwright_browser()
 setup_flet_executable()
 
 # 导入登录模块和题目提取模块
-from src.teacher_login import get_access_token
+from src.teacher_login import get_access_token as teacher_get_access_token
 from src.student_login import (get_student_access_token, get_student_access_token_with_credentials,
                                get_student_courses, get_uncompleted_chapters, navigate_to_course,
                                close_browser, get_course_progress_from_page, get_browser_page,
                                get_cached_access_token)
+from src.course_certification import hello_world, get_access_token as course_get_access_token
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -314,7 +315,7 @@ def settings_rate_level(settings):
 
 
 def course_certification_menu():
-    """课程认证菜单（待实现）"""
+    """课程认证菜单"""
     while True:
         print("\n" + "=" * 50)
         print("🎓 课程认证")
@@ -326,7 +327,10 @@ def course_certification_menu():
         choice = input("\n请选择操作 (1-2): ").strip()
 
         if choice == "1":
-            print("\n⚠️ 此功能待实现")
+            # 调用课程认证模块的函数
+            hello_world()
+            # 可以在这里调用 course_get_access_token() 来获取 token
+            # access_token = course_get_access_token()
         elif choice == "2":
             print("\n🔙 返回主菜单")
             break
@@ -1020,7 +1024,7 @@ def main():
             if choice2 == "1":
                 # 获取access_token
                 print("正在获取access_token...")
-                access_token = get_access_token()
+                access_token = teacher_get_access_token()
                 if access_token:
                     print(f"\n✅ 获取access_token成功！")
                     print(f"access_token: {access_token}")
