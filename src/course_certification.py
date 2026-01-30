@@ -9,6 +9,7 @@ from typing import Optional, List, Dict
 import time
 import requests
 from src.api_client import get_api_client
+from src.course_api_answer import APICourseAnswer
 
 # 全局变量，保存浏览器实例
 _global_browser = None
@@ -378,7 +379,7 @@ def start_answering():
                                 confirm = input("\n是否跳转到该课程页面？(yes/no): ").strip().lower()
                                 if confirm in ['yes', 'y', '是']:
                                     # 使用已有的浏览器实例跳转
-                                    navigate_to_course_page(ecourse_id, page)
+                                    navigate_to_course_page(ecourse_id, page, access_token)
                                     # 跳转完成后关闭浏览器
                                     close_browser()
                                     break
@@ -413,13 +414,14 @@ def start_answering():
         close_browser()
 
 
-def navigate_to_course_page(ecourse_id: str, page):
+def navigate_to_course_page(ecourse_id: str, page, access_token: str):
     """
     使用已有的浏览器实例跳转到课程评估页面，并提取题目列表
 
     Args:
         ecourse_id: 课程ID
         page: Playwright page实例
+        access_token: 访问令牌
     """
 
     def show_operation_menu():
@@ -745,9 +747,27 @@ def navigate_to_course_page(ecourse_id: str, page):
                         break
 
                     elif choice == "2":
+                        # 开始做题（API模式）- 只做未完成的题目
                         print("\n✅ 选择了：开始做题（API模式）")
-                        print("💡 功能开发中...")
-                        # TODO: 实现API模式做题功能
+                        print("💡 将自动遍历未完成的题目（API直接提交）")
+
+                        # 检查是否已导入题库
+                        question_bank = get_question_bank()
+                        if not question_bank:
+                            print("⚠️ 未检测到题库，请先导入题库")
+                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            continue
+
+                        # 创建API做题器
+                        api_answer = APICourseAnswer(access_token)
+
+                        # 自动做题（跳过已完成的）
+                        result = api_answer.auto_answer_course(ecourse_id, question_bank, skip_completed=True)
+
+                        # 显示结果
+                        print("\n" + "=" * 60)
+                        print("✅ API模式做题完成")
+                        print("=" * 60)
                     elif choice == "3":
                         # 重新作答（兼容模式）- 自动遍历所有题目（包括已完成的）
                         print("\n✅ 选择了：重新作答（兼容模式）")
@@ -946,9 +966,27 @@ def navigate_to_course_page(ecourse_id: str, page):
                         # 退出内层循环，重新显示题目列表和菜单
                         break
                     elif choice == "4":
+                        # 重新作答（API模式）- 做所有题目（包括已完成的）
                         print("\n✅ 选择了：重新作答（API模式）")
-                        print("💡 功能开发中...")
-                        # TODO: 实现API模式重新作答功能
+                        print("💡 将自动遍历所有题目（包括已完成的题目）")
+
+                        # 检查是否已导入题库
+                        question_bank = get_question_bank()
+                        if not question_bank:
+                            print("⚠️ 未检测到题库，请先导入题库")
+                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            continue
+
+                        # 创建API做题器
+                        api_answer = APICourseAnswer(access_token)
+
+                        # 自动做题（包括已完成的）
+                        result = api_answer.auto_answer_course(ecourse_id, question_bank, skip_completed=False)
+
+                        # 显示结果
+                        print("\n" + "=" * 60)
+                        print("✅ API模式重新作答完成")
+                        print("=" * 60)
                     elif choice == "5":
                         # 导入题库
                         print("\n✅ 选择了：导入题库")
