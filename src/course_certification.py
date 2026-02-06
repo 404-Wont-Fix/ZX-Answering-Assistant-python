@@ -142,12 +142,13 @@ def close_browser():
         print(f"⚠️ 关闭浏览器时出错: {e}")
 
 
-def get_access_token(keep_browser_open: bool = False) -> Optional[tuple]:
+def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False) -> Optional[tuple]:
     """
     使用Playwright模拟浏览器登录获取课程认证access_token
 
     Args:
         keep_browser_open: 是否保持浏览器打开（用于后续操作）
+        skip_prompt: 是否跳过交互式提示（GUI模式下使用，自动使用已保存的账号）
 
     Returns:
         Optional[tuple]: (access_token, browser, page, playwright_instance) 如果成功
@@ -166,22 +167,39 @@ def get_access_token(keep_browser_open: bool = False) -> Optional[tuple]:
 
             if config_username and config_password:
                 print("\n💡 检测到已保存的教师端账号")
-                use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
 
-                if use_saved in ['', 'yes', 'y', '是']:
+                # 如果跳过提示（GUI模式），直接使用已保存的账号
+                if skip_prompt:
                     print(f"✅ 使用已保存的账号: {config_username[:3]}****")
                     username = config_username
                     password = config_password
                 else:
-                    print("💡 请手动输入账号密码")
+                    # CLI模式，询问用户是否使用已保存的账号
+                    use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+                    if use_saved in ['', 'yes', 'y', '是']:
+                        print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                        username = config_username
+                        password = config_password
+                    else:
+                        print("💡 请手动输入账号密码")
+                        username = input("请输入课程认证账户：").strip()
+                        password = input("请输入课程认证密码：").strip()
+            else:
+                # 没有已保存的账号
+                if skip_prompt:
+                    print("❌ 未找到已保存的教师端账号")
+                    return None
+                else:
                     username = input("请输入课程认证账户：").strip()
                     password = input("请输入课程认证密码：").strip()
+        except Exception:
+            if skip_prompt:
+                print("❌ 读取配置文件失败")
+                return None
             else:
                 username = input("请输入课程认证账户：").strip()
                 password = input("请输入课程认证密码：").strip()
-        except Exception:
-            username = input("请输入课程认证账户：").strip()
-            password = input("请输入课程认证密码：").strip()
 
         if not username or not password:
             print("❌ 用户名或密码不能为空")

@@ -25,16 +25,21 @@ class CourseCertificationView:
         self.page = page
         self.main_app = main_app
         self.current_content = None  # 保存当前内容容器的引用
-        self.question_bank_data = None  # 存储加载的题库数据
         self.username_field = None  # 用户名输入框
         self.password_field = None  # 密码输入框
 
+        # 课程数据
+        self.access_token = None  # 存储登录后的access_token
+        self.course_list = []  # 课程列表
+        self.selected_course = None  # 当前选中的课程
+        self.question_bank_data = None  # 存储加载的题库数据
+
         # 答题相关状态
-        self.is_answering = False  # 是否正在答题
-        self.answer_dialog = None  # 答题日志对话框
-        self.log_text = None  # 日志文本控件
-        self.auto_answer_instance = None  # 自动答题实例
-        self.should_stop_answering = False  # 停止答题标志
+        self.is_answering = False
+        self.answer_dialog = None
+        self.log_text = None
+        self.auto_answer_instance = None
+        self.should_stop_answering = False
 
     def get_content(self) -> ft.Column:
         """
@@ -53,12 +58,10 @@ class CourseCertificationView:
             duration=300,
             switch_in_curve=ft.AnimationCurve.EASE_OUT,
             switch_out_curve=ft.AnimationCurve.EASE_IN,
-            expand=True,
         )
 
         return ft.Column(
             [self.current_content],
-            scroll=ft.ScrollMode.AUTO,
             expand=True,
             spacing=0,
         )
@@ -119,92 +122,6 @@ class CourseCertificationView:
                         animation_duration=200,
                     ),
                     on_click=lambda e: self._on_start_answer_click(e),
-                    animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                ),
-            ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
-
-    def _get_answer_content(self) -> ft.Column:
-        """
-        获取答题界面内容
-
-        Returns:
-            ft.Column: 答题界面组件
-        """
-        return ft.Column(
-            [
-                ft.Text(
-                    "课程认证答题",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
-                ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(
-                                    ft.Icons.ATTACH_FILE,
-                                    size=64,
-                                    color=ft.Colors.GREEN_400,
-                                ),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                ft.Text(
-                                    "请先导入题库文件",
-                                    size=18,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.GREY_700,
-                                ),
-                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                                ft.Text(
-                                    "支持JSON格式的题库文件",
-                                    size=14,
-                                    color=ft.Colors.GREY_600,
-                                ),
-                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                                ft.ElevatedButton(
-                                    "选择题库文件",
-                                    icon=ft.Icons.UPLOAD_FILE,
-                                    bgcolor=ft.Colors.GREEN,
-                                    color=ft.Colors.WHITE,
-                                    style=ft.ButtonStyle(
-                                        shape=ft.RoundedRectangleBorder(radius=10),
-                                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
-                                    ),
-                                    on_click=lambda e: self._on_select_json_bank(e),
-                                ),
-                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                                ft.ElevatedButton(
-                                    "开始答题（API模式）",
-                                    icon=ft.Icons.FLASH_ON,
-                                    bgcolor=ft.Colors.ORANGE,
-                                    color=ft.Colors.WHITE,
-                                    style=ft.ButtonStyle(
-                                        shape=ft.RoundedRectangleBorder(radius=10),
-                                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
-                                    ),
-                                    on_click=lambda e: self._on_start_api_answer(e),
-                                    disabled=not self.question_bank_data,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=30,
-                        width=600,
-                    ),
-                    elevation=5,
-                ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.OutlinedButton(
-                    "返回",
-                    icon=ft.Icons.ARROW_BACK,
-                    style=ft.ButtonStyle(
-                        animation_duration=200,
-                    ),
-                    on_click=lambda e: self._on_back_click(e),
                     animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
                 ),
             ],
@@ -312,11 +229,253 @@ class CourseCertificationView:
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
+    def _get_course_list_content(self) -> ft.Row:
+        """
+        获取课程列表界面内容（左右分栏布局）
+
+        Returns:
+            ft.Row: 左右分栏的界面组件
+        """
+        # 左侧课程列表面板（独立滚动）
+        left_panel = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "课程列表",
+                        size=24,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.BLUE_800,
+                    ),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    # 课程卡片列表容器，独立滚动
+                    ft.ListView(
+                        controls=self._create_course_cards(),
+                        expand=True,
+                        spacing=10,
+                    ),
+                ],
+                expand=True,
+            ),
+            expand=2,  # 占据2/3宽度
+            padding=ft.padding.all(10),
+            bgcolor=ft.Colors.GREY_50,
+            border_radius=10,
+        )
+
+        # 右侧信息面板（固定布局，不滚动）
+        right_panel = ft.Container(
+            content=ft.Column(
+                [
+                    # 上半部分：统计信息
+                    self._create_course_stats_panel() if self.selected_course else self._create_empty_stats_panel(),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                    # 下半部分：功能按钮
+                    self._create_action_panel(),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                tight=True,
+            ),
+            expand=1,  # 占据1/3宽度
+            padding=ft.padding.all(10),
+        )
+
+        # 计算可用高度（视口高度减去导航栏和边距）
+        available_height = (self.page.window.height - 100) if hasattr(self.page, 'window') else 600
+
+        return ft.Row(
+            [
+                left_panel,
+                ft.VerticalDivider(width=1),
+                right_panel,
+            ],
+            height=available_height,  # 设置明确的高度，关键！
+            spacing=10,
+            vertical_alignment=ft.CrossAxisAlignment.START,
+        )
+
+    def _create_course_cards(self) -> list:
+        """
+        创建课程卡片列表
+
+        Returns:
+            list: 课程卡片列表
+        """
+        course_cards = []
+        for idx, course in enumerate(self.course_list):
+            course_name = course.get('lessonName', '未知课程')
+            ecourse_id = course.get('eCourseID', '')
+
+            card = ft.GestureDetector(
+                content=ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.ListTile(
+                                    leading=ft.Icon(
+                                        ft.Icons.BOOK,
+                                        color=ft.Colors.BLUE,
+                                        size=36,
+                                    ),
+                                    title=ft.Text(
+                                        course_name,
+                                        weight=ft.FontWeight.BOLD,
+                                        size=16,
+                                    ),
+                                    subtitle=ft.Text(
+                                        f"ID: {ecourse_id[:16]}...",
+                                        size=12,
+                                        color=ft.Colors.GREY_600,
+                                    ),
+                                ),
+                            ],
+                            spacing=0,
+                        ),
+                        padding=15,
+                        bgcolor=ft.Colors.BLUE_50 if self.selected_course == course else None,
+                    ),
+                    elevation=2,
+                    margin=ft.margin.only(bottom=10),
+                ),
+                on_tap=lambda e, c=course: self._on_course_card_click(e, c),
+                mouse_cursor=ft.MouseCursor.CLICK,
+            )
+            course_cards.append(card)
+
+        return course_cards
+
+    def _create_empty_stats_panel(self) -> ft.Container:
+        """
+        创建空的统计信息面板（未选择课程时）
+
+        Returns:
+            ft.Container: 空统计面板
+        """
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Icon(
+                        ft.Icons.INFO_OUTLINE,
+                        size=48,
+                        color=ft.Colors.GREY_400,
+                    ),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                    ft.Text(
+                        "请选择一门课程",
+                        size=16,
+                        color=ft.Colors.GREY_600,
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=20,
+            bgcolor=ft.Colors.GREY_100,
+            border_radius=10,
+            alignment=ft.Alignment(0, 0),
+        )
+
+    def _create_course_stats_panel(self) -> ft.Container:
+        """
+        创建课程统计信息面板
+
+        Returns:
+            ft.Container: 统计信息面板
+        """
+        course_name = self.selected_course.get('lessonName', '未知课程')
+        ecourse_id = self.selected_course.get('eCourseID', '')
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "课程信息",
+                        size=20,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.BLUE_800,
+                    ),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.BLUE),
+                        title=ft.Text("课程名称", size=12, color=ft.Colors.GREY_600),
+                        subtitle=ft.Text(course_name, size=14, weight=ft.FontWeight.BOLD),
+                    ),
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.VPN_KEY, color=ft.Colors.GREEN),
+                        title=ft.Text("课程ID", size=12, color=ft.Colors.GREY_600),
+                        subtitle=ft.Text(ecourse_id, size=12, selectable=True),
+                    ),
+                ],
+                spacing=0,
+            ),
+            padding=20,
+            bgcolor=ft.Colors.BLUE_50,
+            border_radius=10,
+        )
+
+    def _create_action_panel(self) -> ft.Container:
+        """
+        创建功能按钮面板
+
+        Returns:
+            ft.Container: 功能按钮面板
+        """
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "操作",
+                        size=18,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.BLUE_800,
+                    ),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    ft.ElevatedButton(
+                        "导入题库",
+                        icon=ft.Icons.ATTACH_FILE,
+                        bgcolor=ft.Colors.GREEN,
+                        color=ft.Colors.WHITE,
+                        width=280,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        ),
+                        on_click=lambda e: self._on_select_json_bank(e),
+                    ),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                    ft.ElevatedButton(
+                        "开始答题（API模式）",
+                        icon=ft.Icons.FLASH_ON,
+                        bgcolor=ft.Colors.ORANGE,
+                        color=ft.Colors.WHITE,
+                        width=280,
+                        disabled=not self.question_bank_data,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        ),
+                        on_click=lambda e: self._on_start_api_answer(e),
+                    ),
+                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                    ft.OutlinedButton(
+                        "返回主界面",
+                        icon=ft.Icons.HOME,
+                        width=280,
+                        style=ft.ButtonStyle(
+                            shape=ft.RoundedRectangleBorder(radius=8),
+                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        ),
+                        on_click=lambda e: self._on_back_to_main(e),
+                    ),
+                ],
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=20,
+            bgcolor=ft.Colors.GREY_50,
+            border_radius=10,
+        )
+
     def _on_start_answer_click(self, e):
         """处理开始答题按钮点击事件"""
         print("DEBUG: 切换到登录界面")
-
-        # 使用动画切换到登录界面
         login_content = self._get_login_content()
         self.current_content.content = login_content
         self.page.update()
@@ -324,8 +483,13 @@ class CourseCertificationView:
     def _on_back_from_login(self, e):
         """处理从登录界面返回的按钮点击事件"""
         print("DEBUG: 从登录界面返回主界面")
+        main_content = self._get_main_content()
+        self.current_content.content = main_content
+        self.page.update()
 
-        # 使用动画切换回主界面
+    def _on_back_to_main(self, e):
+        """处理返回主界面按钮点击事件"""
+        print("DEBUG: 返回主界面")
         main_content = self._get_main_content()
         self.current_content.content = main_content
         self.page.update()
@@ -354,70 +518,161 @@ class CourseCertificationView:
         print("💾 保存教师端凭据...")
         settings_manager.set_teacher_credentials(username, password)
 
-        # 登录成功，跳转到答题界面
-        login_success_dialog = ft.AlertDialog(
-            title=ft.Row(
+        # 显示登录进度对话框
+        progress_dialog = ft.AlertDialog(
+            title=ft.Text("正在登录"),
+            content=ft.Column(
                 [
-                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN),
-                    ft.Text("登录成功", color=ft.Colors.GREEN),
+                    ft.Text(f"正在使用以下账号登录课程认证...\n账号: {username}"),
+                    ft.ProgressRing(stroke_width=3),
                 ],
-                spacing=10,
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            content=ft.Text(f"✅ 欢迎回来，{username}！\n\n正在跳转到答题界面..."),
-            actions=[
-                ft.TextButton(
-                    "确定",
-                    on_click=lambda _: self._navigate_to_answer_after_login(),
-                ),
-            ],
+            actions=[],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+            modal=True,
         )
-        self.page.show_dialog(login_success_dialog)
+        self.page.show_dialog(progress_dialog)
 
-    def _navigate_to_answer_after_login(self):
-        """登录成功后跳转到答题界面"""
-        self.page.pop_dialog()  # 关闭成功对话框
-        answer_content = self._get_answer_content()
-        self.current_content.content = answer_content
-        self.page.update()
+        # 在后台线程中执行登录
+        self.page.run_thread(self._perform_login, username, password, progress_dialog)
 
-    def _on_back_click(self, e):
-        """处理返回按钮点击事件"""
-        print("DEBUG: 返回主界面")
+    def _perform_login(self, username: str, password: str, progress_dialog: ft.AlertDialog):
+        """
+        在后台线程中执行登录
 
-        # 使用动画切换回主界面
-        main_content = self._get_main_content()
-        self.current_content.content = main_content
+        Args:
+            username: 用户名
+            password: 密码
+            progress_dialog: 进度对话框
+        """
+        try:
+            from src.course_certification import get_access_token
+
+            # 调用真实的登录逻辑（GUI模式，跳过交互式提示）
+            result = get_access_token(keep_browser_open=True, skip_prompt=True)
+
+            if result and result[0]:  # result = (access_token, browser, page, playwright)
+                access_token = result[0]
+                self.access_token = access_token
+                print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+
+                # 获取课程列表
+                self.course_list = self._fetch_course_list(access_token)
+
+                if self.course_list:
+                    print(f"✅ 成功获取 {len(self.course_list)} 门课程")
+
+                    # 关闭进度对话框
+                    self.page.pop_dialog()
+
+                    # 切换到课程列表界面
+                    courses_content = self._get_course_list_content()
+                    self.current_content.content = courses_content
+                    self.page.update()
+                else:
+                    print("❌ 未获取到课程列表")
+                    self.page.pop_dialog()
+                    error_dialog = ft.AlertDialog(
+                        title=ft.Text("获取课程失败"),
+                        content=ft.Text("❌ 未能获取到课程列表，请查看控制台日志了解详情。"),
+                        actions=[
+                            ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                        ],
+                    )
+                    self.page.show_dialog(error_dialog)
+            else:
+                print("❌ 登录失败")
+                self.page.pop_dialog()
+                error_dialog = ft.AlertDialog(
+                    title=ft.Text("登录失败"),
+                    content=ft.Text("❌ 课程认证登录失败，请检查账号密码是否正确。"),
+                    actions=[
+                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                    ],
+                )
+                self.page.show_dialog(error_dialog)
+
+        except Exception as e:
+            print(f"❌ 登录异常: {str(e)}")
+            import traceback
+            traceback.print_exc()
+
+            self.page.pop_dialog()
+            error_dialog = ft.AlertDialog(
+                title=ft.Text("登录异常"),
+                content=ft.Text(f"❌ 登录过程中发生异常：\n{str(e)}"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(error_dialog)
+
+    def _fetch_course_list(self, access_token: str) -> list:
+        """
+        获取课程列表
+
+        Args:
+            access_token: 访问令牌
+
+        Returns:
+            list: 课程列表
+        """
+        from src.api_client import get_api_client
+
+        api_url = "https://zxsz.cqzuxia.com/teacherCertifiApi/api/ModuleTeacher/GetLessonListByTeacher"
+
+        headers = {
+            'authorization': f'Bearer {access_token}',
+            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+
+        try:
+            api_client = get_api_client()
+            response = api_client.get(api_url, headers=headers)
+
+            if response.status_code == 200:
+                data = response.json()
+                if data.get('code') == 0 and 'data' in data:
+                    return data['data']
+        except Exception as e:
+            print(f"❌ 获取课程列表异常: {e}")
+
+        return []
+
+    def _on_course_card_click(self, e, course: dict):
+        """处理课程卡片点击事件"""
+        print(f"DEBUG: 点击课程卡片 - {course.get('lessonName')}")
+        self.selected_course = course
+
+        # 刷新界面
+        courses_content = self._get_course_list_content()
+        self.current_content.content = courses_content
         self.page.update()
 
     def _on_select_json_bank(self, e):
         """处理选择题库按钮点击事件"""
         print("DEBUG: 选择题库文件")
 
-        # 使用 tkinter 文件选择器
         try:
             import tkinter as tk
             from tkinter import filedialog
 
-            # 创建隐藏的 tkinter 根窗口
             root = tk.Tk()
-            root.withdraw()  # 隐藏主窗口
-            root.wm_attributes('-topmost', 1)  # 置顶显示
+            root.withdraw()
+            root.wm_attributes('-topmost', 1)
 
-            # 打开文件选择对话框
             file_path = filedialog.askopenfilename(
                 title="选择JSON题库文件",
                 filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
             )
 
-            # 销毁 tkinter 窗口
             root.destroy()
 
-            # 检查用户是否选择了文件
             if file_path:
                 print(f"DEBUG: 选择的文件 = {file_path}")
                 self._process_selected_json_file(file_path)
-            else:
-                print("DEBUG: 用户取消了文件选择")
 
         except Exception as ex:
             print(f"❌ 打开文件选择对话框失败: {ex}")
@@ -438,31 +693,21 @@ class CourseCertificationView:
             self.page.show_dialog(dialog)
 
     def _process_selected_json_file(self, file_path: str):
-        """
-        处理选中的JSON文件
-
-        Args:
-            file_path: JSON文件路径
-        """
+        """处理选中的JSON文件"""
         from pathlib import Path
 
         file_name = Path(file_path).name
 
         try:
-            # 使用 QuestionBankImporter 导入并解析题库
             importer = QuestionBankImporter()
             success = importer.import_from_file(file_path)
 
             if not success:
                 raise ValueError("无法导入题库文件")
 
-            # 获取题库类型
             bank_type = importer.get_bank_type()
-
-            # 格式化输出题库信息
             print("\n" + importer.format_output())
 
-            # 计算统计数据
             if bank_type == "single":
                 parsed = importer.parse_single_course()
                 stats = parsed["statistics"] if parsed else {}
@@ -490,10 +735,8 @@ class CourseCertificationView:
             else:
                 preview = "⚠️ 未知的题库类型"
 
-            # 保存原始数据供答题使用
             self.question_bank_data = importer.data
 
-            # 显示成功对话框
             dialog = ft.AlertDialog(
                 title=ft.Row(
                     [
@@ -510,18 +753,7 @@ class CourseCertificationView:
                         ft.Text(f"📁 路径: {file_path}"),
                         ft.Text(f"🏷️ 类型: {bank_type if bank_type else '未知'}"),
                         ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                        ft.Text(
-                            preview,
-                            size=12,
-                            color=ft.Colors.GREY_700,
-                        ),
-                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                        ft.Text(
-                            "💡 详细题库信息已输出到控制台",
-                            size=11,
-                            color=ft.Colors.BLUE_700,
-                            style=ft.TextStyle(italic=True),
-                        ),
+                        ft.Text(preview, size=12, color=ft.Colors.GREY_700),
                     ],
                     spacing=5,
                     tight=True,
@@ -536,12 +768,11 @@ class CourseCertificationView:
             print(f"✅ 成功加载JSON题库: {file_name}")
 
             # 刷新界面以启用"开始答题"按钮
-            answer_content = self._get_answer_content()
-            self.current_content.content = answer_content
+            courses_content = self._get_course_list_content()
+            self.current_content.content = courses_content
             self.page.update()
 
         except json.JSONDecodeError as je:
-            # JSON解析错误
             print(f"❌ JSON解析失败: {je}")
             dialog = ft.AlertDialog(
                 title=ft.Row(
@@ -569,7 +800,6 @@ class CourseCertificationView:
             self.page.show_dialog(dialog)
 
         except Exception as ex:
-            # 其他错误
             print(f"❌ 读取文件失败: {ex}")
             dialog = ft.AlertDialog(
                 title=ft.Row(
@@ -611,15 +841,10 @@ class CourseCertificationView:
             self.page.show_dialog(dialog)
             return
 
-        # 检查题库类型
-        importer = QuestionBankImporter()
-        importer.data = self.question_bank_data
-        bank_type = importer.get_bank_type()
-
-        if bank_type != "single":
+        if not self.selected_course:
             dialog = ft.AlertDialog(
                 title=ft.Text("提示"),
-                content=ft.Text("课程认证仅支持单课程题库，请选择单课程题库文件"),
+                content=ft.Text("请先选择一门课程"),
                 actions=[
                     ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
                 ],
@@ -627,101 +852,21 @@ class CourseCertificationView:
             self.page.show_dialog(dialog)
             return
 
-        # 解析课程信息
-        parsed = importer.parse_single_course()
-        if not parsed:
-            dialog = ft.AlertDialog(
-                title=ft.Text("错误"),
-                content=ft.Text("无法解析题库文件"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
-            return
-
-        # 提取课程ID（从题库数据中）
-        # 注意：课程认证的courseID可能需要用户手动输入或从题库中提取
-        # 这里我们显示一个对话框让用户输入courseID
-
-        course_name = parsed['course']['courseName']
-        default_course_id = parsed['course'].get('courseID', '')
-
-        # 创建输入对话框
-        course_id_field = ft.TextField(
-            label="课程ID",
-            hint_text="请输入课程认证的课程ID",
-            value=default_course_id,
-            width=400,
-        )
-
-        def confirm_input(_):
-            course_id = course_id_field.value
-            if not course_id:
-                return
-
-            self.page.pop_dialog()
-            self._start_certification_answer(course_id, self.question_bank_data)
-
-        dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.EDIT, color=ft.Colors.BLUE),
-                    ft.Text("输入课程ID", weight=ft.FontWeight.BOLD),
-                ],
-                spacing=10,
-            ),
-            content=ft.Column(
-                [
-                    ft.Text(f"课程名称: {course_name}"),
-                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                    course_id_field,
-                ],
-                tight=True,
-            ),
-            actions=[
-                ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
-                ft.ElevatedButton(
-                    "确定",
-                    on_click=confirm_input,
-                    bgcolor=ft.Colors.BLUE,
-                    color=ft.Colors.WHITE,
-                ),
-            ],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-        self.page.show_dialog(dialog)
+        ecourse_id = self.selected_course.get('eCourseID', '')
+        self._start_certification_answer(ecourse_id, self.question_bank_data)
 
     def _start_certification_answer(self, course_id: str, question_bank_data: dict):
-        """
-        开始课程认证答题
-
-        Args:
-            course_id: 课程ID
-            question_bank_data: 题库数据
-        """
-        # 设置答题状态
+        """开始课程认证答题"""
         self.is_answering = True
         self.should_stop_answering = False
 
-        # 创建并显示日志对话框
         self.answer_dialog = self._create_answer_log_dialog("课程认证答题 - API模式")
         self.page.show_dialog(self.answer_dialog)
 
-        # 在后台线程中运行答题任务
         self.page.run_thread(lambda: self._run_certification_task(course_id, question_bank_data))
 
     def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
-        """
-        创建答题日志对话框
-
-        Args:
-            title: 对话框标题
-
-        Returns:
-            ft.AlertDialog: 日志对话框
-        """
-        # 创建日志文本控件
+        """创建答题日志对话框"""
         self.log_text = ft.Text(
             "",
             size=12,
@@ -731,7 +876,6 @@ class CourseCertificationView:
             max_lines=None,
         )
 
-        # 创建对话框
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Row(
@@ -789,16 +933,10 @@ class CourseCertificationView:
         return dialog
 
     def _append_log(self, message: str):
-        """
-        追加日志到日志文本控件
-
-        Args:
-            message: 日志消息
-        """
+        """追加日志"""
         if self.log_text:
             current_text = self.log_text.value if self.log_text.value else ""
             new_text = current_text + message + "\n"
-            # 限制日志长度，只保留最后 2000 个字符
             if len(new_text) > 2000:
                 new_text = "...(日志已截断)\n" + new_text[-2000:]
             self.log_text.value = new_text
@@ -808,16 +946,14 @@ class CourseCertificationView:
                 print(f"⚠️ UI更新失败: {e}")
 
     def _on_stop_answering(self, e):
-        """处理停止答题按钮点击事件"""
+        """处理停止答题"""
         print("🛑 用户请求停止答题")
         self._append_log("🛑 正在停止答题...\n")
         self.should_stop_answering = True
 
-        # 如果有自动答题实例，调用其停止方法
         if self.auto_answer_instance and hasattr(self.auto_answer_instance, 'request_stop'):
             self.auto_answer_instance.request_stop()
 
-        # 关闭对话框
         if self.answer_dialog:
             self.page.pop_dialog()
             self.answer_dialog = None
@@ -826,13 +962,7 @@ class CourseCertificationView:
         self._append_log("✅ 答题已停止\n")
 
     def _run_certification_task(self, course_id: str, question_bank_data: dict):
-        """
-        在后台线程中运行课程认证答题任务
-
-        Args:
-            course_id: 课程ID
-            question_bank_data: 题库数据
-        """
+        """在后台线程中运行答题任务"""
         try:
             from src.course_certification import CourseCertificationManager
             from src.settings import get_settings_manager
@@ -841,20 +971,16 @@ class CourseCertificationView:
             self._append_log(f"📚 课程ID: {course_id}\n")
             self._append_log("-" * 50 + "\n")
 
-            # 获取设置管理器
             settings_manager = get_settings_manager()
-
-            # 获取教师凭据（用于API认证）
             username, password = settings_manager.get_teacher_credentials()
 
             if not username or not password:
                 self._append_log("❌ 未找到教师端凭据\n")
-                self._append_log("💡 请先在设置中配置教师端账号密码\n")
+                self._append_log("💡 请先登录\n")
                 return
 
             self._append_log(f"👤 教师账号: {username}\n")
 
-            # 创建课程认证管理器
             manager = CourseCertificationManager(
                 teacher_username=username,
                 teacher_password=password,
@@ -862,7 +988,6 @@ class CourseCertificationView:
             )
             self.auto_answer_instance = manager
 
-            # 加载题库
             self._append_log("📖 正在加载题库...\n")
             success = manager.load_question_bank(question_bank_data)
 
@@ -873,10 +998,8 @@ class CourseCertificationView:
             self._append_log("✅ 题库加载成功\n")
             self._append_log("-" * 50 + "\n")
 
-            # 开始答题
             result = manager.auto_answer_course(course_id)
 
-            # 显示结果
             self._append_log("\n" + "=" * 50 + "\n")
             self._append_log("📊 最终统计\n")
             self._append_log("=" * 50 + "\n")
@@ -889,10 +1012,8 @@ class CourseCertificationView:
             if result.get('completed_knowledges', 0) >= result.get('total_knowledges', 0):
                 self._append_log("\n🎉 恭喜！所有知识点已完成！\n")
 
-            # 完成
             self._append_log("\n🎉 答题任务完成！\n")
 
-            # 延迟后自动关闭对话框
             import time
             time.sleep(2)
             if self.answer_dialog:
