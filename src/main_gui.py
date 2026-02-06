@@ -11,6 +11,8 @@ import version
 from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
+from src.ui.views.course_certification_view import CourseCertificationView
+from src.ui.views.cloud_exam_view import CloudExamView
 
 
 class MainApp:
@@ -36,13 +38,17 @@ class MainApp:
         self.answering_view = AnsweringView(page, main_app=self)
         self.extraction_view = ExtractionView(page)
         self.settings_view = SettingsView(page)
+        self.course_certification_view = CourseCertificationView(page)
+        self.cloud_exam_view = CloudExamView(page)
 
         # 缓存每个视图的内容（保持状态）
         self.cached_contents = {
             0: None,  # 评估答题
             1: None,  # 答案提取
-            2: None,  # 设置
-            3: None,  # 关于
+            2: None,  # 课程认证
+            3: None,  # 云考试
+            4: None,  # 设置
+            5: None,  # 关于
         }
 
         # 初始化UI
@@ -117,6 +123,16 @@ class MainApp:
                     label="答案提取",
                 ),
                 ft.NavigationRailDestination(
+                    icon=ft.Icons.SCHOOL,
+                    selected_icon=ft.Icons.SCHOOL,
+                    label="课程认证",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.CLOUD_QUEUE,
+                    selected_icon=ft.Icons.CLOUD,
+                    label="云考试",
+                ),
+                ft.NavigationRailDestination(
                     icon=ft.Icons.SETTINGS,
                     selected_icon=ft.Icons.SETTINGS,
                     label="设置",
@@ -182,8 +198,12 @@ class MainApp:
             elif self.current_destination == 1:
                 cached_content = self.extraction_view.get_content()
             elif self.current_destination == 2:
-                cached_content = self.settings_view.get_content()
+                cached_content = self.course_certification_view.get_content()
             elif self.current_destination == 3:
+                cached_content = self.cloud_exam_view.get_content()
+            elif self.current_destination == 4:
+                cached_content = self.settings_view.get_content()
+            elif self.current_destination == 5:
                 cached_content = self._get_about_content()
             else:
                 return
