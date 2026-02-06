@@ -8,6 +8,7 @@ import flet as ft
 import json
 from pathlib import Path
 from src.question_bank_importer import QuestionBankImporter
+from src.settings import get_settings_manager
 
 
 class CourseCertificationView:
@@ -25,6 +26,8 @@ class CourseCertificationView:
         self.main_app = main_app
         self.current_content = None  # 保存当前内容容器的引用
         self.question_bank_data = None  # 存储加载的题库数据
+        self.username_field = None  # 用户名输入框
+        self.password_field = None  # 密码输入框
 
         # 答题相关状态
         self.is_answering = False  # 是否正在答题
@@ -208,11 +211,171 @@ class CourseCertificationView:
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
+    def _get_login_content(self) -> ft.Column:
+        """
+        获取登录界面内容
+
+        Returns:
+            ft.Column: 登录界面组件
+        """
+        # 加载已保存的教师凭据
+        settings_manager = get_settings_manager()
+        saved_username, saved_password = settings_manager.get_teacher_credentials()
+
+        # 初始化输入框（自动填充已保存的凭据）
+        self.username_field = ft.TextField(
+            label="教师账号",
+            hint_text="请输入教师端账号",
+            value=saved_username or "",
+            width=400,
+            prefix_icon=ft.Icons.PERSON,
+            autofocus=True,
+        )
+
+        self.password_field = ft.TextField(
+            label="教师密码",
+            hint_text="请输入教师端密码",
+            value=saved_password or "",
+            width=400,
+            password=True,
+            can_reveal_password=True,
+            prefix_icon=ft.Icons.LOCK,
+        )
+
+        return ft.Column(
+            [
+                ft.Text(
+                    "教师端登录",
+                    size=32,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_800,
+                    animate_opacity=200,
+                ),
+                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Icon(
+                                    ft.Icons.SCHOOL,
+                                    size=64,
+                                    color=ft.Colors.BLUE_400,
+                                ),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                                self.username_field,
+                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                                self.password_field,
+                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+                                ft.Row(
+                                    [
+                                        ft.OutlinedButton(
+                                            "返回",
+                                            icon=ft.Icons.ARROW_BACK,
+                                            style=ft.ButtonStyle(
+                                                animation_duration=200,
+                                            ),
+                                            on_click=lambda e: self._on_back_from_login(e),
+                                            animate_scale=ft.Animation(
+                                                200, ft.AnimationCurve.EASE_OUT
+                                            ),
+                                        ),
+                                        ft.ElevatedButton(
+                                            "登录",
+                                            icon=ft.Icons.LOGIN,
+                                            bgcolor=ft.Colors.BLUE,
+                                            color=ft.Colors.WHITE,
+                                            style=ft.ButtonStyle(
+                                                shape=ft.RoundedRectangleBorder(radius=10),
+                                                padding=ft.padding.symmetric(
+                                                    horizontal=30, vertical=15
+                                                ),
+                                                animation_duration=200,
+                                            ),
+                                            on_click=lambda e: self._on_login_click(e),
+                                            animate_scale=ft.Animation(
+                                                200, ft.AnimationCurve.EASE_OUT
+                                            ),
+                                        ),
+                                    ],
+                                    alignment=ft.MainAxisAlignment.CENTER,
+                                    spacing=20,
+                                ),
+                            ],
+                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=30,
+                        width=500,
+                    ),
+                    elevation=5,
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
     def _on_start_answer_click(self, e):
         """处理开始答题按钮点击事件"""
-        print("DEBUG: 切换到答题界面")
+        print("DEBUG: 切换到登录界面")
 
-        # 使用动画切换到答题界面
+        # 使用动画切换到登录界面
+        login_content = self._get_login_content()
+        self.current_content.content = login_content
+        self.page.update()
+
+    def _on_back_from_login(self, e):
+        """处理从登录界面返回的按钮点击事件"""
+        print("DEBUG: 从登录界面返回主界面")
+
+        # 使用动画切换回主界面
+        main_content = self._get_main_content()
+        self.current_content.content = main_content
+        self.page.update()
+
+    def _on_login_click(self, e):
+        """处理登录按钮点击事件"""
+        username = self.username_field.value
+        password = self.password_field.value
+
+        print(f"DEBUG: 登录账号={username}, 密码={'*' * len(password) if password else ''}")
+
+        # 验证输入
+        if not username or not password:
+            dialog = ft.AlertDialog(
+                title=ft.Text("提示"),
+                content=ft.Text("请输入账号和密码"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
+            return
+
+        # 保存教师凭据
+        settings_manager = get_settings_manager()
+        print("💾 保存教师端凭据...")
+        settings_manager.set_teacher_credentials(username, password)
+
+        # 登录成功，跳转到答题界面
+        login_success_dialog = ft.AlertDialog(
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN),
+                    ft.Text("登录成功", color=ft.Colors.GREEN),
+                ],
+                spacing=10,
+            ),
+            content=ft.Text(f"✅ 欢迎回来，{username}！\n\n正在跳转到答题界面..."),
+            actions=[
+                ft.TextButton(
+                    "确定",
+                    on_click=lambda _: self._navigate_to_answer_after_login(),
+                ),
+            ],
+        )
+        self.page.show_dialog(login_success_dialog)
+
+    def _navigate_to_answer_after_login(self):
+        """登录成功后跳转到答题界面"""
+        self.page.pop_dialog()  # 关闭成功对话框
         answer_content = self._get_answer_content()
         self.current_content.content = answer_content
         self.page.update()
