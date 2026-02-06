@@ -964,52 +964,42 @@ class CourseCertificationView:
     def _run_certification_task(self, course_id: str, question_bank_data: dict):
         """在后台线程中运行答题任务"""
         try:
-            from src.course_certification import CourseCertificationManager
-            from src.settings import get_settings_manager
+            from src.course_api_answer import APICourseAnswer
 
             self._append_log("🚀 开始课程认证答题\n")
             self._append_log(f"📚 课程ID: {course_id}\n")
             self._append_log("-" * 50 + "\n")
 
-            settings_manager = get_settings_manager()
-            username, password = settings_manager.get_teacher_credentials()
-
-            if not username or not password:
-                self._append_log("❌ 未找到教师端凭据\n")
-                self._append_log("💡 请先登录\n")
+            # 检查access_token
+            if not self.access_token:
+                self._append_log("❌ 未找到access_token，请先重新登录\n")
+                self._append_log("💡 点击返回按钮，重新登录即可\n")
                 return
 
-            self._append_log(f"👤 教师账号: {username}\n")
+            self._append_log(f"✅ Access Token已获取\n")
 
-            manager = CourseCertificationManager(
-                teacher_username=username,
-                teacher_password=password,
-                log_callback=self._append_log
-            )
-            self.auto_answer_instance = manager
+            # 创建API答题器
+            answerer = APICourseAnswer(access_token=self.access_token)
+            self.auto_answer_instance = answerer
 
-            self._append_log("📖 正在加载题库...\n")
-            success = manager.load_question_bank(question_bank_data)
-
-            if not success:
-                self._append_log("❌ 题库加载失败\n")
-                return
-
-            self._append_log("✅ 题库加载成功\n")
+            self._append_log("📖 开始自动答题...\n")
             self._append_log("-" * 50 + "\n")
 
-            result = manager.auto_answer_course(course_id)
+            # 调用自动答题
+            result = answerer.auto_answer_course(course_id, question_bank_data)
 
+            # 显示结果
             self._append_log("\n" + "=" * 50 + "\n")
             self._append_log("📊 最终统计\n")
             self._append_log("=" * 50 + "\n")
-            self._append_log(f"📍 知识点: {result.get('completed_knowledges', 0)}/{result.get('total_knowledges', 0)}\n")
+            self._append_log(f"📍 知识点: {result.get('completed_knowledge', 0)}/{result.get('total_knowledge', 0)}\n")
             self._append_log(f"📝 题目总计: {result.get('total_questions', 0)} 题\n")
-            self._append_log(f"✅ 成功: {result.get('success', 0)} 题\n")
-            self._append_log(f"❌ 失败: {result.get('failed', 0)} 题\n")
+            self._append_log(f"✅ 成功完成: {result.get('success_knowledge', 0)} 个知识点\n")
+            self._append_log(f"❌ 失败: {result.get('failed_knowledge', 0)} 个知识点\n")
+            self._append_log(f"⏭️ 跳过: {result.get('skipped_knowledge', 0)} 个知识点\n")
             self._append_log("=" * 50 + "\n")
 
-            if result.get('completed_knowledges', 0) >= result.get('total_knowledges', 0):
+            if result.get('success_knowledge', 0) >= result.get('total_knowledge', 0):
                 self._append_log("\n🎉 恭喜！所有知识点已完成！\n")
 
             self._append_log("\n🎉 答题任务完成！\n")
