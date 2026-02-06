@@ -74,11 +74,12 @@ setup_playwright_browser()
 setup_flet_executable()
 
 # 导入登录模块和题目提取模块
-from src.teacher_login import get_access_token
+from src.teacher_login import get_access_token as teacher_get_access_token
 from src.student_login import (get_student_access_token, get_student_access_token_with_credentials,
                                get_student_courses, get_uncompleted_chapters, navigate_to_course,
                                close_browser, get_course_progress_from_page, get_browser_page,
                                get_cached_access_token)
+from src.course_certification import get_access_token as course_get_access_token, start_answering
 from src.extract import extract_questions, extract_single_course
 from src.export import DataExporter
 from src.question_bank_importer import QuestionBankImporter
@@ -107,10 +108,10 @@ def settings_menu():
         print("2. 设置 API 请求超时重试次数")
         print("3. 设置 API 请求速率")
         print("4. 查看当前设置")
-        print("5. 返回")
+        print("0. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 设置账号密码
@@ -124,12 +125,12 @@ def settings_menu():
         elif choice == "4":
             # 查看当前设置
             settings.display_current_settings()
-        elif choice == "5":
+        elif choice == "0":
             # 返回
             print("\n🔙 返回主菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
 
 
 def settings_account_password(settings):
@@ -142,10 +143,10 @@ def settings_account_password(settings):
         print("2. 设置教师端账号密码")
         print("3. 删除学生端账号密码")
         print("4. 删除教师端账号密码")
-        print("5. 返回")
+        print("0. 返回")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 设置学生端账号密码
@@ -227,12 +228,12 @@ def settings_account_password(settings):
             else:
                 print("\n❌ 已取消")
 
-        elif choice == "5":
+        elif choice == "0":
             # 返回
             print("\n🔙 返回设置菜单")
             break
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
 
 
 def settings_max_retries(settings):
@@ -311,6 +312,57 @@ def settings_rate_level(settings):
         else:
             print("\n❌ 已取消")
         return
+
+
+def course_certification_menu():
+    """课程认证菜单"""
+    while True:
+        print("\n" + "=" * 50)
+        print("🎓 课程认证")
+        print("=" * 50)
+        print("1. 开始做题")
+        print("2. 获取access_token")
+        print("3. 导入题库")
+        print("0. 返回")
+        print("=" * 50)
+
+        choice = input("\n请选择操作 (1-3 或 0): ").strip()
+
+        if choice == "1":
+            # 开始做题
+            start_answering()
+        elif choice == "2":
+            # 调用课程认证模块的登录功能
+            result = course_get_access_token(keep_browser_open=False)
+            if result:
+                access_token = result[0]  # result 是 (access_token, None, None, None)
+                print("\n💡 token 已获取，可以用于后续的 API 调用")
+            # TODO: 可以在这里保存 token 到全局变量或文件，供后续使用
+        elif choice == "3":
+            # 导入题库
+            print("\n📚 导入题库功能")
+            print("=" * 50)
+            print("请输入题库JSON文件的路径（例如：output/course_20250129_123456.json）：")
+            file_path = input("文件路径: ").strip()
+
+            if not file_path:
+                print("❌ 文件路径不能为空")
+                continue
+
+            # 调用题库导入功能
+            from src.course_certification import import_question_bank
+            success = import_question_bank(file_path)
+
+            if success:
+                print("\n✅ 题库导入成功！")
+                print("💡 现在可以选择'开始做题'使用导入的题库进行答题")
+            else:
+                print("\n❌ 题库导入失败")
+        elif choice == "0":
+            print("\n🔙 返回主菜单")
+            break
+        else:
+            print("\n❌ 无效的选择，请输入 1-3 或 0")
 
 
 def display_progress_bar(progress_info: dict):
@@ -394,10 +446,10 @@ def show_answer_menu(course_info: dict) -> bool:
         print("2. 使用JSON题库")
         print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(兼容模式)")
         print("4. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(暴力模式)")
-        print("5. 退出")
+        print("0. 退出")
         print("=" * 50)
 
-        choice = input("\n请选择操作 (1-5): ").strip()
+        choice = input("\n请选择操作 (1-4 或 0): ").strip()
 
         if choice == "1":
             # 提取该课程的答案
@@ -743,13 +795,13 @@ def show_answer_menu(course_info: dict) -> bool:
                 traceback.print_exc()
                 continue
 
-        elif choice == "5":
+        elif choice == "0":
             # 退出
             print("\n🔙 返回课程列表")
             return True
 
         else:
-            print("\n❌ 无效的选择，请输入1-5之间的数字")
+            print("\n❌ 无效的选择，请输入 1-4 或 0")
             continue
 
 
@@ -758,15 +810,16 @@ def main():
         print("欢迎使用智能答题助手系统")
         print("1. 开始答题")
         print("2. 题目抓取")
-        print("3. 设置")
-        print("4. 退出系统")
+        print("3. 课程认证")
+        print("4. 设置")
+        print("0. 退出系统")
         choice = input("请选择操作：")
         if choice == "1":
             # 调用开始答题功能
             print("开始答题功能")
             print("1. 开始答题")
             print("2. 获取access_token")
-            print("3. 返回")
+            print("0. 返回")
             sub_choice = input("请选择：")
 
             if sub_choice == "1":
@@ -980,7 +1033,7 @@ def main():
                     print(f"有效期: 5小时 (18000秒)")
                 else:
                     print(f"\n❌ 获取学生端access_token失败！")
-            elif sub_choice == "3":
+            elif sub_choice == "0":
                 print("返回主菜单")
                 continue
             else:
@@ -993,12 +1046,12 @@ def main():
             print("2. 全部提取")
             print("3. 提取单个课程")
             print("4. 结果导出")
-            print("5. 返回")
+            print("0. 返回")
             choice2 = input("请选择：")
             if choice2 == "1":
                 # 获取access_token
                 print("正在获取access_token...")
-                access_token = get_access_token()
+                access_token = teacher_get_access_token()
                 if access_token:
                     print(f"\n✅ 获取access_token成功！")
                     print(f"access_token: {access_token}")
@@ -1027,15 +1080,18 @@ def main():
                         print(f"✅ 导出成功！文件路径：{file_path}")
                     except Exception as e:
                         print(f"❌ 导出失败：{str(e)}")
-            elif choice2 == "5":
+            elif choice2 == "0":
                 print("返回主菜单")
                 continue
             else:
                 print("无效的选择，请重新输入")
         elif choice == "3":
+            # 课程认证功能
+            course_certification_menu()
+        elif choice == "4":
             # 设置功能
             settings_menu()
-        elif choice == "4":
+        elif choice == "0":
             # 退出系统
             print("退出系统，再见！")
             # 关闭浏览器
