@@ -129,17 +129,64 @@ def hello_world():
 def close_browser():
     """关闭全局浏览器实例"""
     global _global_browser, _global_page, _global_playwright
-    try:
-        if _global_browser:
+
+    # 尝试多种方法关闭浏览器
+    success = False
+
+    # 方法1: 逐个关闭所有 pages 和 contexts
+    if _global_browser:
+        try:
+            # 获取所有 contexts
+            contexts = list(_global_browser.contexts)
+            for context in contexts:
+                try:
+                    # 获取所有 pages
+                    pages = list(context.pages)
+                    for page in pages:
+                        try:
+                            page.close()
+                        except:
+                            pass
+                    context.close()
+                except:
+                    pass
+        except:
+            pass
+
+    # 方法2: 关闭全局 page
+    if _global_page:
+        try:
+            _global_page.close()
+            print("✅ Page 已关闭")
+            success = True
+        except Exception as e:
+            pass
+
+    # 方法3: 关闭 browser
+    if _global_browser:
+        try:
             _global_browser.close()
-            _global_browser = None
-        if _global_playwright:
+            print("✅ Browser 已关闭")
+            success = True
+        except Exception as e:
+            print(f"⚠️ Browser.close() 失败: {e}")
+
+    # 方法4: 停止 playwright
+    if _global_playwright:
+        try:
             _global_playwright.stop()
-            _global_playwright = None
-        _global_page = None
-        print("✅ 浏览器已关闭")
-    except Exception as e:
-        print(f"⚠️ 关闭浏览器时出错: {e}")
+            print("✅ Playwright 已停止")
+            success = True
+        except Exception as e:
+            print(f"⚠️ Playwright.stop() 失败: {e}")
+
+    # 清空全局变量
+    _global_browser = None
+    _global_page = None
+    _global_playwright = None
+
+    if not success:
+        print("⚠️ 部分浏览器资源可能未完全释放，但已清空引用")
 
 
 def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False) -> Optional[tuple]:

@@ -79,13 +79,9 @@ class MainApp:
 
     def _on_window_close(self):
         """窗口关闭时的清理函数"""
-        try:
-            # 关闭 Playwright 浏览器
-            from src.student_login import close_browser
-            close_browser()
-            print("✅ 浏览器已关闭")
-        except Exception as e:
-            print(f"⚠️ 关闭浏览器时出错: {e}")
+        print("🔄 正在关闭窗口...")
+        # 不在窗口关闭时清理浏览器，让 main.py 的 finally 块处理
+        # 这样可以避免跨线程问题
 
     def _build_ui(self):
         """构建用户界面"""

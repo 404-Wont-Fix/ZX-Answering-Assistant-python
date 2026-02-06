@@ -644,6 +644,112 @@ class CourseCertificationView:
     def _on_course_card_click(self, e, course: dict):
         """处理课程卡片点击事件"""
         print(f"DEBUG: 点击课程卡片 - {course.get('lessonName')}")
+
+        # 如果已导入题库，验证题库课程ID是否与新选择的课程匹配
+        if self.question_bank_data:
+            from src.question_bank_importer import QuestionBankImporter
+
+            importer = QuestionBankImporter()
+            importer.data = self.question_bank_data
+            bank_type = importer.get_bank_type()
+
+            # 只对单课程题库进行验证
+            if bank_type == "single":
+                parsed = importer.parse_single_course()
+                bank_course_id = ""
+                bank_course_name = ""
+                if parsed and 'course' in parsed:
+                    bank_course_id = parsed['course'].get('courseID', '')
+                    bank_course_name = parsed['course'].get('courseName', '')
+
+                # 获取新选择的课程ID
+                new_course_id = course.get('eCourseID', '')
+                new_course_name = course.get('lessonName', '未知课程')
+
+                print(f"DEBUG: 题库课程ID = {bank_course_id}")
+                print(f"DEBUG: 新选择课程ID = {new_course_id}")
+
+                # 如果题库课程ID与新选择的课程ID不匹配
+                if bank_course_id and new_course_id and bank_course_id != new_course_id:
+                    print(f"❌ 题库课程与新选择的课程不匹配")
+
+                    # 暂存旧课程信息
+                    old_course = self.selected_course
+
+                    # 显示警告对话框
+                    dialog = ft.AlertDialog(
+                        title=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                                ft.Text("题库课程不匹配", color=ft.Colors.ORANGE, weight=ft.FontWeight.BOLD),
+                            ],
+                            spacing=10,
+                        ),
+                        content=ft.Column(
+                            [
+                                ft.Text("⚠️ 警告：您已导入的题库与新选择的课程不匹配！", size=16, weight=ft.FontWeight.BOLD),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                                ft.Text("📋 课程信息：", weight=ft.FontWeight.BOLD),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.DESCRIPTION, color=ft.Colors.ORANGE),
+                                    title=ft.Text("已导入的题库"),
+                                    subtitle=ft.Column(
+                                        [
+                                            ft.Text(f"课程名: {bank_course_name}"),
+                                            ft.Text(f"ID: {bank_course_id}", size=12, color=ft.Colors.GREY_600),
+                                        ],
+                                        spacing=2,
+                                    ),
+                                ),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.BLUE),
+                                    title=ft.Text("新选择的课程"),
+                                    subtitle=ft.Column(
+                                        [
+                                            ft.Text(f"课程名: {new_course_name}"),
+                                            ft.Text(f"ID: {new_course_id}", size=12, color=ft.Colors.GREY_600),
+                                        ],
+                                        spacing=2,
+                                    ),
+                                ),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                                ft.Text(
+                                    "💡 请选择以下操作：",
+                                    size=14,
+                                    weight=ft.FontWeight.BOLD,
+                                ),
+                            ],
+                            spacing=5,
+                            tight=True,
+                        ),
+                        actions=[
+                            ft.Row(
+                                [
+                                    ft.ElevatedButton(
+                                        "清除题库",
+                                        icon=ft.Icons.DELETE,
+                                        bgcolor=ft.Colors.RED,
+                                        color=ft.Colors.WHITE,
+                                        on_click=lambda e: self._on_clear_question_bank(e, course),
+                                    ),
+                                    ft.ElevatedButton(
+                                        "取消选择",
+                                        icon=ft.Icons.CANCEL,
+                                        bgcolor=ft.Colors.GREY,
+                                        color=ft.Colors.WHITE,
+                                        on_click=lambda e: self._on_cancel_course_selection(e, old_course),
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=20,
+                            ),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.CENTER,
+                    )
+                    self.page.show_dialog(dialog)
+                    return
+
+        # 没有题库或题库匹配，正常选择课程
         self.selected_course = course
 
         # 刷新界面
@@ -737,6 +843,89 @@ class CourseCertificationView:
 
             self.question_bank_data = importer.data
 
+            print(f"✅ 成功加载JSON题库: {file_name}")
+
+            # 验证题库课程ID与选择的课程ID是否匹配
+            if self.selected_course and bank_type == "single":
+                # 从题库中提取课程ID
+                parsed = importer.parse_single_course()
+                bank_course_id = ""
+                if parsed and 'course' in parsed:
+                    bank_course_id = parsed['course'].get('courseID', '')
+
+                # 获取当前选择的课程ID
+                selected_course_id = self.selected_course.get('eCourseID', '')
+
+                print(f"DEBUG: 题库课程ID = {bank_course_id}")
+                print(f"DEBUG: 选择课程ID = {selected_course_id}")
+
+                # 如果题库中有课程ID，且与选择的课程ID不匹配，显示错误提示
+                if bank_course_id and selected_course_id and bank_course_id != selected_course_id:
+                    print(f"❌ 题库课程不匹配")
+                    dialog = ft.AlertDialog(
+                        title=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                                ft.Text("题库课程不匹配", color=ft.Colors.RED, weight=ft.FontWeight.BOLD),
+                            ],
+                            spacing=10,
+                        ),
+                        content=ft.Column(
+                            [
+                                ft.Text("❌ 错误：您导入的题库与当前选择的课程不匹配！", size=16, weight=ft.FontWeight.BOLD),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                                ft.Text("📋 课程信息：", weight=ft.FontWeight.BOLD),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.BLUE),
+                                    title=ft.Text("当前选择的课程"),
+                                    subtitle=ft.Column(
+                                        [
+                                            ft.Text(f"课程名: {self.selected_course.get('lessonName', '未知')}"),
+                                            ft.Text(f"ID: {selected_course_id}", size=12, color=ft.Colors.GREY_600),
+                                        ],
+                                        spacing=2,
+                                    ),
+                                ),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.DESCRIPTION, color=ft.Colors.ORANGE),
+                                    title=ft.Text("题库中的课程"),
+                                    subtitle=ft.Column(
+                                        [
+                                            ft.Text(f"课程名: {parsed['course'].get('courseName', '未知')}"),
+                                            ft.Text(f"ID: {bank_course_id}", size=12, color=ft.Colors.GREY_600),
+                                        ],
+                                        spacing=2,
+                                    ),
+                                ),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                                ft.Text(
+                                    "💡 提示：请选择与题库匹配的课程，或导入正确的题库文件",
+                                    size=14,
+                                    color=ft.Colors.GREY_700,
+                                    italic=True,
+                                ),
+                            ],
+                            spacing=5,
+                            tight=True,
+                        ),
+                        actions=[
+                            ft.ElevatedButton(
+                                "知道了",
+                                icon=ft.Icons.CHECK,
+                                bgcolor=ft.Colors.RED,
+                                color=ft.Colors.WHITE,
+                                on_click=lambda _: self.page.pop_dialog(),
+                            ),
+                        ],
+                        actions_alignment=ft.MainAxisAlignment.CENTER,
+                    )
+                    self.page.show_dialog(dialog)
+
+                    # 清除已导入的题库数据
+                    self.question_bank_data = None
+                    return
+
+            # 创建并显示成功对话框（不刷新界面，避免动画冲突）
             dialog = ft.AlertDialog(
                 title=ft.Row(
                     [
@@ -759,18 +948,11 @@ class CourseCertificationView:
                     tight=True,
                 ),
                 actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                    ft.TextButton("确定", on_click=self._on_import_dialog_close),
                 ],
                 actions_alignment=ft.MainAxisAlignment.END,
             )
             self.page.show_dialog(dialog)
-
-            print(f"✅ 成功加载JSON题库: {file_name}")
-
-            # 刷新界面以启用"开始答题"按钮
-            courses_content = self._get_course_list_content()
-            self.current_content.content = courses_content
-            self.page.update()
 
         except json.JSONDecodeError as je:
             print(f"❌ JSON解析失败: {je}")
@@ -826,6 +1008,61 @@ class CourseCertificationView:
             )
             self.page.show_dialog(dialog)
 
+    def _on_import_dialog_close(self, e):
+        """处理导入成功对话框关闭事件"""
+        self.page.pop_dialog()
+
+        # 对话框关闭后再刷新界面，以启用"开始答题"按钮
+        print("DEBUG: 刷新界面以更新按钮状态")
+        courses_content = self._get_course_list_content()
+        self.current_content.content = courses_content
+        self.page.update()
+
+    def _on_clear_question_bank(self, e, new_course: dict):
+        """清除题库并选择新课程"""
+        print("DEBUG: 清除题库并选择新课程")
+        self.page.pop_dialog()
+
+        # 清除题库数据
+        self.question_bank_data = None
+
+        # 选择新课程
+        self.selected_course = new_course
+
+        # 刷新界面
+        courses_content = self._get_course_list_content()
+        self.current_content.content = courses_content
+        self.page.update()
+
+        # 显示提示信息
+        dialog = ft.AlertDialog(
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
+                    ft.Text("题库已清除", color=ft.Colors.BLUE),
+                ],
+                spacing=10,
+            ),
+            content=ft.Text("✅ 题库已清除，请重新导入匹配的题库文件"),
+            actions=[
+                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+            ],
+        )
+        self.page.show_dialog(dialog)
+
+    def _on_cancel_course_selection(self, e, old_course: dict):
+        """取消选择课程，保持之前的课程"""
+        print("DEBUG: 取消选择课程")
+        self.page.pop_dialog()
+
+        # 恢复旧课程（如果没有旧课程，则清除选择）
+        self.selected_course = old_course
+
+        # 刷新界面
+        courses_content = self._get_course_list_content()
+        self.current_content.content = courses_content
+        self.page.update()
+
     def _on_start_api_answer(self, e):
         """处理开始API答题按钮点击事件"""
         print("DEBUG: 开始API模式答题")
@@ -852,8 +1089,34 @@ class CourseCertificationView:
             self.page.show_dialog(dialog)
             return
 
+        # 注：题库课程ID验证已在导入时完成，此处直接开始答题
         ecourse_id = self.selected_course.get('eCourseID', '')
         self._start_certification_answer(ecourse_id, self.question_bank_data)
+
+    def _get_question_bank_course_id(self) -> str:
+        """
+        从题库数据中获取课程ID
+
+        Returns:
+            str: 课程ID，如果无法获取则返回空字符串
+        """
+        try:
+            importer = QuestionBankImporter()
+            importer.data = self.question_bank_data
+            bank_type = importer.get_bank_type()
+
+            if bank_type == "single":
+                parsed = importer.parse_single_course()
+                if parsed and 'course' in parsed:
+                    return parsed['course'].get('courseID', '')
+            elif bank_type == "multiple":
+                # 多课程题库，无法确定具体的课程ID
+                return ""
+
+        except Exception as e:
+            print(f"⚠️ 获取题库课程ID失败: {e}")
+
+        return ""
 
     def _start_certification_answer(self, course_id: str, question_bank_data: dict):
         """开始课程认证答题"""

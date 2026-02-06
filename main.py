@@ -1113,9 +1113,21 @@ def run_gui_mode():
         sys.exit(1)
     except Exception as e:
         print(f"❌ 启动GUI失败: {e}")
-        import traceback
-        traceback.print_exc()
         sys.exit(1)
+    finally:
+        # 确保 GUI 退出时清理所有 Playwright 浏览器
+        print("🔄 正在清理浏览器资源...")
+        try:
+            from src.student_login import cleanup_browser
+            cleanup_browser()
+        except:
+            pass
+        try:
+            from src.course_certification import close_browser
+            close_browser()
+        except:
+            pass
+        print("✅ 浏览器资源清理完成")
 
 
 def parse_arguments():
