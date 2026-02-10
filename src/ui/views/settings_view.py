@@ -111,7 +111,12 @@ class SettingsView:
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
                 # API设置区域
-                self._create_api_settings_section(rate_level, max_retries, headless),
+                self._create_api_settings_section(rate_level, max_retries),
+
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+
+                # 浏览器设置区域
+                self._create_browser_settings_section(headless),
 
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
@@ -375,7 +380,7 @@ class SettingsView:
         )
 
     def _create_api_settings_section(
-        self, rate_level: APIRateLevel, max_retries: int, headless: bool
+        self, rate_level: APIRateLevel, max_retries: int
     ) -> ft.Container:
         """
         创建API设置区域
@@ -383,7 +388,6 @@ class SettingsView:
         Args:
             rate_level: 当前速率级别
             max_retries: 当前最大重试次数
-            headless: 当前无头模式设置
 
         Returns:
             ft.Container: API设置区域
@@ -395,19 +399,19 @@ class SettingsView:
             options=[
                 ft.dropdown.Option(
                     key="low",
-                    text="低（50ms）- 无速率限制的API",
+                    text="低（1000ms）- 无速率限制的API",
                 ),
                 ft.dropdown.Option(
                     key="medium",
-                    text="中（1秒）- 默认推荐",
+                    text="中（2000ms）- 适中速率限制",
                 ),
                 ft.dropdown.Option(
                     key="medium_high",
-                    text="中高（2秒）- 严格速率限制",
+                    text="中高（3000ms）- 严格速率限制",
                 ),
                 ft.dropdown.Option(
                     key="high",
-                    text="高（3秒）- 非常严格的速率限制",
+                    text="高（5000ms）- 非常严格的速率限制",
                 ),
             ],
             value=rate_level.value,
@@ -424,13 +428,6 @@ class SettingsView:
             width=400,
             icon=ft.Icons.REFRESH,
             keyboard_type=ft.KeyboardType.NUMBER,
-        )
-
-        # 创建无头模式开关
-        self.headless_switch = ft.Switch(
-            label="无头模式（隐藏浏览器窗口）",
-            value=headless,
-            active_color=ft.Colors.BLUE,
         )
 
         return ft.Container(
@@ -510,8 +507,86 @@ class SettingsView:
                                         ),
                                     ),
 
-                                    ft.Divider(height=1, color=ft.Colors.GREY_300),
+                                    # 提示信息
+                                    ft.Container(
+                                        content=ft.Row(
+                                            [
+                                                ft.Icon(
+                                                    ft.Icons.INFO_OUTLINE,
+                                                    color=ft.Colors.BLUE_400,
+                                                    size=20,
+                                                ),
+                                                ft.Text(
+                                                    "提示：如果遇到频繁的网络错误，可以增加重试次数或降低请求速率",
+                                                    size=12,
+                                                    color=ft.Colors.GREY_600,
+                                                    italic=True,
+                                                ),
+                                            ],
+                                            spacing=10,
+                                        ),
+                                        padding=ft.padding.all(15),
+                                        bgcolor=ft.Colors.BLUE_50,
+                                        border_radius=8,
+                                    ),
+                                ],
+                                spacing=0,
+                            ),
+                            padding=0,
+                        ),
+                        elevation=3,
+                    ),
+                ],
+                spacing=0,
+            ),
+            width=900,
+            padding=20,
+            bgcolor=ft.Colors.BLUE_GREY_50,
+            border_radius=15,
+        )
 
+    def _create_browser_settings_section(self, headless: bool) -> ft.Container:
+        """
+        创建浏览器设置区域
+
+        Args:
+            headless: 当前无头模式设置
+
+        Returns:
+            ft.Container: 浏览器设置区域
+        """
+        # 创建无头模式开关
+        self.headless_switch = ft.Switch(
+            label="无头模式（隐藏浏览器窗口）",
+            value=headless,
+            active_color=ft.Colors.BLUE,
+        )
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    # 区域标题
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Icon(ft.Icons.LANGUAGE, size=28, color=ft.Colors.PURPLE),
+                                ft.Text(
+                                    "浏览器设置",
+                                    size=24,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.BLUE_800,
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=ft.padding.only(bottom=15),
+                    ),
+
+                    # 浏览器设置卡片
+                    ft.Card(
+                        content=ft.Container(
+                            content=ft.Column(
+                                [
                                     # 无头模式设置
                                     ft.ListTile(
                                         leading=ft.Icon(
@@ -574,29 +649,6 @@ class SettingsView:
                                         ),
                                         padding=ft.padding.only(left=60, bottom=10),
                                     ),
-
-                                    # 提示信息
-                                    ft.Container(
-                                        content=ft.Row(
-                                            [
-                                                ft.Icon(
-                                                    ft.Icons.INFO_OUTLINE,
-                                                    color=ft.Colors.BLUE_400,
-                                                    size=20,
-                                                ),
-                                                ft.Text(
-                                                    "提示：如果遇到频繁的网络错误，可以增加重试次数或降低请求速率",
-                                                    size=12,
-                                                    color=ft.Colors.GREY_600,
-                                                    italic=True,
-                                                ),
-                                            ],
-                                            spacing=10,
-                                        ),
-                                        padding=ft.padding.all(15),
-                                        bgcolor=ft.Colors.BLUE_50,
-                                        border_radius=8,
-                                    ),
                                 ],
                                 spacing=0,
                             ),
@@ -609,7 +661,7 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.BLUE_GREY_50,
+            bgcolor=ft.Colors.PURPLE_50,
             border_radius=15,
         )
 

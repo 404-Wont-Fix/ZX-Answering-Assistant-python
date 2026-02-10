@@ -123,22 +123,22 @@ class ExtractionView:
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.PERSON, color=ft.Colors.PURPLE),
                                     title=ft.Text("教师端登录", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("使用教师账号登录管理平台"),
+                                    subtitle=ft.Text("登录教师端管理平台"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.GROUPS, color=ft.Colors.RED),
                                     title=ft.Text("选择班级", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("选择要提取答案的班级"),
+                                    subtitle=ft.Text("选择年级和目标班级"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.DOWNLOAD, color=ft.Colors.CYAN),
                                     title=ft.Text("提取答案", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("从课程中提取题目和答案"),
+                                    subtitle=ft.Text("从选中班级的课程中提取题目和答案"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.SAVE, color=ft.Colors.AMBER),
                                     title=ft.Text("导出数据", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("将提取的答案导出为JSON文件"),
+                                    subtitle=ft.Text("将提取的答案导出为JSON格式文件"),
                                 ),
                             ],
                             spacing=10,

@@ -12,10 +12,10 @@ from enum import Enum
 
 class APIRateLevel(Enum):
     """API请求速率级别"""
-    LOW = "low"           # 低: 50ms延迟
-    MEDIUM = "medium"     # 中: 1秒延迟
-    MEDIUM_HIGH = "medium_high"  # 中高: 2秒延迟
-    HIGH = "high"         # 高: 3秒延迟
+    LOW = "low"           # 低: 1000ms延迟
+    MEDIUM = "medium"     # 中: 2000ms延迟
+    MEDIUM_HIGH = "medium_high"  # 中高: 3000ms延迟
+    HIGH = "high"         # 高: 5000ms延迟
 
     @classmethod
     def from_name(cls, name: str) -> 'APIRateLevel':
@@ -28,20 +28,20 @@ class APIRateLevel(Enum):
     def get_delay_ms(self) -> int:
         """获取延迟毫秒数"""
         delays = {
-            APIRateLevel.LOW: 50,
-            APIRateLevel.MEDIUM: 1000,
-            APIRateLevel.MEDIUM_HIGH: 2000,
-            APIRateLevel.HIGH: 3000
+            APIRateLevel.LOW: 1000,
+            APIRateLevel.MEDIUM: 2000,
+            APIRateLevel.MEDIUM_HIGH: 3000,
+            APIRateLevel.HIGH: 5000
         }
         return delays[self]
 
     def get_display_name(self) -> str:
         """获取显示名称"""
         names = {
-            APIRateLevel.LOW: "低（50ms）",
-            APIRateLevel.MEDIUM: "中（1秒）",
-            APIRateLevel.MEDIUM_HIGH: "中高（2秒）",
-            APIRateLevel.HIGH: "高（3秒）"
+            APIRateLevel.LOW: "低（1000ms）",
+            APIRateLevel.MEDIUM: "中（2000ms）",
+            APIRateLevel.MEDIUM_HIGH: "中高（3000ms）",
+            APIRateLevel.HIGH: "高（5000ms）"
         }
         return names[self]
 
@@ -107,7 +107,7 @@ class SettingsManager:
             },
             "api_settings": {
                 "max_retries": 3,
-                "rate_level": "medium"
+                "rate_level": "high"
             },
             "browser_settings": {
                 "headless": False  # 默认显示浏览器窗口（无头模式关闭）

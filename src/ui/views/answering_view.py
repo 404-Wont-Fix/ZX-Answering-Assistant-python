@@ -110,17 +110,17 @@ class AnsweringView:
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
                                     title=ft.Text("学生端登录", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("登录学生端平台获取access_token"),
+                                    subtitle=ft.Text("登录学生端平台进行身份验证"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.GREEN),
                                     title=ft.Text("选择课程", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("查看课程列表和完成情况"),
+                                    subtitle=ft.Text("查看并选择需要完成的课程"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.PLAY_ARROW, color=ft.Colors.ORANGE),
                                     title=ft.Text("开始答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("使用题库自动完成课程答题"),
+                                    subtitle=ft.Text("自动加载题库并完成课程评估答题"),
                                 ),
                             ],
                             spacing=10,

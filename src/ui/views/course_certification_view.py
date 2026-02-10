@@ -89,18 +89,18 @@ class CourseCertificationView:
                             [
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
-                                    title=ft.Text("课程认证答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("使用API模式快速完成课程认证"),
+                                    title=ft.Text("教师端登录", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text("登录教师端平台进行身份验证"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.ATTACH_FILE, color=ft.Colors.GREEN),
                                     title=ft.Text("导入题库", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("支持JSON格式的题库文件"),
+                                    subtitle=ft.Text("加载JSON格式的课程认证题库"),
                                 ),
                                 ft.ListTile(
                                     leading=ft.Icon(ft.Icons.FLASH_ON, color=ft.Colors.ORANGE),
-                                    title=ft.Text("快速答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("使用API暴力模式自动答题"),
+                                    title=ft.Text("API答题", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text("使用API快速模式自动完成课程认证"),
                                 ),
                             ],
                             spacing=10,
