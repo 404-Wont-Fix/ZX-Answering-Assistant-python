@@ -2,22 +2,61 @@
 课程认证模块
 
 用于处理课程相关的认证功能
+
+已重构为使用统一的浏览器管理器 (src/browser_manager.py)
+- 使用单浏览器 + 多上下文模式
+- 支持与学生端、教师端模块同时运行
+- 上下文之间完全隔离，互不干扰
 """
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import Page
 from typing import Optional, List, Dict
 import time
 import requests
 from src.api_client import get_api_client
 from src.course_api_answer import APICourseAnswer
 
-# 全局变量，保存浏览器实例
-_global_browser = None
-_global_page = None
-_global_playwright = None
+# 导入浏览器管理器
+from src.browser_manager import (
+    get_browser_manager,
+    BrowserType,
+    run_in_thread_if_asyncio
+)
 
 # 全局变量，保存导入的题库
 _global_question_bank = None
+
+
+# ============================================================================
+# 浏览器管理辅助函数（使用 BrowserManager）
+# ============================================================================
+
+def _get_browser_manager():
+    """获取浏览器管理器实例"""
+    return get_browser_manager()
+
+
+def _ensure_context_and_page() -> tuple:
+    """
+    确保课程认证上下文和页面存在
+
+    Returns:
+        tuple: (context, page)
+    """
+    manager = _get_browser_manager()
+    context, page = manager.get_context_and_page(BrowserType.COURSE_CERTIFICATION)
+
+    if context is None or page is None:
+        # 创建新的上下文
+        context = manager.create_context(
+            BrowserType.COURSE_CERTIFICATION,
+            viewport={'width': 1920, 'height': 1080},
+            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
+        )
+        page = context.new_page()
+        print("✅ 已创建课程认证浏览器上下文和页面")
+
+    return context, page
 
 
 def import_question_bank(file_path: str) -> bool:
@@ -127,66 +166,16 @@ def hello_world():
 
 
 def close_browser():
-    """关闭全局浏览器实例"""
-    global _global_browser, _global_page, _global_playwright
-
-    # 尝试多种方法关闭浏览器
-    success = False
-
-    # 方法1: 逐个关闭所有 pages 和 contexts
-    if _global_browser:
-        try:
-            # 获取所有 contexts
-            contexts = list(_global_browser.contexts)
-            for context in contexts:
-                try:
-                    # 获取所有 pages
-                    pages = list(context.pages)
-                    for page in pages:
-                        try:
-                            page.close()
-                        except:
-                            pass
-                    context.close()
-                except:
-                    pass
-        except:
-            pass
-
-    # 方法2: 关闭全局 page
-    if _global_page:
-        try:
-            _global_page.close()
-            print("✅ Page 已关闭")
-            success = True
-        except Exception as e:
-            pass
-
-    # 方法3: 关闭 browser
-    if _global_browser:
-        try:
-            _global_browser.close()
-            print("✅ Browser 已关闭")
-            success = True
-        except Exception as e:
-            print(f"⚠️ Browser.close() 失败: {e}")
-
-    # 方法4: 停止 playwright
-    if _global_playwright:
-        try:
-            _global_playwright.stop()
-            print("✅ Playwright 已停止")
-            success = True
-        except Exception as e:
-            print(f"⚠️ Playwright.stop() 失败: {e}")
-
-    # 清空全局变量
-    _global_browser = None
-    _global_page = None
-    _global_playwright = None
-
-    if not success:
-        print("⚠️ 部分浏览器资源可能未完全释放，但已清空引用")
+    """
+    关闭课程认证浏览器上下文
+    注意：这只关闭课程认证上下文，不会关闭整个浏览器（可能还有其他模块在使用）
+    """
+    try:
+        manager = _get_browser_manager()
+        manager.cleanup_type(BrowserType.COURSE_CERTIFICATION)
+        print("✅ 课程认证浏览器上下文已关闭")
+    except Exception as e:
+        print(f"⚠️ 关闭浏览器时发生错误: {str(e)}")
 
 
 def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False) -> Optional[tuple]:
@@ -198,11 +187,9 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
         skip_prompt: 是否跳过交互式提示（GUI模式下使用，自动使用已保存的账号）
 
     Returns:
-        Optional[tuple]: (access_token, browser, page, playwright_instance) 如果成功
-                         如果 keep_browser_open=False，browser 和 page 为 None
+        Optional[tuple]: (access_token, page) 如果成功
+                         如果 keep_browser_open=False，page 为 None
     """
-    global _global_browser, _global_page, _global_playwright
-
     try:
         print("正在启动浏览器进行课程认证登录...")
 
@@ -252,19 +239,24 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
             print("❌ 用户名或密码不能为空")
             return None
 
-        # 启动playwright
-        p = sync_playwright().start()
-        browser = p.chromium.launch(headless=False)
+        # 使用浏览器管理器
+        manager = _get_browser_manager()
+        manager.start_browser(headless=False)  # 启动浏览器（如果尚未启动）
 
-        try:
-            context = browser.new_context(
+        # 获取或创建课程认证上下文
+        context = manager.get_context(BrowserType.COURSE_CERTIFICATION)
+        if context is None:
+            context = manager.create_context(
+                BrowserType.COURSE_CERTIFICATION,
                 viewport={'width': 1920, 'height': 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
             )
 
-            page = context.new_page()
-            captured_data = None
+        # 创建页面
+        page = context.new_page()
+        captured_data = None
 
+        try:
             def handle_response(response):
                 nonlocal captured_data
                 if 'token' in response.url:
@@ -313,29 +305,24 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                 print(f"有效期: 5小时 (18000秒)")
                 print("=" * 50)
 
-                if keep_browser_open:
-                    # 保存到全局变量
-                    _global_browser = browser
-                    _global_page = page
-                    _global_playwright = p
-                    print("\n💡 浏览器保持打开状态，用于后续操作")
-                    return (access_token, browser, page, p)
+                if not keep_browser_open:
+                    # 关闭页面但保留上下文
+                    try:
+                        page.close()
+                    except:
+                        pass
+                    return (access_token, None)
                 else:
-                    browser.close()
-                    p.stop()
-                    return (access_token, None, None, None)
+                    # 返回页面供后续使用
+                    return (access_token, page)
             else:
                 print("❌ 未能在响应中捕获到 access_token")
                 if captured_data:
                     print(f"响应内容: {captured_data}")
-                browser.close()
-                p.stop()
                 return None
 
         except Exception as e:
             print(f"❌ 登录过程异常：{str(e)}")
-            browser.close()
-            p.stop()
             return None
 
     except Exception as e:
@@ -350,8 +337,6 @@ def start_answering():
     开始做题功能
     登录并获取课程列表
     """
-    global _global_browser, _global_page, _global_playwright
-
     try:
         print("\n" + "=" * 60)
         print("🎓 课程认证 - 开始做题")
@@ -365,7 +350,7 @@ def start_answering():
             print("\n❌ 登录失败，无法继续")
             return
 
-        access_token, browser, page, p = result
+        access_token, page = result
 
         print("\n步骤 2/2: 正在获取课程列表...")
 
