@@ -932,7 +932,7 @@ class SettingsView:
                 bgcolor=ft.Colors.GREEN,
                 duration=3000,
             )
-            self.page.show_snack_bar(success_snack)
+            self.page.show_dialog(success_snack)
 
         except Exception as ex:
             self.page.pop_dialog()
@@ -948,7 +948,7 @@ class SettingsView:
                 bgcolor=ft.Colors.RED,
                 duration=3000,
             )
-            self.page.show_snack_bar(error_snack)
+            self.page.show_dialog(error_snack)
 
     def _refresh_settings_display(self):
         """刷新设置显示"""
