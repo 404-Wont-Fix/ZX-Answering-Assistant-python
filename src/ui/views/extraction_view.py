@@ -1048,10 +1048,10 @@ class ExtractionView:
                         try:
                             # 使用系统命令直接复制到剪贴板（无需 tkinter）
                             if os.name == 'nt':  # Windows
-                                # Windows 使用 clip 命令（需要 UTF-16 编码）
+                                # Windows 使用 clip 命令（使用 utf-16-le 编码，不添加BOM）
                                 subprocess.run(
                                     ['clip'],
-                                    input=abs_file_path.encode('utf-16'),
+                                    input=abs_file_path.encode('utf-16-le'),
                                     check=True,
                                     creationflags=subprocess.CREATE_NO_WINDOW
                                 )
