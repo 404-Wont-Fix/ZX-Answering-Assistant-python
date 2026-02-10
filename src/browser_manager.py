@@ -9,14 +9,17 @@
 - 每个模块拥有独立的浏览器上下文（BrowserContext）
 - 上下文之间完全隔离（Cookie、Session、LocalStorage）
 - 支持 AsyncIO 环境（Flet GUI 兼容）
+- 所有 Playwright 操作在专用工作线程中执行，避免 greenlet 线程切换问题
 """
 
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
-from typing import Optional, Dict, Tuple
+from typing import Optional, Dict, Tuple, Callable, Any
 from enum import Enum
 import threading
 import logging
 import asyncio
+import queue
+import concurrent.futures
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +39,7 @@ class BrowserManager:
     1. 整个应用只有一个浏览器实例
     2. 每个模块有独立的上下文，互不干扰
     3. 支持 AsyncIO 环境下的兼容性
+    4. 所有 Playwright 操作在专用工作线程中执行
     """
 
     _instance = None
@@ -57,6 +61,12 @@ class BrowserManager:
             self._contexts: Dict[BrowserType, BrowserContext] = {}
             self._pages: Dict[BrowserType, Page] = {}
             self._headless = False
+            self._worker_thread = None
+            self._task_queue = queue.Queue()
+            self._result_futures = {}
+            self._task_id = 0
+            self._task_id_lock = threading.Lock()
+            self._thread_local = threading.local()
             self.initialized = True
             logger.info("浏览器管理器初始化完成")
 
@@ -290,6 +300,100 @@ class BrowserManager:
 
         logger.info("浏览器资源已完全清理")
 
+    def _ensure_worker_thread(self):
+        """确保工作线程已启动"""
+        if self._worker_thread is None or not self._worker_thread.is_alive():
+            logger.info("启动 Playwright 工作线程")
+            self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+            self._worker_thread.start()
+            logger.info("Playwright 工作线程已启动")
+
+    def _worker_loop(self):
+        """工作线程的主循环，处理任务队列"""
+        worker_thread_id = threading.get_ident()
+        logger.info(f"Playwright 工作线程开始运行，线程ID: {worker_thread_id}")
+        # 标记这是工作线程
+        self._thread_local.is_worker = True
+
+        while True:
+            try:
+                # 从队列获取任务，超时1秒
+                try:
+                    task_id, func, args, kwargs = self._task_queue.get(timeout=1.0)
+                    logger.info(f"[工作线程 {worker_thread_id}] 收到任务 {task_id}: {func.__name__}")
+                except queue.Empty:
+                    continue
+
+                # 执行任务
+                try:
+                    logger.debug(f"[工作线程] 开始执行任务 {task_id}")
+                    result = func(*args, **kwargs)
+                    logger.debug(f"[工作线程] 任务 {task_id} 执行成功")
+                    # 将结果保存到 Future
+                    if task_id in self._result_futures:
+                        future = self._result_futures[task_id]
+                        if not future.done():
+                            future.set_result(result)
+                        del self._result_futures[task_id]
+                except Exception as e:
+                    logger.error(f"任务 {task_id} 执行失败: {e}", exc_info=True)
+                    if task_id in self._result_futures:
+                        future = self._result_futures[task_id]
+                        if not future.done():
+                            future.set_exception(e)
+                        del self._result_futures[task_id]
+
+                self._task_queue.task_done()
+
+            except Exception as e:
+                logger.error(f"工作线程主循环异常: {e}", exc_info=True)
+
+    def submit_task(self, func: Callable, *args, **kwargs) -> Any:
+        """
+        提交任务到工作线程执行
+
+        Args:
+            func: 要执行的函数
+            *args: 位置参数
+            **kwargs: 关键字参数
+
+        Returns:
+            函数的返回值
+        """
+        self._ensure_worker_thread()
+
+        # 检查是否已经在工作线程中
+        is_worker = getattr(self._thread_local, 'is_worker', False)
+        logger.debug(f"submit_task: 是否在工作线程中? {is_worker}, 当前线程ID: {threading.get_ident()}")
+
+        if is_worker:
+            # 已经在工作线程中，直接执行
+            logger.debug("已在工作线程中，直接执行任务")
+            return func(*args, **kwargs)
+
+        # 生成任务ID
+        with self._task_id_lock:
+            task_id = self._task_id
+            self._task_id += 1
+
+        logger.debug(f"提交任务 {task_id} 到工作线程队列，函数: {func.__name__}")
+
+        # 创建 Future 用于获取结果
+        future = concurrent.futures.Future()
+        self._result_futures[task_id] = future
+
+        # 提交任务到队列
+        self._task_queue.put((task_id, func, args, kwargs))
+
+        # 等待结果
+        try:
+            result = future.result(timeout=300)  # 最多等待5分钟
+            logger.debug(f"任务 {task_id} 完成")
+            return result
+        except concurrent.futures.TimeoutError:
+            logger.error(f"任务 {task_id} 超时")
+            raise TimeoutError(f"任务执行超时: {func.__name__}")
+
     def is_browser_alive(self) -> bool:
         """
         检查浏览器是否存活
@@ -425,8 +529,8 @@ def is_context_alive(browser_type: BrowserType) -> bool:
 
 def run_in_thread_if_asyncio(func, *args, **kwargs):
     """
-    如果当前在 AsyncIO 环境中，在新线程中执行函数
-    用于兼容 Flet GUI 的 AsyncIO 环境
+    始终在工作线程中执行函数，避免 greenlet 线程切换问题
+    确保 Playwright 操作都在同一个工作线程中执行
 
     Args:
         func: 要执行的函数
@@ -436,33 +540,7 @@ def run_in_thread_if_asyncio(func, *args, **kwargs):
     Returns:
         函数的返回值
     """
-    try:
-        asyncio.get_running_loop()
-        # 检测到 asyncio 环境，使用新线程
-        logger.debug("检测到 asyncio 环境，在新线程中执行")
-
-        result = [None]
-        exception = [None]
-
-        def run_in_new_loop():
-            try:
-                new_loop = asyncio.new_event_loop()
-                asyncio.set_event_loop(new_loop)
-                result[0] = func(*args, **kwargs)
-            except Exception as e:
-                exception[0] = e
-            finally:
-                new_loop.close()
-
-        thread = threading.Thread(target=run_in_new_loop)
-        thread.start()
-        thread.join()
-
-        if exception[0]:
-            raise exception[0]
-
-        return result[0]
-
-    except RuntimeError:
-        # 没有 asyncio 事件循环，直接执行
-        return func(*args, **kwargs)
+    # 强制使用 BrowserManager 的工作线程
+    # 这样可以确保所有 Playwright 操作都在同一个线程中执行
+    manager = get_browser_manager()
+    return manager.submit_task(func, *args, **kwargs)

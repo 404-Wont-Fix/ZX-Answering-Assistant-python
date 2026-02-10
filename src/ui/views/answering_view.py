@@ -1659,13 +1659,12 @@ class AnsweringView:
                     time.sleep(1)
 
                     try:
-                        from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-                        try:
-                            auto_answer.page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                        has_next = auto_answer.has_next_knowledge()
+                        if has_next:
                             # 找到了，可以继续
                             self._append_log(f"\n✅ 检测到下一个知识点，继续...\n")
                             continue
-                        except PlaywrightTimeoutError:
+                        else:
                             # 没找到，说明所有知识点都完成了
                             self._append_log("\n✅ 所有知识点已完成！\n")
                             break

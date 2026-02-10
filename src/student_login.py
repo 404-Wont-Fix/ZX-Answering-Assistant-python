@@ -197,8 +197,9 @@ def _get_student_access_token_impl(username: str = None, password: str = None, k
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
             )
 
-        # 创建页面
-        page = context.new_page()
+        # 创建页面并保存到 browser_manager
+        page = manager.create_page(BrowserType.STUDENT)
+        logger.debug("学生端页面已创建并保存到浏览器管理器")
 
         try:
             # 设置请求拦截器，监听网络请求
@@ -370,8 +371,19 @@ def get_browser_page() -> Optional[Tuple[Browser, Page]]:
     Returns:
         Optional[Tuple[Browser, Page]]: 浏览器和页面的元组，如果不存在则返回None
     """
+    # 使用浏览器管理器的 AsyncIO 兼容函数
+    return run_in_thread_if_asyncio(_get_browser_page_impl)
+
+
+def _get_browser_page_impl() -> Optional[Tuple[Browser, Page]]:
+    """
+    获取浏览器页面的实际实现（内部方法）
+
+    Returns:
+        Optional[Tuple[Browser, Page]]: 浏览器和页面的元组，如果不存在则返回None
+    """
     # 检查浏览器是否存活
-    if not is_browser_alive():
+    if not ensure_browser_alive():
         logger.warning("⚠️ 浏览器已挂掉，已自动清理")
         return None
 
@@ -388,6 +400,17 @@ def get_access_token_from_browser() -> Optional[str]:
     """
     从已登录的浏览器中提取access_token
     通过刷新页面并监听/connect/token API来获取
+
+    Returns:
+        Optional[str]: 提取到的access_token，如果失败则返回None
+    """
+    # 使用浏览器管理器的 AsyncIO 兼容函数
+    return run_in_thread_if_asyncio(_get_access_token_from_browser_impl)
+
+
+def _get_access_token_from_browser_impl() -> Optional[str]:
+    """
+    从浏览器中提取access_token的实际实现（内部方法）
 
     Returns:
         Optional[str]: 提取到的access_token，如果失败则返回None
@@ -487,6 +510,20 @@ def navigate_to_course(course_id: str) -> bool:
     """
     使用已登录的浏览器导航到指定课程的答题页面
     如果浏览器已挂掉，自动清理并返回False
+
+    Args:
+        course_id: 课程ID
+
+    Returns:
+        bool: 成功返回True，失败返回False
+    """
+    # 使用浏览器管理器的 AsyncIO 兼容函数
+    return run_in_thread_if_asyncio(_navigate_to_course_impl, course_id)
+
+
+def _navigate_to_course_impl(course_id: str) -> bool:
+    """
+    导航到课程页面的实际实现（内部方法）
 
     Args:
         course_id: 课程ID
@@ -659,6 +696,17 @@ def get_course_progress_from_page() -> Optional[Dict]:
                 'progress_percentage': float  # 完成百分比
             }
             如果失败则返回None
+    """
+    # 使用浏览器管理器的 AsyncIO 兼容函数
+    return run_in_thread_if_asyncio(_get_course_progress_from_page_impl)
+
+
+def _get_course_progress_from_page_impl() -> Optional[Dict]:
+    """
+    从当前页面解析课程进度信息的实际实现（内部方法）
+
+    Returns:
+        Optional[Dict]: 包含进度信息的字典
     """
     try:
         # 检查浏览器是否存活

@@ -694,14 +694,13 @@ def show_answer_menu(course_info: dict) -> bool:
                         time.sleep(1)  # 等待跳转
 
                         try:
-                            # 尝试查找开始测评按钮
-                            from playwright.sync_api import TimeoutError as PlaywrightTimeoutError
-                            try:
-                                auto_answer.page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                            # 尝试查找开始测评按钮（使用线程安全的方法）
+                            has_next = auto_answer.has_next_knowledge()
+                            if has_next:
                                 # 找到了，可以继续
                                 print("✅ 检测到下一个知识点，继续做题...")
                                 continue
-                            except PlaywrightTimeoutError:
+                            else:
                                 # 没找到，说明所有知识点都完成了
                                 print("\n" + "=" * 50)
                                 print("✅ 所有知识点已完成！")
