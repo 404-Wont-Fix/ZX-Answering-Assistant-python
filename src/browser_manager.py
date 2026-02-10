@@ -60,21 +60,36 @@ class BrowserManager:
             self.initialized = True
             logger.info("浏览器管理器初始化完成")
 
-    def start_browser(self, headless: bool = False) -> Browser:
+    def start_browser(self, headless: bool = None) -> Browser:
         """
         启动浏览器实例（单例）
 
         Args:
-            headless: 是否无头模式，默认 False（显示浏览器窗口）
+            headless: 是否无头模式，默认从设置读取
+                     如果不指定，则使用配置文件中的设置
 
         Returns:
             Browser: 浏览器实例
         """
         if self._browser is None:
+            # 如果没有指定 headless 参数，从配置文件读取
+            if headless is None:
+                try:
+                    from src.settings import get_settings_manager
+                    settings = get_settings_manager()
+                    headless = settings.get_browser_headless()
+                    logger.info(f"从配置文件读取无头模式设置: headless={headless}")
+                except Exception:
+                    headless = False  # 默认显示浏览器
+                    logger.debug("无法读取配置文件，使用默认设置（显示浏览器）")
+
             self._headless = headless
             self._playwright = sync_playwright().start()
             self._browser = self._playwright.chromium.launch(headless=headless)
-            logger.info(f"浏览器已启动 (headless={headless})")
+
+            mode_str = "无头模式（隐藏浏览器）" if headless else "有头模式（显示浏览器）"
+            logger.info(f"浏览器已启动 - {mode_str}")
+
         return self._browser
 
     def get_browser(self) -> Optional[Browser]:
@@ -182,19 +197,39 @@ class BrowserManager:
         Args:
             browser_type: 浏览器类型
         """
+        # 先关闭页面
         if browser_type in self._pages:
             try:
                 self._pages[browser_type].close()
+                logger.debug(f"页面已关闭 ({browser_type.value})")
             except Exception as e:
-                logger.warning(f"关闭页面失败 ({browser_type.value}): {e}")
-            del self._pages[browser_type]
+                # 忽略 EPIPE 错误
+                if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                    logger.warning(f"关闭页面失败 ({browser_type.value}): {e}")
+            finally:
+                # 无论是否成功，都从字典中移除
+                self._pages[browser_type] = None
+                del self._pages[browser_type]
 
+        # 再关闭上下文
         if browser_type in self._contexts:
             try:
+                # 尝试先移除所有监听器
+                try:
+                    self._contexts[browser_type]._impl_obj._channels = []
+                except Exception:
+                    pass
+
                 self._contexts[browser_type].close()
+                logger.debug(f"上下文已关闭 ({browser_type.value})")
             except Exception as e:
-                logger.warning(f"关闭上下文失败 ({browser_type.value}): {e}")
-            del self._contexts[browser_type]
+                # 忽略 EPIPE 错误
+                if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                    logger.warning(f"关闭上下文失败 ({browser_type.value}): {e}")
+            finally:
+                # 无论是否成功，都从字典中移除
+                self._contexts[browser_type] = None
+                del self._contexts[browser_type]
 
         logger.info(f"已关闭 {browser_type.value} 上下文")
 
@@ -205,24 +240,55 @@ class BrowserManager:
         logger.info("已关闭所有上下文")
 
     def close_browser(self):
-        """关闭浏览器和 Playwright 实例"""
+        """
+        关闭浏览器和 Playwright 实例
+
+        注意：此方法会尝试优雅地关闭所有资源。
+        如果遇到 greenlet 线程切换错误，会强制清理引用。
+        """
+        # 先关闭所有上下文和页面
         self.close_all_contexts()
 
+        # 关闭浏览器
         if self._browser:
             try:
-                self._browser.close()
-            except Exception as e:
-                logger.warning(f"关闭浏览器失败: {e}")
-            self._browser = None
+                # 先移除所有监听器，避免关闭时触发事件
+                self._browser._impl_obj._channels = []
+            except Exception:
+                pass
 
+            try:
+                self._browser.close()
+                logger.info("浏览器已关闭")
+            except Exception as e:
+                # 检查是否是 greenlet 线程切换错误
+                if "greenlet" in str(e) or "Cannot switch" in str(e):
+                    logger.warning("检测到 greenlet 线程切换错误，强制清理浏览器引用")
+                # 忽略 EPIPE 和连接错误
+                elif "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                    logger.warning(f"关闭浏览器失败: {e}")
+                # 对于 greenlet 错误，继续执行清理
+            finally:
+                # 无论是否成功，都清理引用
+                self._browser = None
+
+        # 停止 Playwright
         if self._playwright:
             try:
                 self._playwright.stop()
+                logger.info("Playwright 已停止")
             except Exception as e:
-                logger.warning(f"停止 Playwright 失败: {e}")
-            self._playwright = None
+                # 检查是否是 greenlet 线程切换错误
+                if "greenlet" in str(e) or "Cannot switch" in str(e):
+                    logger.warning("检测到 greenlet 线程切换错误，强制清理 Playwright 引用")
+                # 忽略 EPIPE 和连接错误
+                elif "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                    logger.warning(f"停止 Playwright 失败: {e}")
+            finally:
+                # 无论是否成功，都清理引用
+                self._playwright = None
 
-        logger.info("浏览器已完全关闭")
+        logger.info("浏览器资源已完全清理")
 
     def is_browser_alive(self) -> bool:
         """

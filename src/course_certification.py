@@ -13,6 +13,7 @@ from playwright.sync_api import Page
 from typing import Optional, List, Dict
 import time
 import requests
+import logging
 from src.api_client import get_api_client
 from src.course_api_answer import APICourseAnswer
 
@@ -22,6 +23,9 @@ from src.browser_manager import (
     BrowserType,
     run_in_thread_if_asyncio
 )
+
+# 配置日志
+logger = logging.getLogger(__name__)
 
 # 全局变量，保存导入的题库
 _global_question_bank = None
@@ -191,6 +195,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                          如果 keep_browser_open=False，page 为 None
     """
     try:
+        logger.info("正在启动浏览器进行课程认证登录...")
         print("正在启动浏览器进行课程认证登录...")
 
         # 尝试从配置文件读取凭据
@@ -201,10 +206,12 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
 
             if config_username and config_password:
                 print("\n💡 检测到已保存的教师端账号")
+                logger.info("检测到已保存的教师端账号")
 
                 # 如果跳过提示（GUI模式），直接使用已保存的账号
                 if skip_prompt:
                     print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                    logger.info(f"使用已保存的账号: {config_username[:3]}****")
                     username = config_username
                     password = config_password
                 else:
@@ -213,6 +220,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
 
                     if use_saved in ['', 'yes', 'y', '是']:
                         print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                        logger.info(f"使用已保存的账号: {config_username[:3]}****")
                         username = config_username
                         password = config_password
                     else:
@@ -223,6 +231,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                 # 没有已保存的账号
                 if skip_prompt:
                     print("❌ 未找到已保存的教师端账号")
+                    logger.warning("未找到已保存的教师端账号")
                     return None
                 else:
                     username = input("请输入课程认证账户：").strip()
@@ -230,6 +239,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
         except Exception:
             if skip_prompt:
                 print("❌ 读取配置文件失败")
+                logger.error("读取配置文件失败")
                 return None
             else:
                 username = input("请输入课程认证账户：").strip()
@@ -237,13 +247,19 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
 
         if not username or not password:
             print("❌ 用户名或密码不能为空")
+            logger.error("用户名或密码不能为空")
             return None
+
+        logger.info(f"使用账户: {username}")
 
         # 使用浏览器管理器
         manager = _get_browser_manager()
-        manager.start_browser(headless=False)  # 启动浏览器（如果尚未启动）
+        logger.info("正在启动浏览器...")
+        manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
+        logger.info("浏览器已启动")
 
         # 获取或创建课程认证上下文
+        logger.info("正在创建课程认证浏览器上下文...")
         context = manager.get_context(BrowserType.COURSE_CERTIFICATION)
         if context is None:
             context = manager.create_context(
@@ -251,8 +267,12 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                 viewport={'width': 1920, 'height': 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
             )
+            logger.info("课程认证浏览器上下文已创建")
+        else:
+            logger.info("使用已存在的课程认证浏览器上下文")
 
         # 创建页面
+        logger.info("正在创建新页面...")
         page = context.new_page()
         captured_data = None
 
@@ -260,43 +280,56 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
             def handle_response(response):
                 nonlocal captured_data
                 if 'token' in response.url:
+                    logger.info(f"捕获到 token 响应: {response.url}")
                     print(f"🔍 捕获到 token 响应")
                     try:
                         data = response.json()
                         captured_data = data
+                        logger.info("成功捕获响应数据")
                         print(f"✅ 成功捕获响应数据")
                     except Exception as e:
+                        logger.error(f"解析响应失败: {e}")
                         print(f"解析失败: {e}")
 
             page.on('response', handle_response)
 
             login_url = "https://zxsz.cqzuxia.com/#/login/index"
+            logger.info(f"正在访问登录页面: {login_url}")
             print(f"正在打开登录页面: {login_url}")
             page.goto(login_url)
 
+            logger.info("等待登录表单加载...")
             print("等待登录表单加载...")
             page.wait_for_selector("input[placeholder='登录账号']", timeout=10000)
+            logger.info("登录表单加载完成")
 
+            logger.info(f"正在填写账户: {username}")
             print(f"正在填写账户: {username}")
             page.fill("input[placeholder='登录账号']", username)
 
+            logger.info("正在填写密码...")
             print("正在填写密码")
             page.fill("input[placeholder='登录密码']", password)
 
+            logger.info("点击登录按钮...")
             print("正在点击登录按钮...")
             page.click(".lic-clf-loginbut")
 
+            logger.info("等待登录成功...")
             print("等待登录成功...")
             try:
                 page.wait_for_url("**/home", timeout=15000)
+                logger.info("页面已跳转到 home，登录成功")
                 print("✅ 页面已跳转到 home，登录成功")
                 time.sleep(1)
             except Exception as e:
+                logger.warning(f"等待页面跳转超时: {e}")
                 print(f"⚠️ 等待页面跳转超时: {e}")
                 print("继续检查是否捕获到 token...")
 
             if captured_data and 'access_token' in captured_data:
                 access_token = captured_data['access_token']
+                logger.info(f"成功获取 access_token: {access_token[:20]}...")
                 print("\n" + "=" * 50)
                 print("✅ 登录成功！")
                 print("=" * 50)
@@ -309,23 +342,29 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                     # 关闭页面但保留上下文
                     try:
                         page.close()
+                        logger.info("页面已关闭")
                     except:
                         pass
                     return (access_token, None)
                 else:
                     # 返回页面供后续使用
+                    logger.info("浏览器保持打开状态")
                     return (access_token, page)
             else:
+                logger.error("未能在响应中捕获到 access_token")
                 print("❌ 未能在响应中捕获到 access_token")
                 if captured_data:
+                    logger.warning(f"响应内容: {captured_data}")
                     print(f"响应内容: {captured_data}")
                 return None
 
         except Exception as e:
+            logger.error(f"登录过程异常：{str(e)}")
             print(f"❌ 登录过程异常：{str(e)}")
             return None
 
     except Exception as e:
+        logger.error(f"Playwright登录异常：{str(e)}")
         print(f"❌ Playwright登录异常：{str(e)}")
         import traceback
         traceback.print_exc()

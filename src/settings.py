@@ -108,6 +108,9 @@ class SettingsManager:
             "api_settings": {
                 "max_retries": 3,
                 "rate_level": "medium"
+            },
+            "browser_settings": {
+                "headless": False  # 默认显示浏览器窗口（无头模式关闭）
             }
         }
 
@@ -270,6 +273,52 @@ class SettingsManager:
 
         return self._save_config(self.config)
 
+    # ========================================================================
+    # 浏览器设置相关方法
+    # ========================================================================
+
+    def get_browser_headless(self) -> bool:
+        """
+        获取浏览器无头模式设置
+
+        Returns:
+            bool: True 表示无头模式（隐藏浏览器），False 表示显示浏览器
+        """
+        return self.config.get("browser_settings", {}).get("headless", False)
+
+    def set_browser_headless(self, headless: bool) -> bool:
+        """
+        设置浏览器无头模式
+
+        Args:
+            headless: True 为无头模式（隐藏浏览器），False 为显示浏览器
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if not isinstance(headless, bool):
+            print("❌ 无头模式设置必须是布尔值")
+            return False
+
+        if "browser_settings" not in self.config:
+            self.config["browser_settings"] = {}
+
+        self.config["browser_settings"]["headless"] = headless
+
+        return self._save_config(self.config)
+
+    def toggle_browser_headless(self) -> bool:
+        """
+        切换浏览器无头模式
+
+        Returns:
+            bool: 切换后的值
+        """
+        current = self.get_browser_headless()
+        new_value = not current
+        self.set_browser_headless(new_value)
+        return new_value
+
     def display_current_settings(self):
         """显示当前设置"""
         print("\n" + "=" * 50)
@@ -306,6 +355,11 @@ class SettingsManager:
         print(f"\n⚙️ API设置:")
         print(f"   请求速率: {rate_level.get_display_name()}")
         print(f"   最大重试次数: {max_retries}")
+
+        # 浏览器设置
+        headless = self.get_browser_headless()
+        print(f"\n🌐 浏览器设置:")
+        print(f"   无头模式: {'✅ 开启（隐藏浏览器）' if headless else '❌ 关闭（显示浏览器）'}")
 
         print("\n" + "=" * 50)
 

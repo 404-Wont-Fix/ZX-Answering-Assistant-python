@@ -12,6 +12,7 @@ from pathlib import Path
 import subprocess
 import os
 import argparse
+import atexit
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent
@@ -44,6 +45,57 @@ def setup_playwright_browser():
             print("✅ 使用系统浏览器")
     except Exception as e:
         print(f"⚠️ 设置浏览器路径失败: {e}")
+
+
+# 注册退出时的清理函数
+def cleanup_on_exit():
+    """
+    程序退出时的清理函数
+
+    由 atexit 自动调用，确保所有浏览器资源被正确释放
+    避免 Node.js 进程挂起
+    """
+    try:
+        # 尝试使用浏览器管理器清理
+        from src.browser_manager import get_browser_manager
+        manager = get_browser_manager()
+        if manager._browser is not None:
+            print("🔄 [atexit] 正在清理浏览器资源...")
+            manager.close_browser()
+            print("✅ [atexit] 浏览器资源已清理")
+    except Exception as e:
+        print(f"⚠️ [atexit] 清理浏览器时出错: {e}")
+
+    # 强制终止残留的 Node.js 进程
+    try:
+        import psutil
+        current_pid = os.getpid()
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'ppid']):
+            try:
+                # 查找 Playwright Node.js driver 进程
+                if proc.info['name'] and 'node.exe' in proc.info['name'].lower():
+                    # 检查是否是当前进程的子进程
+                    if proc.info['ppid'] == current_pid:
+                        # 检查命令行中是否包含 playwright
+                        cmdline = proc.info['cmdline']
+                        if cmdline and any('playwright' in str(cmd).lower() for cmd in cmdline):
+                            print(f"🔄 [atexit] 终止残留的 Node.js 进程 (PID: {proc.info['pid']})...")
+                            proc.terminate()
+                            print("✅ [atexit] Node.js 进程已终止")
+            except (psutil.NoSuchProcess, psutil.AccessDenied):
+                pass
+    except ImportError:
+        # psutil 未安装，跳过强制终止
+        pass
+    except Exception as e:
+        # 忽略其他错误
+        pass
+
+
+def register_cleanup_handlers():
+    """注册程序退出时的清理处理器"""
+    # 注册 atexit 处理器（在程序正常退出时调用）
+    atexit.register(cleanup_on_exit)
 
 
 def setup_flet_executable():
@@ -1161,6 +1213,9 @@ def parse_arguments():
 if __name__ == "__main__":
     # 解析命令行参数
     args = parse_arguments()
+
+    # 注册退出清理处理器（所有模式都需要）
+    register_cleanup_handlers()
 
     # 决定使用哪种模式
     if args.cli:

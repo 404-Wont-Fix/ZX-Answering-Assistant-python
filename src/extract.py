@@ -69,9 +69,19 @@ class Extractor:
             except RuntimeError:
                 has_loop = False
             
+            # 从配置文件读取无头模式设置
+            try:
+                from src.settings import get_settings_manager
+                settings = get_settings_manager()
+                headless = settings.get_browser_headless()
+                print(f"💡 从配置文件读取无头模式设置: headless={headless}")
+            except Exception:
+                headless = False  # 默认显示浏览器
+                print("⚠️ 无法读取配置文件，使用默认设置（显示浏览器）")
+
             # 使用playwright启动浏览器
             self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=False)
+            self.browser = self.playwright.chromium.launch(headless=headless)
             
             # 创建浏览器上下文
             self.context = self.browser.new_context(

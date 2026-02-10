@@ -78,10 +78,16 @@ class MainApp:
         print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
-        """窗口关闭时的清理函数"""
+        """
+        窗口关闭时的清理函数
+
+        注意：不在此时直接关闭浏览器，避免 greenlet 线程切换问题
+        atexit 处理器会负责清理
+        """
         print("🔄 正在关闭窗口...")
-        # 不在窗口关闭时清理浏览器，让 main.py 的 finally 块处理
-        # 这样可以避免跨线程问题
+        print("💡 浏览器资源将在程序退出时自动清理")
+        # 不在这里关闭浏览器，避免 greenlet 线程切换错误
+        # atexit 处理器会在 Python 退出时自动清理
 
     def _build_ui(self):
         """构建用户界面"""

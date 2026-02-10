@@ -186,7 +186,7 @@ def _get_student_access_token_impl(username: str = None, password: str = None, k
 
         # 使用浏览器管理器
         manager = _get_browser_manager()
-        manager.start_browser(headless=False)  # 启动浏览器（如果尚未启动）
+        manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
 
         # 获取或创建学生端上下文
         context = manager.get_context(BrowserType.STUDENT)
