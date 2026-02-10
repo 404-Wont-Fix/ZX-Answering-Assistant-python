@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)]())
-[![Version](https://img.shields.io/badge/Version-v2.2.0-green)]()
+[![Version](https://img.shields.io/badge/Version-v2.3.0-green)]()
 
 一个基于 Playwright 的自动化答题系统，支持 **GUI 图形界面** 和 **CLI 命令行** 两种交互方式，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
@@ -41,7 +41,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 - **双界面支持**：现代化 GUI 界面（Flet）+ 传统 CLI 命令行
 - **双模式支持**：浏览器兼容模式 + API 暴力模式
 - **双端支持**：学生端答题 + 教师端答案提取
-- **智能速率控制**：可配置的 API 请求速率限制（50ms-3秒）
+- **智能速率控制**：可配置的 API 请求速率限制（1000ms-5000ms）
 - **自动重试**：网络错误自动重试机制（最多3次）
 - **优雅退出**：按 Q 键随时停止，等待当前题目/知识点完成
 - **进度监控**：实时显示答题进度和统计信息
@@ -474,11 +474,12 @@ CLI 模式支持通过配置文件管理账号密码和 API 设置，首次运�
 
 **API 设置**
 - **请求速率级别**：控制 API 请求之间的延迟
-  - `low` - 50ms（快速，适合无限制的 API）
-  - `medium` - 1秒（默认，平衡速度和稳定性）
-  - `medium_high` - 2秒（较保守）
-  - `high` - 3秒（最保守，适合严格限制的 API）
+  - `low` - 1000ms（快速，适合无限制的 API）
+  - `medium` - 2000ms（适中速率限制）
+  - `medium_high` - 3000ms（严格速率限制）
+  - `high` - 5000ms（默认，最保守，适合严格限制的 API）
 - **最大重试次数**：网络错误时的重试次数（默认 3 次）
+- **浏览器无头模式**：是否隐藏浏览器窗口（默认关闭）
 
 #### 配置文件示例
 
@@ -496,16 +497,20 @@ CLI 模式支持通过配置文件管理账号密码和 API 设置，首次运�
   },
   "api_settings": {
     "max_retries": 3,
-    "rate_level": "medium"
+    "rate_level": "high"
+  },
+  "browser_settings": {
+    "headless": false
   }
 }
 ```
 
 #### 速率级别选择建议
 
-- **API 无速率限制**：选择 `low`（50ms）- 最大化速度
-- **API 有轻微限制**：选择 `medium`（1秒）- 默认推荐
-- **API 限制较严**：选择 `medium_high`（2秒）或 `high`（3秒）
+- **API 无速率限制**：选择 `low`（1000ms）- 最大化速度
+- **API 有轻微限制**：选择 `medium`（2000ms）
+- **API 有中等限制**：选择 `medium_high`（3000ms）
+- **API 限制较严**：选择 `high`（5000ms）- 默认推荐
 
 ---
 
@@ -710,7 +715,6 @@ ZX-Answering-Assistant-python/
 │       ├── __init__.py
 │       └── flet_handler.py         # Flet 可执行文件处理
 ├── logs/                          # 日志文件
-├── tests/                         # 测试代码
 ├── venv/                          # 虚拟环境（不提交）
 ├── main.py                        # 主程序入口
 ├── src/main_gui.py                # GUI 主程序
@@ -766,11 +770,23 @@ ZX-Answering-Assistant-python/
 
 ### 版本信息
 
-当前版本：**v2.2.0**
+当前版本：**v2.3.0**
 
 ### 主要版本更新
 
-**v2.2.0** (最新) - 浏览器健壮性与打包优化版本
+**v2.3.0** (最新) - 界面优化与设置重构版本
+- **GUI 设置重构**：将浏览器无头模式设置从 API 设置中独立出来，新增"浏览器设置"分类
+- **API 速率优化**：调整速率级别延迟时间，更好地适配服务器负载能力
+  - 低：1000ms（原 50ms）
+  - 中：2000ms（原 1秒）
+  - 中高：3000ms（原 2秒）
+  - 高：5000ms（原 3秒，设为默认）
+- **默认配置更新**：API 速率默认设为"高"（5000ms），无头模式默认关闭
+- **界面说明优化**：优化评估答题、答案提取、课程认证三个模块的首页说明文字
+- **Flet API 兼容**：修复 `show_snack_bar` 废弃 API，改用 `show_dialog`
+- **移除测试脚本**：清理项目中的测试代码，精简项目结构
+
+**v2.2.0** - 浏览器健壮性与打包优化版本
 - 新增浏览器崩溃自动恢复功能
 - 新增浏览器健康状态监控机制
 - 实现 AsyncIO 环境兼容性（解决 Playwright Sync API 在 GUI 模式的问题）
