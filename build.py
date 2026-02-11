@@ -134,13 +134,14 @@ def update_version_info():
         print(f"[WARN] 更新版本信息失败: {e}")
 
 
-def build_project(mode="onedir", use_upx=False):
+def build_project(mode="onedir", use_upx=False, build_dir=None):
     """
     构建项目
 
     Args:
         mode: 打包模式，"onefile" 或 "onedir"
         use_upx: 是否使用 UPX 压缩
+        build_dir: 构建输出目录（如果路径包含中文，建议使用此参数指定无中文的路径）
     """
     # 导入版本信息
     import version
@@ -214,6 +215,17 @@ def build_project(mode="onedir", use_upx=False):
     except Exception as e:
         print(f"[WARN] 获取Playwright路径失败: {e}")
 
+    # 设置构建输出目录
+    if build_dir:
+        build_path = Path(build_dir)
+        build_path.mkdir(parents=True, exist_ok=True)
+        workpath = build_path / "build"
+        distpath = build_path / "dist"
+        print(f"[INFO] 构建输出目录: {build_path}")
+    else:
+        workpath = "build"
+        distpath = "dist"
+
     # 打包项目
     mode_name = "单文件" if mode == "onefile" else "目录模式"
     print(f"\n[INFO] 正在打包项目（{mode_name}）...")
@@ -241,6 +253,8 @@ def build_project(mode="onedir", use_upx=False):
         f"--{mode}",
         "--clean",
         "--noconfirm",
+        "--workpath", str(workpath),
+        "--distpath", str(distpath),
         "--add-data", "src" + os.pathsep + "src",
         "--add-data", "playwright_browsers" + os.pathsep + "playwright_browsers",
         "--add-data", "flet_browsers/unpacked" + os.pathsep + "flet_browsers/unpacked",
@@ -292,7 +306,7 @@ def build_project(mode="onedir", use_upx=False):
         else:
             exe_filename = dist_name
 
-        exe_path = Path.cwd() / 'dist' / exe_filename
+        exe_path = Path(distpath) / exe_filename
         print(f"[PATH] 可执行文件位于: {exe_path}")
         print(f"[INFO] 版本: {version.get_full_version_string()}")
         print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
@@ -307,7 +321,7 @@ def build_project(mode="onedir", use_upx=False):
         print("5. 首次启动可能需要1-2分钟（解压文件）")
     else:
         # 目录模式：生成文件夹
-        dist_dir = Path.cwd() / 'dist' / dist_name
+        dist_dir = Path(distpath) / dist_name
         if platform_info["platform"] == "windows":
             exe_filename = f"{dist_name}.exe"
         else:
@@ -402,6 +416,14 @@ def main():
         '--no-upx',
         action='store_true',
         help='禁用 UPX 压缩（即使安装了 UPX 也不使用）'
+    )
+
+    parser.add_argument(
+        '--build-dir',
+        '-b',
+        type=str,
+        default=None,
+        help='构建输出目录（用于解决路径包含中文字符的问题。例如: D:\\BuildOutput）'
     )
 
     args = parser.parse_args()
@@ -502,12 +524,12 @@ def main():
         print("\n" + "=" * 60)
         print("开始编译: 目录模式（推荐）")
         print("=" * 60)
-        build_project(mode="onedir", use_upx=use_upx)
+        build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir)
 
         print("\n\n" + "=" * 60)
         print("开始编译: 单文件模式")
         print("=" * 60)
-        build_project(mode="onefile", use_upx=use_upx)
+        build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir)
 
         print("\n\n" + "=" * 60)
         print("[SUCCESS] 两个版本编译完成！")
@@ -518,7 +540,7 @@ def main():
     else:
         print(f"[INFO] 打包模式: {args.mode}")
         use_upx = args.upx and not args.no_upx
-        build_project(mode=args.mode, use_upx=use_upx)
+        build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir)
 
 
 if __name__ == "__main__":

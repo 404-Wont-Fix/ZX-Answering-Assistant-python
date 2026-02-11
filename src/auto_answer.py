@@ -535,17 +535,25 @@ class AutoAnswer:
 
                             logger.info(f"   正确选项顺序(oppentionOrder): {correct_orders}")
 
-                            # 根据顺序匹配到当前页面的value
-                            # oppentionOrder: 0→A, 10→B, 20→C, 30→D，对应索引 0, 1, 2, 3
+                            # 根据顺序直接获取页面对应位置的选项
+                            # oppentionOrder 有两种格式：
+                            # - 格式1: 0, 10, 20, 30（需要除以10）
+                            # - 格式2: 0, 1, 2, 3（直接使用）
                             correct_values = []
                             for order in correct_orders:
-                                option_index = order // 10  # 0→0, 10→1, 20→2, 30→3
+                                # 判断格式并转换为索引
+                                if order >= 10:
+                                    option_index = order // 10  # 0→0, 10→1, 20→2, 30→3
+                                    format_type = "格式1(除以10)"
+                                else:
+                                    option_index = order  # 0→0, 1→1, 2→2, 3→3
+                                    format_type = "格式2(直接使用)"
 
                                 if option_index < len(current_options):
-                                    correct_value = current_options[option_index]['value']
-                                    correct_label = current_options[option_index]['label']
-                                    correct_values.append(correct_value)
-                                    logger.info(f"   选项顺序 {order} → 索引 {option_index} → {correct_label}选项 (value: {correct_value[:8]}...)")
+                                    option_value = current_options[option_index]['value']
+                                    option_label = current_options[option_index]['label']
+                                    correct_values.append(option_value)
+                                    logger.info(f"   选项顺序 {order} ({format_type}) → 索引 {option_index} → {option_label}选项 (value: {option_value[:8] if option_value else 'N/A'}...)")
                                 else:
                                     logger.warning(f"⚠️ 选项索引 {option_index} 超出范围（共 {len(current_options)} 个选项）")
 
@@ -725,17 +733,39 @@ class AutoAnswer:
                 logger.warning(f"⚠️ 匹配度较低，可能不准确")
                 logger.info(f"   题库题目: {best_match['bank_title'][:80]}...")
 
-            # 获取正确答案
-            correct_values = []
+            # 获取正确答案的内容文本
+            correct_contents = []
             for option in best_match['bank_options']:
                 if option.get("isTrue", False):
-                    correct_values.append(option.get("id", ""))
+                    content = option.get("oppentionContent", "")
+                    content_normalized = self._normalize_text(content)
+                    if content_normalized:
+                        correct_contents.append(content_normalized)
 
-            if correct_values:
-                logger.info(f"   正确答案: {len(correct_values)} 个选项")
-                return correct_values
-            else:
+            if not correct_contents:
                 logger.warning(f"⚠️ 题库中该题目没有标记正确答案")
+                return None
+
+            # 在当前页面选项中通过内容匹配找到对应的value
+            current_options = question.get('options', [])
+            matched_values = []
+
+            for correct_content in correct_contents:
+                for page_option in current_options:
+                    page_content = page_option.get('content', '')
+                    page_content_normalized = self._normalize_text(page_content)
+
+                    # 使用宽松匹配
+                    if self._text_contains(page_content_normalized, correct_content):
+                        matched_values.append(page_option.get('value', ''))
+                        logger.info(f"   匹配成功: {correct_content[:30]}... → value: {page_option.get('value', '')[:8]}...")
+                        break
+
+            if matched_values:
+                logger.info(f"   正确答案: {len(matched_values)} 个选项")
+                return matched_values
+            else:
+                logger.warning(f"⚠️ 未能将题库答案匹配到页面选项")
                 return None
 
         except Exception as e:
@@ -899,21 +929,14 @@ class AutoAnswer:
 
             correct_value = correct_values[0]  # 单选题只有一个正确答案
 
-            # 查找对应的选项并点击
+            # 直接通过value点击对应的选项
             for option in question['options']:
                 if option['value'] == correct_value:
-                    # 点击选项
                     option_label = option['label']
                     logger.info(f"   选择答案: {option_label}")
 
                     # 点击label元素而不是input元素（Element UI的组件需要点击label）
-                    if question['type'] == "judge":
-                        # 判断题 - 点击包含该value的label
-                        selector = f".el-radio:has(input[value='{correct_value}'])"
-                    else:
-                        # 单选题 - 点击包含该value的label
-                        selector = f".el-radio:has(input[value='{correct_value}'])"
-
+                    selector = f".el-radio:has(input[value='{correct_value}'])"
                     self._get_page().click(selector, timeout=10000)
                     time.sleep(0.5)  # 等待选择完成
                     return True
@@ -1116,12 +1139,16 @@ class AutoAnswer:
         try:
             logger.info("🎯 点击当前页面的开始测评按钮（不进行检索）...")
 
+            # 等待页面加载完成
+            logger.info("⏳ 等待页面加载...")
+            time.sleep(2)
+
             # 尝试查找"开始测评"按钮
             start_button = None
 
             # 方法1: 查找包含"开始测评"文本的按钮
             try:
-                start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=5000)
                 logger.info("✅ 找到'开始测评'按钮")
             except:
                 logger.info("⚠️ 未找到'开始测评'按钮，尝试查找'第X次测评'按钮")
@@ -1140,7 +1167,7 @@ class AutoAnswer:
                     pass
 
             if not start_button:
-                logger.error("❌ 未找到开始测评按钮，可能所有知识点都已完成")
+                logger.info("⚠️ 未找到开始测评按钮，当前知识点可能已完成")
                 return False
 
             # 点击按钮
@@ -1707,8 +1734,27 @@ class AutoAnswer:
                 logger.info("⚠️ 当前页面没有可作答的知识点（可能已完成）")
                 logger.info("🔍 开始检索下一个未完成的知识点...")
 
-                if not self.click_start_button():
-                    logger.error("❌ 检索失败，未找到可作答的知识点")
+                # 等待页面稳定，可能页面还在加载中
+                logger.info("⏳ 等待2秒让页面完全加载...")
+                time.sleep(2)
+
+                # 尝试检索（带重试）
+                max_retries = 2
+                found = False
+                for retry in range(max_retries):
+                    if retry > 0:
+                        logger.info(f"🔄 第{retry + 1}次尝试检索...")
+
+                    if self.click_start_button():
+                        found = True
+                        break
+
+                    if retry < max_retries - 1:
+                        logger.info("⏳ 等待3秒后重试...")
+                        time.sleep(3)
+
+                if not found:
+                    logger.error("❌ 检索失败，未找到可作答的知识点，可能所有知识点都已完成")
                     self.stop_stop_listener()
                     return result
 
