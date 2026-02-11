@@ -81,7 +81,17 @@ class Extractor:
 
             # 使用playwright启动浏览器
             self.playwright = sync_playwright().start()
-            self.browser = self.playwright.chromium.launch(headless=headless)
+
+            # Playwright 1.57.0+ 使用 chromium_headless_shell
+            # 为了兼容打包的完整 Chromium，使用 args 参数替代 headless
+            launch_args = {
+                'headless': headless,
+            }
+            # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
+            if headless:
+                launch_args['args'] = ['--headless=new']
+
+            self.browser = self.playwright.chromium.launch(**launch_args)
             
             # 创建浏览器上下文
             self.context = self.browser.new_context(

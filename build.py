@@ -8,6 +8,8 @@ import os
 import sys
 import subprocess
 import argparse
+import shutil
+import py_compile
 from pathlib import Path
 from datetime import datetime
 
@@ -22,6 +24,133 @@ if sys.platform == 'win32':
 
 from src.build_tools import ensure_browser_ready, get_browser_size
 from src.build_tools import ensure_flet_ready, get_flet_size
+
+
+def compile_to_pyc(
+    source_dir="src",
+    output_dir="src_compiled",
+    exclude_files=None,
+    remove_py=False
+):
+    """
+    编译 src 目录下的所有 .py 文件为 .pyc 文件
+
+    Args:
+        source_dir: 源代码目录
+        output_dir: 编译输出目录
+        exclude_files: 要排除的文件列表
+        remove_py: 是否删除原始 .py 文件（仅保留 .pyc）
+
+    Returns:
+        bool: 编译是否成功
+    """
+    if exclude_files is None:
+        exclude_files = []
+
+    source_path = Path(source_dir).absolute()
+    output_path = Path(output_dir).absolute()
+
+    print("=" * 60)
+    print("预编译源码为 .pyc 字节码")
+    print("=" * 60)
+    print(f"源目录: {source_path}")
+    print(f"输出目录: {output_path}")
+    print(f"删除源码: {'是' if remove_py else '否（保留 .py）'}")
+
+    # 清空输出目录
+    if output_path.exists():
+        print(f"\n🔄 清理旧的编译输出...")
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 复制整个目录结构
+    print(f"\n📋 复制目录结构...")
+    shutil.copytree(source_path, output_path, dirs_exist_ok=True)
+
+    # 收集所有需要编译的 Python 文件
+    py_files = []
+    for py_file in output_path.rglob("*.py"):
+        # 跳过 __pycache__
+        if "__pycache__" in str(py_file):
+            continue
+
+        rel_path = py_file.relative_to(output_path)
+
+        # __init__.py 必须保留
+        if py_file.name == "__init__.py":
+            if remove_py:
+                print(f"⏭️  跳过（__init__.py 必须保留）: {rel_path}")
+            continue
+
+        # 检查是否在排除列表中
+        if any(exclude in str(rel_path) for exclude in exclude_files):
+            print(f"⏭️  跳过（排除）: {rel_path}")
+            continue
+
+        py_files.append(py_file)
+
+    print(f"\n📦 找到 {len(py_files)} 个文件需要编译")
+
+    if not py_files:
+        print("\n⚠️  没有需要编译的文件")
+        return True
+
+    # 编译为 .pyc
+    print("\n🔧 开始编译...")
+    compiled_count = 0
+    failed_count = 0
+
+    for py_file in py_files:
+        rel_path = py_file.relative_to(output_path)
+        try:
+            # 编译为 .pyc
+            py_compile.compile(str(py_file), optimize=2)
+            compiled_count += 1
+            print(f"  ✅ {rel_path}")
+        except Exception as e:
+            failed_count += 1
+            print(f"  ❌ {rel_path}: {e}")
+
+    print(f"\n编译完成: {compiled_count} 成功, {failed_count} 失败")
+
+    # 删除原始 .py 文件（如果需要）
+    if remove_py:
+        print("\n🧹 删除原始 .py 文件...")
+        deleted_count = 0
+
+        for py_file in output_path.rglob("*.py"):
+            if py_file.name != "__init__.py" and "__pycache__" not in str(py_file):
+                rel_path = py_file.relative_to(output_path)
+
+                # 检查是否有对应的 .pyc 文件
+                pyc_file = py_file.with_suffix('.pyc')
+
+                # .pyc 可能在 __pycache__ 目录中
+                pycache_dir = py_file.parent / '__pycache__'
+                if pycache_dir.exists():
+                    # 查找匹配的 .pyc 文件
+                    pyc_pattern = f"{py_file.stem}*.pyc"
+                    for cached_pyc in pycache_dir.glob(pyc_pattern):
+                        if cached_pyc.exists():
+                            # 将 .pyc 移到父目录
+                            target_pyc = py_file.with_suffix('.pyc')
+                            shutil.copy2(cached_pyc, target_pyc)
+                            break
+
+                if py_file.with_suffix('.pyc').exists():
+                    py_file.unlink()
+                    deleted_count += 1
+                    print(f"  删除: {rel_path}")
+
+        print(f"删除了 {deleted_count} 个 .py 文件")
+
+    print("\n" + "=" * 60)
+    print("✅ 编译完成！")
+    print("=" * 60)
+    print(f"编译输出目录: {output_path}")
+    print(f"编译文件数: {compiled_count}")
+
+    return True
 
 
 def get_platform_info():
@@ -134,7 +263,7 @@ def update_version_info():
         print(f"[WARN] 更新版本信息失败: {e}")
 
 
-def build_project(mode="onedir", use_upx=False, build_dir=None):
+def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag=False):
     """
     构建项目
 
@@ -142,6 +271,7 @@ def build_project(mode="onedir", use_upx=False, build_dir=None):
         mode: 打包模式，"onefile" 或 "onedir"
         use_upx: 是否使用 UPX 压缩
         build_dir: 构建输出目录（如果路径包含中文，建议使用此参数指定无中文的路径）
+        compile_src_flag: 是否预编译源码为 .pyc
     """
     # 导入版本信息
     import version
@@ -192,6 +322,30 @@ def build_project(mode="onedir", use_upx=False, build_dir=None):
             print(f"[OK] 浏览器已准备就绪 ({browser_result['size_mb']:.2f} MB)")
     else:
         print("[WARN] 浏览器准备失败，但继续打包...")
+
+    # 编译源码（可选）- 减小体积并轻度保护源码
+    use_compiled = False
+    src_dir_to_package = "src"
+
+    if compile_src_flag:
+        print("\n[INFO] 正在预编译源码为 .pyc 字节码...")
+        try:
+            compile_success = compile_to_pyc(
+                source_dir=str(project_root / "src"),
+                output_dir=str(project_root / "src_compiled"),
+                remove_py=False  # 保留 .py 文件作为备份
+            )
+
+            if compile_success:
+                print("[OK] 源码预编译成功")
+                use_compiled = True
+                src_dir_to_package = "src_compiled"
+            else:
+                print("[WARN] 源码预编译失败，将使用源码打包")
+
+        except Exception as e:
+            print(f"[WARN] 源码预编译出错: {e}")
+            print("[INFO] 将使用源码打包")
 
     # 准备Flet可执行文件
     print("\n[INFO] 正在准备Flet可执行文件用于打包...")
@@ -248,14 +402,22 @@ def build_project(mode="onedir", use_upx=False, build_dir=None):
         # 显式禁用 UPX
         upx_args = ["--noupx"]
 
+    # 根据编译结果选择使用编译后的源码还是原始源码
+    src_dir_to_package = "src_compiled" if use_compiled else "src"
+    if use_compiled:
+        print("[INFO] 使用编译后的源码（.pyd 文件）")
+    else:
+        print("[INFO] 使用原始源码（.py 文件）")
+
     cmd = [
         "pyinstaller",
         f"--{mode}",
         "--clean",
         "--noconfirm",
+        "--optimize", "2",  # 优化字节码（删除 docstrings 和其他非必要信息）
         "--workpath", str(workpath),
         "--distpath", str(distpath),
-        "--add-data", "src" + os.pathsep + "src",
+        "--add-data", src_dir_to_package + os.pathsep + "src",
         "--add-data", "playwright_browsers" + os.pathsep + "playwright_browsers",
         "--add-data", "flet_browsers/unpacked" + os.pathsep + "flet_browsers/unpacked",
         "--add-data", "version.py" + os.pathsep + ".",
@@ -426,6 +588,12 @@ def main():
         help='构建输出目录（用于解决路径包含中文字符的问题。例如: D:\\BuildOutput）'
     )
 
+    parser.add_argument(
+        '--compile-src',
+        action='store_true',
+        help='预编译源码为 .pyc 字节码（减小体积，轻度保护源码）'
+    )
+
     args = parser.parse_args()
 
     print("=" * 60)
@@ -524,12 +692,12 @@ def main():
         print("\n" + "=" * 60)
         print("开始编译: 目录模式（推荐）")
         print("=" * 60)
-        build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir)
+        build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
         print("\n\n" + "=" * 60)
         print("开始编译: 单文件模式")
         print("=" * 60)
-        build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir)
+        build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
         print("\n\n" + "=" * 60)
         print("[SUCCESS] 两个版本编译完成！")
@@ -540,7 +708,7 @@ def main():
     else:
         print(f"[INFO] 打包模式: {args.mode}")
         use_upx = args.upx and not args.no_upx
-        build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir)
+        build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
 
 if __name__ == "__main__":

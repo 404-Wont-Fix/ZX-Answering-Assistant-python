@@ -75,3 +75,4 @@ AGENTS.md
 cli_config.json
 flet_browsers/*
 ZX-Answering-Assistant-v*
+src_compiled/*

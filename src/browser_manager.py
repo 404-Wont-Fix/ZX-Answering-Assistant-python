@@ -95,7 +95,17 @@ class BrowserManager:
 
             self._headless = headless
             self._playwright = sync_playwright().start()
-            self._browser = self._playwright.chromium.launch(headless=headless)
+
+            # Playwright 1.57.0+ 使用 chromium_headless_shell
+            # 为了兼容打包的完整 Chromium，使用 args 参数替代 headless
+            launch_args = {
+                'headless': headless,
+            }
+            # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
+            if headless:
+                launch_args['args'] = ['--headless=new']
+
+            self._browser = self._playwright.chromium.launch(**launch_args)
 
             mode_str = "无头模式（隐藏浏览器）" if headless else "有头模式（显示浏览器）"
             logger.info(f"浏览器已启动 - {mode_str}")
