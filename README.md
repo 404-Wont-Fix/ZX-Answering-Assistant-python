@@ -6,7 +6,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)]())
-[![Version](https://img.shields.io/badge/Version-v2.6.5-green)]()
+[![Version](https://img.shields.io/badge/Version-v2.6.6-green)]()
 
 一个基于 Playwright 的自动化答题系统，支持 **GUI 图形界面** 和 **CLI 命令行** 两种交互方式，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
@@ -54,7 +54,7 @@ ZX Answering Assistant 是一个针对在线学习平台的自动化答题助手
 - **AsyncIO 兼容**：v2.2.0 新增 - GUI 模式完全兼容 Playwright 同步 API
 - **浏览器管理器**：v2.6.0 新增 - 统一的浏览器实例管理，支持多上下文隔离
 - **课程认证模块**：v2.6.0 新增 - 支持课程认证题库导入和 API 答题
-- **源码预编译**：v2.6.5 新增 - 支持预编译源码为 .pyc 字节码，减小体积并轻度保护源码
+- **源码自动清理**：v2.6.6 新增 - 打包后自动删除 .py 源码，只保留 .pyc 字节码
 
 ---
 
@@ -389,7 +389,7 @@ python main.py
 
 ### 编译可执行文件
 
-项目支持使用 PyInstaller 打包成独立的可执行文件，并支持源码预编译优化。
+项目支持使用 PyInstaller 打包成独立的可执行文件，并支持源码预编译和自动清理功能。
 
 #### 基础编译
 
@@ -404,23 +404,44 @@ python build.py --mode onedir
 python build.py --mode onefile
 ```
 
-#### 源码预编译 (v2.6.5)
+#### 源码预编译与清理 (v2.6.6)
 
-预编译源码为 .pyc 字节码，减小体积并轻度保护源码：
+启用源码预编译后，打包完成后会**自动删除所有业务逻辑的 .py 源码文件**，只保留编译后的 .pyc 字节码和必要的 `__init__.py`：
 
 ```bash
-# 预编译打包
+# 预编译 + 自动清理源码
 python build.py --mode onedir --compile-src
 
 # 预编译 + UPX 压缩
 python build.py --mode onedir --compile-src --upx
 ```
 
-**预编译效果**：
-- 字节码比源码轻微减小体积
-- .pyc 文件可以被反编译（如使用 uncompyle6）
-- 提供基础性的源码保护
-- 不影响程序运行性能
+**清理效果**：
+- ✅ 自动删除所有 `.py` 源码文件（21+ 个业务逻辑文件）
+- ✅ 保留 `__init__.py`（Python 包导入必需）
+- ✅ 保留 `.pyc` 字节码文件（编译后的代码）
+- ✅ 仅在 `onedir` 模式下生效（单文件模式会自动打包所有文件到 exe 内部）
+
+**打包后的目录结构**：
+```
+dist/ZX-Answering-Assistant-v2.6.6-windows-x64-installer/
+├── ZX-Answering-Assistant-v2.6.6-windows-x64-installer.exe
+└── _internal/
+    └── src/
+        ├── __init__.py           ← 保留（包初始化）
+        ├── ui/__init__.py        ← 保留
+        ├── ui/views/__init__.py  ← 保留
+        ├── build_tools/__init__.py ← 保留
+        ├── __pycache__/          ← .pyc 字节码
+        ├── ui/__pycache__/
+        ├── ui/views/__pycache__/
+        └── build_tools/__pycache__/
+```
+
+**注意事项**：
+- `.pyc` 字节码可以被反编译（如使用 `uncompyle6`），不是强保护
+- 如需更强的源码保护，需要使用 Cython 编译为 `.pyd` 二进制文件
+- `__init__.py` 必须保留，否则 Python 无法导入包
 
 #### 输出文件名格式
 
@@ -428,7 +449,7 @@ python build.py --mode onedir --compile-src --upx
 
 **目录模式（installer）**：
 ```
-ZX-Answering-Assistant-v2.6.5-windows-x64-installer/
+ZX-Answering-Assistant-v2.6.6-windows-x64-installer/
 ```
 - `installer` 表示目录模式
 - 启动速度快（10-20倍）
@@ -436,7 +457,7 @@ ZX-Answering-Assistant-v2.6.5-windows-x64-installer/
 
 **单文件模式（portable）**：
 ```
-ZX-Answering-Assistant-v2.6.5-windows-x64-portable.exe
+ZX-Answering-Assistant-v2.6.6-windows-x64-portable.exe
 ```
 - `portable` 表示单文件模式
 - 所有文件打包到一个可执行文件
@@ -471,9 +492,9 @@ python build.py --upx --compile-src
 | 方案 | 单文件 | 目录 | 分发（7z） |
 |------|--------|------|------------|
 | 原始 | 262 MB | 528 MB | - |
-| 预编译 | 255 MB | 510 MB | - |
+| 预编译+清理 | 255 MB | 510 MB | - |
 | UPX 压缩 | 130-180 MB | 260-360 MB | - |
-| 预编译 + UPX | 125-170 MB | 250-350 MB | - |
+| 预编译+UPX | 125-170 MB | 250-350 MB | - |
 | UPX + 7z | - | 260-360 MB | 150-200 MB |
 
 ### 编译选项
@@ -499,11 +520,11 @@ python build.py --help
 
 ```bash
 # 1. 进入输出目录
-cd dist/ZX-Answering-Assistant-v2.6.5-windows-x64-installer/
+cd dist/ZX-Answering-Assistant-v2.6.6-windows-x64-installer/
 
 # 2. 运行程序
 # Windows:
-ZX-Answering-Assistant-v2.6.5-windows-x64-installer.exe
+ZX-Answering-Assistant-v2.6.6-windows-x64-installer.exe
 ```
 
 **特点**：
@@ -606,11 +627,23 @@ ZX-Answering-Assistant-python/
 
 ### 版本信息
 
-当前版本：**v2.6.5**
+当前版本：**v2.6.6**
 
 ### 主要版本更新
 
-**v2.6.5** (最新) - 打包优化版本
+**v2.6.6** (最新) - 源码自动清理版本
+- **自动清理源码**：打包完成后自动删除所有业务逻辑 .py 文件
+  - 仅保留 `__init__.py`（包导入必需）
+  - 仅保留 `.pyc` 字节码文件
+  - 仅在 `onedir` 目录模式下生效
+  - 使用 `--compile-src` 参数启用
+- **改进预编译流程**：
+  - 预编译时保留 .py 文件（确保打包稳定）
+  - 打包后自动清理源码（删除 .py 文件）
+  - 自动统计并显示删除的文件数量
+- **优化打包脚本**：改进源码清理逻辑，确保不影响程序运行
+
+**v2.6.5** - 打包优化版本
 - **新增源码预编译功能**：支持将 .py 文件预编译为 .pyc 字节码
   - 减小打包体积
   - 轻度保护源码
@@ -710,23 +743,31 @@ ZX-Answering-Assistant-python/
 - 使用 API 模式快速答题
 - 文本相似度智能匹配答案
 
-### Q4: 如何使用源码预编译功能？(v2.6.5)
+### Q4: 如何使用源码预编译和清理功能？(v2.6.6)
 
 **A:** 在打包时添加 `--compile-src` 参数：
 
 ```bash
-# 预编译打包
+# 预编译 + 自动清理源码
 python build.py --mode onedir --compile-src
 
 # 预编译 + UPX 压缩
 python build.py --mode onedir --compile-src --upx
 ```
 
-**注意**：
-- .pyc 字节码可以被反编译，不是真正的二进制保护
-- 如需更强的保护，需要使用 Cython 编译为 .pyd
+**打包后的效果**：
+- ✅ 自动删除所有 `.py` 源码文件（21+ 个业务逻辑文件）
+- ✅ 保留 `__init__.py`（Python 包导入必需）
+- ✅ 保留 `.pyc` 字节码文件（程序正常运行）
+- ⚠️ 仅在 `onedir` 目录模式下生效
+- ⚠️ `.pyc` 字节码可以被反编译（如 `uncompyle6`）
 
-### Q5: 打包后浏览器无法启动怎么办？(v2.6.5)
+**保护级别**：
+- **轻度保护**：源码清理可防止普通用户查看代码
+- **中度保护**：如需更强保护，使用 Cython 编译为 `.pyd`
+- **强度保护**：代码混淆 + Cython + 加壳保护
+
+### Q5: 打包后浏览器无法启动怎么办？(v2.6.6)
 
 **A:** 已修复 Playwright 1.57.0 兼容性问题：
 - 使用 `args=['--headless=new']` 参数

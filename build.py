@@ -333,7 +333,7 @@ def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag
             compile_success = compile_to_pyc(
                 source_dir=str(project_root / "src"),
                 output_dir=str(project_root / "src_compiled"),
-                remove_py=False  # 保留 .py 文件作为备份
+                remove_py=False  # 预编译时保留 .py，打包后再清理
             )
 
             if compile_success:
@@ -405,9 +405,9 @@ def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag
     # 根据编译结果选择使用编译后的源码还是原始源码
     src_dir_to_package = "src_compiled" if use_compiled else "src"
     if use_compiled:
-        print("[INFO] 使用编译后的源码（.pyd 文件）")
+        print("[INFO] 使用预编译的源码（打包后将删除 .py 文件）")
     else:
-        print("[INFO] 使用原始源码（.py 文件）")
+        print("[INFO] 使用原始源码（保留 .py 文件）")
 
     cmd = [
         "pyinstaller",
@@ -455,6 +455,36 @@ def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag
 
     print("[CMD] " + " ".join(cmd))
     subprocess.check_call(cmd)
+
+    # 清理打包后目录中的 .py 源码文件（如果启用了预编译）
+    if compile_src_flag and mode == "onedir":
+        print("\n[INFO] 正在清理打包后的源码文件...")
+        try:
+            # 获取打包后的 _internal 目录
+            if build_dir:
+                dist_dir = Path(build_dir) / "dist" / dist_name
+            else:
+                dist_dir = Path(distpath) / dist_name
+
+            internal_src = dist_dir / "_internal" / "src"
+            if internal_src.exists():
+                removed_count = 0
+                for py_file in internal_src.rglob("*.py"):
+                    # 保留 __init__.py（包导入需要）
+                    if py_file.name == "__init__.py":
+                        continue
+
+                    # 删除 .py 文件
+                    try:
+                        py_file.unlink()
+                        removed_count += 1
+                    except Exception as e:
+                        print(f"  ⚠️  删除失败: {py_file.relative_to(internal_src)}: {e}")
+
+                print(f"[OK] 已删除 {removed_count} 个 .py 源码文件")
+                print(f"[INFO] 保留了 __init__.py 和编译后的 .pyc 文件")
+        except Exception as e:
+            print(f"[WARN] 清理源码文件失败: {e}")
 
     # 输出结果
     print("\n" + "=" * 60)
