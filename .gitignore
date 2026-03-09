@@ -54,7 +54,7 @@ Thumbs.db
 .pytest_cache/
 .coverage
 htmlcov/
-CLAUDE.md
+
 .trae/documents/plan_20260107_074914.md
 output/*
 账号密码
@@ -76,3 +76,4 @@ cli_config.json
 flet_browsers/*
 ZX-Answering-Assistant-v*
 src_compiled/*
+REFACTOR_PLAN.md
