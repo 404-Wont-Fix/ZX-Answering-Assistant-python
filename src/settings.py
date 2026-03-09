@@ -12,10 +12,10 @@ from enum import Enum
 
 class APIRateLevel(Enum):
     """API请求速率级别"""
-    ONE_SECOND = "one_second"      # 1秒延迟
-    TWO_SECONDS = "two_seconds"    # 2秒延迟
-    THREE_SECONDS = "three_seconds" # 3秒延迟
-    FOUR_SECONDS = "four_seconds"   # 4秒延迟
+    LOW = "low"           # 低: 1000ms延迟
+    MEDIUM = "medium"     # 中: 2000ms延迟
+    MEDIUM_HIGH = "medium_high"  # 中高: 3000ms延迟
+    HIGH = "high"         # 高: 5000ms延迟
 
     @classmethod
     def from_name(cls, name: str) -> 'APIRateLevel':
@@ -23,25 +23,25 @@ class APIRateLevel(Enum):
         for level in cls:
             if level.value == name.lower():
                 return level
-        return cls.FOUR_SECONDS  # 默认4秒
+        return cls.MEDIUM  # 默认中速
 
     def get_delay_ms(self) -> int:
         """获取延迟毫秒数"""
         delays = {
-            APIRateLevel.ONE_SECOND: 1000,
-            APIRateLevel.TWO_SECONDS: 2000,
-            APIRateLevel.THREE_SECONDS: 3000,
-            APIRateLevel.FOUR_SECONDS: 4000
+            APIRateLevel.LOW: 1000,
+            APIRateLevel.MEDIUM: 2000,
+            APIRateLevel.MEDIUM_HIGH: 3000,
+            APIRateLevel.HIGH: 5000
         }
         return delays[self]
 
     def get_display_name(self) -> str:
         """获取显示名称"""
         names = {
-            APIRateLevel.ONE_SECOND: "1秒",
-            APIRateLevel.TWO_SECONDS: "2秒",
-            APIRateLevel.THREE_SECONDS: "3秒",
-            APIRateLevel.FOUR_SECONDS: "4秒"
+            APIRateLevel.LOW: "低（1000ms）",
+            APIRateLevel.MEDIUM: "中（2000ms）",
+            APIRateLevel.MEDIUM_HIGH: "中高（3000ms）",
+            APIRateLevel.HIGH: "高（5000ms）"
         }
         return names[self]
 
@@ -107,7 +107,10 @@ class SettingsManager:
             },
             "api_settings": {
                 "max_retries": 3,
-                "rate_level": "four_seconds"
+                "rate_level": "high"
+            },
+            "browser_settings": {
+                "headless": False  # 默认显示浏览器窗口（无头模式关闭）
             }
         }
 
@@ -270,6 +273,52 @@ class SettingsManager:
 
         return self._save_config(self.config)
 
+    # ========================================================================
+    # 浏览器设置相关方法
+    # ========================================================================
+
+    def get_browser_headless(self) -> bool:
+        """
+        获取浏览器无头模式设置
+
+        Returns:
+            bool: True 表示无头模式（隐藏浏览器），False 表示显示浏览器
+        """
+        return self.config.get("browser_settings", {}).get("headless", False)
+
+    def set_browser_headless(self, headless: bool) -> bool:
+        """
+        设置浏览器无头模式
+
+        Args:
+            headless: True 为无头模式（隐藏浏览器），False 为显示浏览器
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if not isinstance(headless, bool):
+            print("❌ 无头模式设置必须是布尔值")
+            return False
+
+        if "browser_settings" not in self.config:
+            self.config["browser_settings"] = {}
+
+        self.config["browser_settings"]["headless"] = headless
+
+        return self._save_config(self.config)
+
+    def toggle_browser_headless(self) -> bool:
+        """
+        切换浏览器无头模式
+
+        Returns:
+            bool: 切换后的值
+        """
+        current = self.get_browser_headless()
+        new_value = not current
+        self.set_browser_headless(new_value)
+        return new_value
+
     def display_current_settings(self):
         """显示当前设置"""
         print("\n" + "=" * 50)
@@ -306,6 +355,11 @@ class SettingsManager:
         print(f"\n⚙️ API设置:")
         print(f"   请求速率: {rate_level.get_display_name()}")
         print(f"   最大重试次数: {max_retries}")
+
+        # 浏览器设置
+        headless = self.get_browser_headless()
+        print(f"\n🌐 浏览器设置:")
+        print(f"   无头模式: {'✅ 开启（隐藏浏览器）' if headless else '❌ 关闭（显示浏览器）'}")
 
         print("\n" + "=" * 50)
 

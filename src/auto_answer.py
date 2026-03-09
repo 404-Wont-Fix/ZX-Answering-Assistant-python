@@ -18,15 +18,15 @@ logger = logging.getLogger(__name__)
 class AutoAnswer:
     """自动做题类"""
 
-    def __init__(self, page, log_callback=None):
+    def __init__(self, page=None, log_callback=None):
         """
         初始化自动做题器
 
         Args:
-            page: Playwright页面对象
+            page: Playwright页面对象（已弃用，保留用于向后兼容）
             log_callback: 日志回调函数（可选），用于将日志输出到GUI
         """
-        self.page = page
+        self.page = None  # 不再存储 page 对象，改为动态获取
         self.question_bank = None  # 题库数据
         self.should_stop = False  # 停止标志
         self.input_thread = None  # 输入监听线程
@@ -48,6 +48,23 @@ class AutoAnswer:
 
         # 设置日志处理器
         self._setup_log_handler()
+
+    def _get_page(self):
+        """
+        动态获取当前的页面对象
+        每次调用都从 browser_manager 获取，确保在线程安全的环境中
+
+        Returns:
+            Page: Playwright页面对象，如果获取失败返回None
+        """
+        try:
+            from src.browser_manager import get_browser_manager, BrowserType
+            manager = get_browser_manager()
+            _, page = manager.get_context_and_page(BrowserType.STUDENT)
+            return page
+        except Exception as e:
+            logger.error(f"获取页面对象失败: {e}")
+            return None
 
     def _setup_log_handler(self):
         """设置日志处理器，将日志转发到回调函数"""
@@ -89,10 +106,12 @@ class AutoAnswer:
             bool: page 是否可用
         """
         try:
-            if not self.page:
+            # 动态获取 page 对象并检查连接状态
+            page = self._get_page()
+            if not page:
                 return False
             # 尝试访问 page 的 URL 属性来检查连接状态
-            _ = self.page.url
+            _ = page.url
             return True
         except Exception as e:
             logger.warning(f"⚠️ 页面连接检查失败: {str(e)}")
@@ -220,7 +239,7 @@ class AutoAnswer:
                 except Exception as e:
                     logger.debug(f"解析API响应失败: {str(e)}")
 
-        self.page.on("response", handle_response)
+        self._get_page().on("response", handle_response)
         self.api_listener_active = True
         logger.info("✅ 全局API监听器已启动")
 
@@ -252,8 +271,10 @@ class AutoAnswer:
         # 移除HTML注释（如 <!-- notionvc: xxx -->）
         text = re.sub(r'<!--.*?-->', '', text)
 
-        # 移除常见的HTML标签
-        text = re.sub(r'<[^>]+>', '', text)
+        # 保留尖括号内的内容（如 <Limit>, <Allow>），移除其他HTML标签
+        # 策略：先提取所有尖括号内容，然后移除HTML标签，最后把提取的内容插回去
+        angle_bracket_contents = re.findall(r'<([^/>]+)>', text)  # 提取 <xxx> 中的内容，不包括 </> 和自闭和标签
+        text = re.sub(r'<[^>]+>', ' ', text)  # 移除所有HTML标签
 
         # 移除多余的空白字符（包括 &nbsp; 转换后的空格）
         text = re.sub(r'\s+', ' ', text)
@@ -263,7 +284,14 @@ class AutoAnswer:
         pattern = r'[^\u4e00-\u9fa5a-zA-Z0-9\s\.,;:!?()（）【】《》、""\'\u005b\u005d{}+=*/<>-]'
         text = re.sub(pattern, '', text)
 
-        return text.strip()
+        text = text.strip()
+
+        # 如果提取出的文本为空，但原始内容中有尖括号内容，尝试使用这些内容
+        if not text and angle_bracket_contents:
+            # 将提取的尖括号内容拼接起来
+            text = ' '.join(angle_bracket_contents)
+
+        return text
 
     def _parse_question_type(self) -> Tuple[str, str]:
         """
@@ -276,7 +304,7 @@ class AutoAnswer:
         """
         try:
             # 获取题目类型元素
-            type_element = self.page.query_selector(".question-type")
+            type_element = self._get_page().query_selector(".question-type")
             if not type_element:
                 logger.warning("⚠️ 未找到题目类型元素，默认为单选题")
                 return "single", "单选"
@@ -318,7 +346,7 @@ class AutoAnswer:
             question_type, type_name = self._parse_question_type()
 
             # 获取题目标题
-            title_element = self.page.query_selector(".question-title")
+            title_element = self._get_page().query_selector(".question-title")
             if not title_element:
                 logger.error("❌ 未找到题目标题元素")
                 return None
@@ -348,7 +376,7 @@ class AutoAnswer:
 
             if question_type in ["single", "judge"]:
                 # 单选或判断题 - 使用 el-radio
-                radio_labels = self.page.query_selector_all(".el-radio")
+                radio_labels = self._get_page().query_selector_all(".el-radio")
                 for label in radio_labels:
                     # 获取选项标签（A、B、C、D）
                     label_element = label.query_selector(".option-answer")
@@ -370,7 +398,7 @@ class AutoAnswer:
 
             elif question_type == "multiple":
                 # 多选题 - 使用 el-checkbox
-                checkbox_labels = self.page.query_selector_all(".el-checkbox")
+                checkbox_labels = self._get_page().query_selector_all(".el-checkbox")
                 for label in checkbox_labels:
                     # 获取选项标签（A、B、C、D）
                     label_element = label.query_selector(".option-answer")
@@ -463,6 +491,7 @@ class AutoAnswer:
     def _find_answer_in_bank_by_question_id(self, question_id: str, current_question: Dict) -> Optional[List[str]]:
         """
         在题库中通过题目ID查找答案
+        使用选项顺序（oppentionOrder）直接匹配，不需要内容匹配
 
         Args:
             question_id: 题目ID（从API获取）
@@ -474,8 +503,8 @@ class AutoAnswer:
         try:
             logger.info(f"🔍 在题库中查找题目ID: {question_id[:8]}...")
 
-            # 构建选项内容到value的映射（当前页面）
-            current_options_map = {opt['content']: opt['value'] for opt in current_question.get('options', [])}
+            # 获取当前页面的选项列表
+            current_options = current_question.get('options', [])
 
             # 遍历题库查找匹配的题目
             chapters = []
@@ -491,26 +520,42 @@ class AutoAnswer:
                         if bank_question.get("QuestionID") == question_id:
                             logger.info(f"✅ 在题库中找到题目: {bank_question.get('QuestionTitle', '')[:50]}...")
 
-                            # 获取正确答案的选项内容
+                            # 获取正确答案的选项顺序
                             bank_options = bank_question.get("options", [])
-                            correct_contents = []
+                            correct_orders = []
 
                             for opt in bank_options:
                                 if opt.get("isTrue"):
-                                    content = self._normalize_text(opt.get("oppentionContent", ""))
-                                    correct_contents.append(content)
+                                    order = opt.get("oppentionOrder", 0)
+                                    correct_orders.append(order)
 
-                            if not correct_contents:
+                            if not correct_orders:
                                 logger.warning("⚠️ 题库中未标记正确答案")
                                 return None
 
-                            logger.info(f"   正确选项内容: {correct_contents}")
+                            logger.info(f"   正确选项顺序(oppentionOrder): {correct_orders}")
 
-                            # 匹配到当前页面的value
+                            # 根据顺序直接获取页面对应位置的选项
+                            # oppentionOrder 有两种格式：
+                            # - 格式1: 0, 10, 20, 30（需要除以10）
+                            # - 格式2: 0, 1, 2, 3（直接使用）
                             correct_values = []
-                            for content in correct_contents:
-                                if content in current_options_map:
-                                    correct_values.append(current_options_map[content])
+                            for order in correct_orders:
+                                # 判断格式并转换为索引
+                                if order >= 10:
+                                    option_index = order // 10  # 0→0, 10→1, 20→2, 30→3
+                                    format_type = "格式1(除以10)"
+                                else:
+                                    option_index = order  # 0→0, 1→1, 2→2, 3→3
+                                    format_type = "格式2(直接使用)"
+
+                                if option_index < len(current_options):
+                                    option_value = current_options[option_index]['value']
+                                    option_label = current_options[option_index]['label']
+                                    correct_values.append(option_value)
+                                    logger.info(f"   选项顺序 {order} ({format_type}) → 索引 {option_index} → {option_label}选项 (value: {option_value[:8] if option_value else 'N/A'}...)")
+                                else:
+                                    logger.warning(f"⚠️ 选项索引 {option_index} 超出范围（共 {len(current_options)} 个选项）")
 
                             if correct_values:
                                 logger.info(f"   正确选项value: {correct_values}")
@@ -688,17 +733,39 @@ class AutoAnswer:
                 logger.warning(f"⚠️ 匹配度较低，可能不准确")
                 logger.info(f"   题库题目: {best_match['bank_title'][:80]}...")
 
-            # 获取正确答案
-            correct_values = []
+            # 获取正确答案的内容文本
+            correct_contents = []
             for option in best_match['bank_options']:
                 if option.get("isTrue", False):
-                    correct_values.append(option.get("id", ""))
+                    content = option.get("oppentionContent", "")
+                    content_normalized = self._normalize_text(content)
+                    if content_normalized:
+                        correct_contents.append(content_normalized)
 
-            if correct_values:
-                logger.info(f"   正确答案: {len(correct_values)} 个选项")
-                return correct_values
-            else:
+            if not correct_contents:
                 logger.warning(f"⚠️ 题库中该题目没有标记正确答案")
+                return None
+
+            # 在当前页面选项中通过内容匹配找到对应的value
+            current_options = question.get('options', [])
+            matched_values = []
+
+            for correct_content in correct_contents:
+                for page_option in current_options:
+                    page_content = page_option.get('content', '')
+                    page_content_normalized = self._normalize_text(page_content)
+
+                    # 使用宽松匹配
+                    if self._text_contains(page_content_normalized, correct_content):
+                        matched_values.append(page_option.get('value', ''))
+                        logger.info(f"   匹配成功: {correct_content[:30]}... → value: {page_option.get('value', '')[:8]}...")
+                        break
+
+            if matched_values:
+                logger.info(f"   正确答案: {len(matched_values)} 个选项")
+                return matched_values
+            else:
+                logger.warning(f"⚠️ 未能将题库答案匹配到页面选项")
                 return None
 
         except Exception as e:
@@ -862,22 +929,15 @@ class AutoAnswer:
 
             correct_value = correct_values[0]  # 单选题只有一个正确答案
 
-            # 查找对应的选项并点击
+            # 直接通过value点击对应的选项
             for option in question['options']:
                 if option['value'] == correct_value:
-                    # 点击选项
                     option_label = option['label']
                     logger.info(f"   选择答案: {option_label}")
 
                     # 点击label元素而不是input元素（Element UI的组件需要点击label）
-                    if question['type'] == "judge":
-                        # 判断题 - 点击包含该value的label
-                        selector = f".el-radio:has(input[value='{correct_value}'])"
-                    else:
-                        # 单选题 - 点击包含该value的label
-                        selector = f".el-radio:has(input[value='{correct_value}'])"
-
-                    self.page.click(selector, timeout=10000)
+                    selector = f".el-radio:has(input[value='{correct_value}'])"
+                    self._get_page().click(selector, timeout=10000)
                     time.sleep(0.5)  # 等待选择完成
                     return True
 
@@ -917,7 +977,7 @@ class AutoAnswer:
 
                         # 点击label元素而不是input元素（Element UI的组件需要点击label）
                         selector = f".el-checkbox:has(input[value='{correct_value}'])"
-                        self.page.click(selector, timeout=10000)
+                        self._get_page().click(selector, timeout=10000)
                         selected_count += 1
 
                         # 延迟，防止点击过快导致选择失败
@@ -948,15 +1008,15 @@ class AutoAnswer:
 
             # 刷新网页以确保页面状态最新
             logger.info("🔄 刷新网页以确保知识点列表最新...")
-            self.page.reload(wait_until="networkidle")
+            self._get_page().reload(wait_until="networkidle")
             time.sleep(2)  # 等待页面完全加载
             logger.info("✅ 网页刷新完成")
 
             # 等待知识点列表加载
-            self.page.wait_for_selector(".el-submenu", timeout=5000)
+            self._get_page().wait_for_selector(".el-submenu", timeout=5000)
 
             # 获取所有章节（折叠菜单）
-            chapters = self.page.query_selector_all(".el-submenu")
+            chapters = self._get_page().query_selector_all(".el-submenu")
 
             logger.info(f"📋 找到 {len(chapters)} 个章节")
 
@@ -1008,7 +1068,7 @@ class AutoAnswer:
 
                             # 方法1: 查找"开始测评"
                             try:
-                                start_button = self.page.query_selector("button:has-text('开始测评')", timeout=1000)
+                                start_button = self._get_page().query_selector("button:has-text('开始测评')", timeout=1000)
                                 if start_button:
                                     logger.info(f"✅ 找到可作答知识点: {knowledge_name}")
                                     # 记录当前章节和知识点信息
@@ -1023,7 +1083,7 @@ class AutoAnswer:
                             # 方法2: 查找"第X次测评"
                             if not start_button:
                                 try:
-                                    buttons = self.page.query_selector_all("button.el-button--primary")
+                                    buttons = self._get_page().query_selector_all("button.el-button--primary")
                                     for btn in buttons:
                                         text = btn.text_content() or ""
                                         if "测评" in text:
@@ -1041,7 +1101,7 @@ class AutoAnswer:
                             # 没有找到测评按钮，说明已完成或次数用尽
                             # 检查是否有"已完成"或"测评次数"等提示信息
                             try:
-                                status_info = self.page.query_selector(".evaluation-status, .status-info, .completed-tag")
+                                status_info = self._get_page().query_selector(".evaluation-status, .status-info, .completed-tag")
                                 if status_info:
                                     status_text = status_info.text_content() or ""
                                     if "3次" in status_text or "已完成" in status_text:
@@ -1079,12 +1139,16 @@ class AutoAnswer:
         try:
             logger.info("🎯 点击当前页面的开始测评按钮（不进行检索）...")
 
+            # 等待页面加载完成
+            logger.info("⏳ 等待页面加载...")
+            time.sleep(2)
+
             # 尝试查找"开始测评"按钮
             start_button = None
 
             # 方法1: 查找包含"开始测评"文本的按钮
             try:
-                start_button = self.page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=5000)
                 logger.info("✅ 找到'开始测评'按钮")
             except:
                 logger.info("⚠️ 未找到'开始测评'按钮，尝试查找'第X次测评'按钮")
@@ -1092,7 +1156,7 @@ class AutoAnswer:
             # 方法2: 查找包含"测评"文本的按钮（可能是重做）
             if not start_button:
                 try:
-                    buttons = self.page.query_selector_all("button.el-button--primary")
+                    buttons = self._get_page().query_selector_all("button.el-button--primary")
                     for btn in buttons:
                         text = btn.text_content()
                         if "测评" in text:
@@ -1103,7 +1167,7 @@ class AutoAnswer:
                     pass
 
             if not start_button:
-                logger.error("❌ 未找到开始测评按钮，可能所有知识点都已完成")
+                logger.info("⚠️ 未找到开始测评按钮，当前知识点可能已完成")
                 return False
 
             # 点击按钮
@@ -1135,7 +1199,7 @@ class AutoAnswer:
 
             # 方法1: 查找包含"开始测评"文本的按钮
             try:
-                start_button = self.page.wait_for_selector("button:has-text('开始测评')", timeout=2000)
+                start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=2000)
                 logger.info("✅ 找到'开始测评'按钮")
             except:
                 logger.info("⚠️ 未找到'开始测评'按钮，尝试查找'第X次测评'按钮")
@@ -1143,7 +1207,7 @@ class AutoAnswer:
             # 方法2: 查找包含"测评"文本的按钮（可能是重做）
             if not start_button:
                 try:
-                    buttons = self.page.query_selector_all("button.el-button--primary")
+                    buttons = self._get_page().query_selector_all("button.el-button--primary")
                     for btn in buttons:
                         text = btn.text_content()
                         if "测评" in text:
@@ -1180,7 +1244,7 @@ class AutoAnswer:
             # 等待弹窗出现
             dialog_found = False
             try:
-                dialog = self.page.wait_for_selector(".el-message-box", timeout=5000)
+                dialog = self._get_page().wait_for_selector(".el-message-box", timeout=5000)
                 if dialog:
                     dialog_found = True
                     logger.info("✅ 检测到确认弹窗")
@@ -1196,7 +1260,7 @@ class AutoAnswer:
 
             # 方法1: 在弹窗内查找主要按钮
             try:
-                confirm_button = self.page.wait_for_selector(".el-message-box button.el-button--primary", timeout=2000)
+                confirm_button = self._get_page().wait_for_selector(".el-message-box button.el-button--primary", timeout=2000)
                 logger.info("✅ 方法1: 找到确定按钮")
             except:
                 logger.debug("⚠️ 方法1未找到")
@@ -1204,7 +1268,7 @@ class AutoAnswer:
             # 方法2: 查找包含"确定"文本的按钮
             if not confirm_button:
                 try:
-                    buttons = self.page.query_selector_all(".el-message-box button")
+                    buttons = self._get_page().query_selector_all(".el-message-box button")
                     for btn in buttons:
                         text = btn.text_content() or ""
                         if "确定" in text:
@@ -1217,7 +1281,7 @@ class AutoAnswer:
             # 方法3: 使用CSS选择器查找第二个按钮（确定按钮通常在第二个位置）
             if not confirm_button:
                 try:
-                    buttons = self.page.query_selector_all(".el-message-box__btns button")
+                    buttons = self._get_page().query_selector_all(".el-message-box__btns button")
                     if len(buttons) >= 2:
                         confirm_button = buttons[1]  # 第二个按钮通常是"确定"
                         logger.info("✅ 方法3: 找到确定按钮（第二个按钮）")
@@ -1320,7 +1384,7 @@ class AutoAnswer:
                 logger.info("📝 最后一题，点击下一题结束知识点...")
 
                 try:
-                    next_button = self.page.wait_for_selector("button:has-text('下一题')", timeout=5000)
+                    next_button = self._get_page().wait_for_selector("button:has-text('下一题')", timeout=5000)
                     next_button.click()
                     logger.info("✅ 已点击下一题按钮，结束知识点")
                     time.sleep(1)
@@ -1335,7 +1399,7 @@ class AutoAnswer:
                 while time.time() - start_time < 10:
                     try:
                         # 检查是否有成功提示
-                        success_element = self.page.query_selector(".eva-success")
+                        success_element = self._get_page().query_selector(".eva-success")
                         if success_element and not success_detected:
                             logger.info("✅ 检测到成功提示：恭喜你,本次考评成功")
                             logger.info("⏳ 等待5秒自动跳转到下一个知识点...")
@@ -1356,7 +1420,7 @@ class AutoAnswer:
                     # 方法1：检测答题页面元素是否消失
                     try:
                         # 等待答题页面的题目类型元素消失
-                        self.page.wait_for_selector(".question-type", state="hidden", timeout=3000)
+                        self._get_page().wait_for_selector(".question-type", state="hidden", timeout=3000)
                         logger.info("✅ 答题页面已消失，确认跳转成功")
                         return True
                     except:
@@ -1364,7 +1428,7 @@ class AutoAnswer:
 
                     # 方法2：检测是否可以找到"开始测评"按钮（知识点列表的特征）
                     try:
-                        start_button = self.page.query_selector("button:has-text('开始测评')", timeout=2000)
+                        start_button = self._get_page().query_selector("button:has-text('开始测评')", timeout=2000)
                         if start_button:
                             logger.info("✅ 检测到'开始测评'按钮，确认已回到知识点列表")
                             return True
@@ -1373,7 +1437,7 @@ class AutoAnswer:
 
                     # 方法3：检测知识点菜单项是否存在
                     try:
-                        menu_items = self.page.query_selector_all(".el-menu-item")
+                        menu_items = self._get_page().query_selector_all(".el-menu-item")
                         if len(menu_items) > 0:
                             logger.info(f"✅ 检测到 {len(menu_items)} 个知识点菜单项，已回到知识点列表")
                             return True
@@ -1392,7 +1456,7 @@ class AutoAnswer:
                 time.sleep(0.5)  # 稍微等待一下，让题目内容稳定
 
                 try:
-                    next_button = self.page.wait_for_selector("button:has-text('下一题')", timeout=5000)
+                    next_button = self._get_page().wait_for_selector("button:has-text('下一题')", timeout=5000)
                     next_button.click()
                     logger.info("✅ 已点击下一题按钮")
                     time.sleep(1.5)  # 等待下一题加载
@@ -1414,7 +1478,7 @@ class AutoAnswer:
         """
         try:
             # 查找所有题目序号元素
-            question_items = self.page.query_selector_all(".question-item")
+            question_items = self._get_page().query_selector_all(".question-item")
 
             for i, item in enumerate(question_items, 1):
                 # 检查是否有"selected"类
@@ -1513,6 +1577,7 @@ class AutoAnswer:
     def run_auto_answer(self, max_questions: int = 5) -> Dict:
         """
         运行自动做题流程（第一个知识点：会检索并点击开始按钮）
+        此方法会自动在工作线程中执行
 
         Args:
             max_questions: 最多做题数量
@@ -1526,6 +1591,20 @@ class AutoAnswer:
                 'skipped': int,  # 跳过题数
                 'stopped': bool  # 用户是否停止
             }
+        """
+        # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
+        from src.browser_manager import run_in_thread_if_asyncio
+        return run_in_thread_if_asyncio(self._run_auto_answer_impl, max_questions)
+
+    def _run_auto_answer_impl(self, max_questions: int = 5) -> Dict:
+        """
+        运行自动做题流程的实际实现（内部方法）
+
+        Args:
+            max_questions: 最多做题数量
+
+        Returns:
+            Dict: 做题结果统计
         """
         result = {
             'total': 0,
@@ -1590,6 +1669,7 @@ class AutoAnswer:
         """
         继续自动做题流程（后续知识点：不检索，直接做题）
         用于网站自动跳转后继续做题
+        此方法会自动在工作线程中执行
 
         Args:
             max_questions: 最多做题数量
@@ -1603,6 +1683,20 @@ class AutoAnswer:
                 'skipped': int,  # 跳过题数
                 'stopped': bool  # 用户是否停止
             }
+        """
+        # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
+        from src.browser_manager import run_in_thread_if_asyncio
+        return run_in_thread_if_asyncio(self._continue_auto_answer_impl, max_questions)
+
+    def _continue_auto_answer_impl(self, max_questions: int = 5) -> Dict:
+        """
+        继续自动做题流程的实际实现（内部方法）
+
+        Args:
+            max_questions: 最多做题数量
+
+        Returns:
+            Dict: 做题结果统计
         """
         result = {
             'total': 0,
@@ -1640,8 +1734,27 @@ class AutoAnswer:
                 logger.info("⚠️ 当前页面没有可作答的知识点（可能已完成）")
                 logger.info("🔍 开始检索下一个未完成的知识点...")
 
-                if not self.click_start_button():
-                    logger.error("❌ 检索失败，未找到可作答的知识点")
+                # 等待页面稳定，可能页面还在加载中
+                logger.info("⏳ 等待2秒让页面完全加载...")
+                time.sleep(2)
+
+                # 尝试检索（带重试）
+                max_retries = 2
+                found = False
+                for retry in range(max_retries):
+                    if retry > 0:
+                        logger.info(f"🔄 第{retry + 1}次尝试检索...")
+
+                    if self.click_start_button():
+                        found = True
+                        break
+
+                    if retry < max_retries - 1:
+                        logger.info("⏳ 等待3秒后重试...")
+                        time.sleep(3)
+
+                if not found:
+                    logger.error("❌ 检索失败，未找到可作答的知识点，可能所有知识点都已完成")
                     self.stop_stop_listener()
                     return result
 
@@ -1672,3 +1785,42 @@ class AutoAnswer:
             self.stop_stop_listener()
             self.stop_api_listener()
             return result
+
+    def has_next_knowledge(self) -> bool:
+        """
+        检查是否还有下一个可作答的知识点
+        通过检测页面上是否有"开始测评"按钮来判断
+        此方法会自动在工作线程中执行
+
+        Returns:
+            bool: True表示还有更多知识点，False表示已完成
+        """
+        # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
+        from src.browser_manager import run_in_thread_if_asyncio
+        return run_in_thread_if_asyncio(self._has_next_knowledge_impl)
+
+    def _has_next_knowledge_impl(self) -> bool:
+        """
+        检查是否还有下一个可作答的知识点（实际实现）
+
+        Returns:
+            bool: True表示还有更多知识点，False表示已完成
+        """
+        try:
+            page = self._get_page()
+            if not page:
+                return False
+
+            # 尝试查找"开始测评"按钮
+            try:
+                page.wait_for_selector("button:has-text('开始测评')", timeout=3000)
+                logger.debug("✅ 检测到下一个知识点")
+                return True
+            except Exception:
+                # 没找到，说明所有知识点都完成了
+                logger.debug("⚠️ 未检测到下一个知识点，可能已完成")
+                return False
+
+        except Exception as e:
+            logger.error(f"❌ 检查下一个知识点失败: {str(e)}")
+            return False

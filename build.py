@@ -8,6 +8,8 @@ import os
 import sys
 import subprocess
 import argparse
+import shutil
+import py_compile
 from pathlib import Path
 from datetime import datetime
 
@@ -22,7 +24,133 @@ if sys.platform == 'win32':
 
 from src.build_tools import ensure_browser_ready, get_browser_size
 from src.build_tools import ensure_flet_ready, get_flet_size
-from src.build_tools import build_project_minimal, build_all_minimal_variants
+
+
+def compile_to_pyc(
+    source_dir="src",
+    output_dir="src_compiled",
+    exclude_files=None,
+    remove_py=False
+):
+    """
+    编译 src 目录下的所有 .py 文件为 .pyc 文件
+
+    Args:
+        source_dir: 源代码目录
+        output_dir: 编译输出目录
+        exclude_files: 要排除的文件列表
+        remove_py: 是否删除原始 .py 文件（仅保留 .pyc）
+
+    Returns:
+        bool: 编译是否成功
+    """
+    if exclude_files is None:
+        exclude_files = []
+
+    source_path = Path(source_dir).absolute()
+    output_path = Path(output_dir).absolute()
+
+    print("=" * 60)
+    print("预编译源码为 .pyc 字节码")
+    print("=" * 60)
+    print(f"源目录: {source_path}")
+    print(f"输出目录: {output_path}")
+    print(f"删除源码: {'是' if remove_py else '否（保留 .py）'}")
+
+    # 清空输出目录
+    if output_path.exists():
+        print(f"\n🔄 清理旧的编译输出...")
+        shutil.rmtree(output_path)
+    output_path.mkdir(parents=True, exist_ok=True)
+
+    # 复制整个目录结构
+    print(f"\n📋 复制目录结构...")
+    shutil.copytree(source_path, output_path, dirs_exist_ok=True)
+
+    # 收集所有需要编译的 Python 文件
+    py_files = []
+    for py_file in output_path.rglob("*.py"):
+        # 跳过 __pycache__
+        if "__pycache__" in str(py_file):
+            continue
+
+        rel_path = py_file.relative_to(output_path)
+
+        # __init__.py 必须保留
+        if py_file.name == "__init__.py":
+            if remove_py:
+                print(f"⏭️  跳过（__init__.py 必须保留）: {rel_path}")
+            continue
+
+        # 检查是否在排除列表中
+        if any(exclude in str(rel_path) for exclude in exclude_files):
+            print(f"⏭️  跳过（排除）: {rel_path}")
+            continue
+
+        py_files.append(py_file)
+
+    print(f"\n📦 找到 {len(py_files)} 个文件需要编译")
+
+    if not py_files:
+        print("\n⚠️  没有需要编译的文件")
+        return True
+
+    # 编译为 .pyc
+    print("\n🔧 开始编译...")
+    compiled_count = 0
+    failed_count = 0
+
+    for py_file in py_files:
+        rel_path = py_file.relative_to(output_path)
+        try:
+            # 编译为 .pyc
+            py_compile.compile(str(py_file), optimize=2)
+            compiled_count += 1
+            print(f"  ✅ {rel_path}")
+        except Exception as e:
+            failed_count += 1
+            print(f"  ❌ {rel_path}: {e}")
+
+    print(f"\n编译完成: {compiled_count} 成功, {failed_count} 失败")
+
+    # 删除原始 .py 文件（如果需要）
+    if remove_py:
+        print("\n🧹 删除原始 .py 文件...")
+        deleted_count = 0
+
+        for py_file in output_path.rglob("*.py"):
+            if py_file.name != "__init__.py" and "__pycache__" not in str(py_file):
+                rel_path = py_file.relative_to(output_path)
+
+                # 检查是否有对应的 .pyc 文件
+                pyc_file = py_file.with_suffix('.pyc')
+
+                # .pyc 可能在 __pycache__ 目录中
+                pycache_dir = py_file.parent / '__pycache__'
+                if pycache_dir.exists():
+                    # 查找匹配的 .pyc 文件
+                    pyc_pattern = f"{py_file.stem}*.pyc"
+                    for cached_pyc in pycache_dir.glob(pyc_pattern):
+                        if cached_pyc.exists():
+                            # 将 .pyc 移到父目录
+                            target_pyc = py_file.with_suffix('.pyc')
+                            shutil.copy2(cached_pyc, target_pyc)
+                            break
+
+                if py_file.with_suffix('.pyc').exists():
+                    py_file.unlink()
+                    deleted_count += 1
+                    print(f"  删除: {rel_path}")
+
+        print(f"删除了 {deleted_count} 个 .py 文件")
+
+    print("\n" + "=" * 60)
+    print("✅ 编译完成！")
+    print("=" * 60)
+    print(f"编译输出目录: {output_path}")
+    print(f"编译文件数: {compiled_count}")
+
+    return True
 
 
 def get_platform_info():
@@ -135,39 +263,15 @@ def update_version_info():
         print(f"[WARN] 更新版本信息失败: {e}")
 
 
-def generate_exe_version_file():
-    """
-    生成 Windows EXE 版本信息文件
-
-    Returns:
-        Path: 版本文件路径，如果平台不是 Windows 则返回 None
-    """
-    platform_info = get_platform_info()
-
-    # 只在 Windows 平台生成版本文件
-    if platform_info["platform"] != "windows":
-        print("[INFO] 非 Windows 平台，跳过版本文件生成")
-        return None
-
-    try:
-        import version
-        version_file_path = version.create_version_file()
-        print(f"[OK] 版本文件已生成: {version_file_path}")
-        print(f"[INFO] 文件版本: {'.'.join(map(str, version.VERSION_INFO['file_version']))}")
-        print(f"[INFO] 产品版本: {'.'.join(map(str, version.VERSION_INFO['product_version']))}")
-        return version_file_path
-    except Exception as e:
-        print(f"[WARN] 生成版本文件失败: {e}")
-        return None
-
-
-def build_project(mode="onedir", use_upx=False):
+def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag=False):
     """
     构建项目
 
     Args:
         mode: 打包模式，"onefile" 或 "onedir"
         use_upx: 是否使用 UPX 压缩
+        build_dir: 构建输出目录（如果路径包含中文，建议使用此参数指定无中文的路径）
+        compile_src_flag: 是否预编译源码为 .pyc
     """
     # 导入版本信息
     import version
@@ -188,9 +292,6 @@ def build_project(mode="onedir", use_upx=False):
     # 生成分发名称
     dist_name = get_dist_name(mode, version.VERSION, platform_info)
     print(f"[INFO] 分发名称: {dist_name}")
-
-    # 生成 EXE 版本信息文件（仅 Windows）
-    version_file_path = generate_exe_version_file()
 
     # 检查是否安装了PyInstaller
     try:
@@ -222,6 +323,30 @@ def build_project(mode="onedir", use_upx=False):
     else:
         print("[WARN] 浏览器准备失败，但继续打包...")
 
+    # 编译源码（可选）- 减小体积并轻度保护源码
+    use_compiled = False
+    src_dir_to_package = "src"
+
+    if compile_src_flag:
+        print("\n[INFO] 正在预编译源码为 .pyc 字节码...")
+        try:
+            compile_success = compile_to_pyc(
+                source_dir=str(project_root / "src"),
+                output_dir=str(project_root / "src_compiled"),
+                remove_py=False  # 预编译时保留 .py，打包后再清理
+            )
+
+            if compile_success:
+                print("[OK] 源码预编译成功")
+                use_compiled = True
+                src_dir_to_package = "src_compiled"
+            else:
+                print("[WARN] 源码预编译失败，将使用源码打包")
+
+        except Exception as e:
+            print(f"[WARN] 源码预编译出错: {e}")
+            print("[INFO] 将使用源码打包")
+
     # 准备Flet可执行文件
     print("\n[INFO] 正在准备Flet可执行文件用于打包...")
     flet_result = ensure_flet_ready(project_root=project_root)
@@ -243,6 +368,17 @@ def build_project(mode="onedir", use_upx=False):
             print(f"[OK] Playwright浏览器路径: {browser_path}")
     except Exception as e:
         print(f"[WARN] 获取Playwright路径失败: {e}")
+
+    # 设置构建输出目录
+    if build_dir:
+        build_path = Path(build_dir)
+        build_path.mkdir(parents=True, exist_ok=True)
+        workpath = build_path / "build"
+        distpath = build_path / "dist"
+        print(f"[INFO] 构建输出目录: {build_path}")
+    else:
+        workpath = "build"
+        distpath = "dist"
 
     # 打包项目
     mode_name = "单文件" if mode == "onefile" else "目录模式"
@@ -266,14 +402,25 @@ def build_project(mode="onedir", use_upx=False):
         # 显式禁用 UPX
         upx_args = ["--noupx"]
 
+    # 根据编译结果选择使用编译后的源码还是原始源码
+    src_dir_to_package = "src_compiled" if use_compiled else "src"
+    if use_compiled:
+        print("[INFO] 使用预编译的源码（打包后将删除 .py 文件）")
+    else:
+        print("[INFO] 使用原始源码（保留 .py 文件）")
+
     cmd = [
         "pyinstaller",
         f"--{mode}",
         "--clean",
         "--noconfirm",
+        "--optimize", "2",  # 优化字节码（删除 docstrings 和其他非必要信息）
+        "--workpath", str(workpath),
+        "--distpath", str(distpath),
+        "--add-data", src_dir_to_package + os.pathsep + "src",
         "--add-data", "playwright_browsers" + os.pathsep + "playwright_browsers",
         "--add-data", "flet_browsers/unpacked" + os.pathsep + "flet_browsers/unpacked",
-        "--hidden-import", "version",  # 编译 version.py 为 .pyc
+        "--add-data", "version.py" + os.pathsep + ".",
         "--hidden-import", "playwright",
         "--hidden-import", "playwright.sync_api",
         "--hidden-import", "playwright._impl._api_types",
@@ -287,23 +434,6 @@ def build_project(mode="onedir", use_upx=False):
         "--hidden-import", "keyboard",
         "--hidden-import", "requests",
         "--hidden-import", "flet",
-        "--hidden-import", "src.teacher_login",
-        "--hidden-import", "src.student_login",
-        "--hidden-import", "src.extract",
-        "--hidden-import", "src.export",
-        "--hidden-import", "src.auto_answer",
-        "--hidden-import", "src.api_auto_answer",
-        "--hidden-import", "src.settings",
-        "--hidden-import", "src.question_bank_importer",
-        "--hidden-import", "src.file_handler",
-        "--hidden-import", "src.api_client",
-        "--hidden-import", "src.main_gui",
-        "--hidden-import", "src.ui.views.answering_view",
-        "--hidden-import", "src.ui.views.extraction_view",
-        "--hidden-import", "src.ui.views.settings_view",
-        "--hidden-import", "src.build_tools",
-        "--hidden-import", "src.build_tools.browser_handler",
-        "--hidden-import", "src.build_tools.flet_handler",
         "--collect-all", "playwright",
         "--exclude-module", "matplotlib",
         "--exclude-module", "numpy",
@@ -320,16 +450,41 @@ def build_project(mode="onedir", use_upx=False):
         "main.py"
     ]
 
-    # 添加版本文件（仅 Windows）
-    if version_file_path:
-        cmd.insert(4, "--version-file")
-        cmd.insert(5, str(version_file_path))
-
     # 添加 UPX 参数（如果有）
     cmd.extend(upx_args)
 
     print("[CMD] " + " ".join(cmd))
     subprocess.check_call(cmd)
+
+    # 清理打包后目录中的 .py 源码文件（如果启用了预编译）
+    if compile_src_flag and mode == "onedir":
+        print("\n[INFO] 正在清理打包后的源码文件...")
+        try:
+            # 获取打包后的 _internal 目录
+            if build_dir:
+                dist_dir = Path(build_dir) / "dist" / dist_name
+            else:
+                dist_dir = Path(distpath) / dist_name
+
+            internal_src = dist_dir / "_internal" / "src"
+            if internal_src.exists():
+                removed_count = 0
+                for py_file in internal_src.rglob("*.py"):
+                    # 保留 __init__.py（包导入需要）
+                    if py_file.name == "__init__.py":
+                        continue
+
+                    # 删除 .py 文件
+                    try:
+                        py_file.unlink()
+                        removed_count += 1
+                    except Exception as e:
+                        print(f"  ⚠️  删除失败: {py_file.relative_to(internal_src)}: {e}")
+
+                print(f"[OK] 已删除 {removed_count} 个 .py 源码文件")
+                print(f"[INFO] 保留了 __init__.py 和编译后的 .pyc 文件")
+        except Exception as e:
+            print(f"[WARN] 清理源码文件失败: {e}")
 
     # 输出结果
     print("\n" + "=" * 60)
@@ -343,7 +498,7 @@ def build_project(mode="onedir", use_upx=False):
         else:
             exe_filename = dist_name
 
-        exe_path = Path.cwd() / 'dist' / exe_filename
+        exe_path = Path(distpath) / exe_filename
         print(f"[PATH] 可执行文件位于: {exe_path}")
         print(f"[INFO] 版本: {version.get_full_version_string()}")
         print(f"[INFO] 平台: {platform_info['platform']} {platform_info['architecture']}")
@@ -358,7 +513,7 @@ def build_project(mode="onedir", use_upx=False):
         print("5. 首次启动可能需要1-2分钟（解压文件）")
     else:
         # 目录模式：生成文件夹
-        dist_dir = Path.cwd() / 'dist' / dist_name
+        dist_dir = Path(distpath) / dist_name
         if platform_info["platform"] == "windows":
             exe_filename = f"{dist_name}.exe"
         else:
@@ -389,26 +544,19 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 示例:
-  python build.py                           # 编译所有4个版本（完整 + 最小化，onedir + onefile）
-  python build.py --minimal                 # 仅编译最小化版本（onedir + onefile）
-  python build.py --full                    # 仅编译完整版本（onedir + onefile）
-  python build.py --mode onefile            # 仅编译单文件版本（完整）
-  python build.py --mode onedir             # 仅编译目录版本（完整）
-  python build.py --minimal --mode onefile  # 仅编译最小化单文件版本
-  python build.py --copy-browser            # 仅复制浏览器
-  python build.py --copy-all                # 复制所有依赖
+  python build.py                    # 编译两个版本（onedir + onefile）
+  python build.py --mode onefile     # 仅编译单文件版本
+  python build.py --mode onedir      # 仅编译目录版本
+  python build.py --copy-browser     # 仅复制浏览器
+  python build.py --copy-all         # 复制所有依赖
 
 输出文件名格式:
-  完整目录模式:   ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
-  完整单文件:     ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
-  最小化目录模式: ZX-Answering-Assistant-v2.2.0-windows-x64-minimal-installer/
-  最小化单文件:   ZX-Answering-Assistant-v2.2.0-windows-x64-minimal-portable.exe
+  目录模式: ZX-Answering-Assistant-v2.2.0-windows-x64-installer/
+  单文件:   ZX-Answering-Assistant-v2.2.0-windows-x64-portable.exe
 
 说明:
   - installer: 目录模式，启动快，推荐使用
   - portable: 单文件模式，所有文件打包到一个可执行文件
-  - minimal: 最小化构建，不打包浏览器和 Flet，运行时下载（体积小，首次启动慢）
-  - full: 完整构建，包含所有依赖（体积大，启动快）
 
 体积优化:
   python build.py --upx             # 启用 UPX 压缩（减小 30-50%% 体积）
@@ -424,18 +572,6 @@ def main():
         choices=['onefile', 'onedir', 'both'],
         default='both',
         help='打包模式: onefile(单文件), onedir(目录模式), both(两个版本，默认)'
-    )
-
-    parser.add_argument(
-        '--minimal',
-        action='store_true',
-        help='使用最小化构建模式（不打包 Playwright 浏览器和 Flet）'
-    )
-
-    parser.add_argument(
-        '--full',
-        action='store_true',
-        help='使用完整构建模式（打包所有依赖，默认行为）'
     )
 
     parser.add_argument(
@@ -472,6 +608,20 @@ def main():
         '--no-upx',
         action='store_true',
         help='禁用 UPX 压缩（即使安装了 UPX 也不使用）'
+    )
+
+    parser.add_argument(
+        '--build-dir',
+        '-b',
+        type=str,
+        default=None,
+        help='构建输出目录（用于解决路径包含中文字符的问题。例如: D:\\BuildOutput）'
+    )
+
+    parser.add_argument(
+        '--compile-src',
+        action='store_true',
+        help='预编译源码为 .pyc 字节码（减小体积，轻度保护源码）'
     )
 
     args = parser.parse_args()
@@ -555,132 +705,40 @@ def main():
         return 0
 
     # 正常打包流程
-    use_upx = args.upx and not args.no_upx
+    if args.mode == 'both':
+        print("[INFO] 打包模式: 两个版本（onedir + onefile）")
 
-    # 判断构建类型：默认构建所有版本
-    if args.minimal and args.full:
-        print("[ERROR] 不能同时指定 --minimal 和 --full")
-        return 1
+        # 检查是否使用 UPX
+        use_upx = args.upx and not args.no_upx
 
-    # 如果没有指定 --minimal 或 --full，默认构建所有版本
-    build_all = not args.minimal and not args.full
-
-    # 获取平台信息用于显示
-    platform_info = get_platform_info()
-    import version
-
-    # 构建完整版本（默认或明确指定 --full）
-    if build_all or args.full:
-        if build_all:
-            print("[INFO] 构建所有4个版本（完整 + 最小化，onedir + onefile）")
-        else:
-            print("[INFO] 构建完整版本（包含所有依赖）")
-
-        # 完整版本的文件名
-        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+        # 获取平台信息用于显示
+        platform_info = get_platform_info()
+        import version
+        onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+        onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
         if platform_info["platform"] == "windows":
-            full_onefile_name += ".exe"
+            onefile_name += ".exe"
 
-        if args.mode == 'both':
-            print("\n" + "=" * 60)
-            print("开始编译: 完整目录模式（推荐）")
-            print("=" * 60)
-            build_project(mode="onedir", use_upx=use_upx)
+        print("\n" + "=" * 60)
+        print("开始编译: 目录模式（推荐）")
+        print("=" * 60)
+        build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
-            print("\n\n" + "=" * 60)
-            print("开始编译: 完整单文件模式")
-            print("=" * 60)
-            build_project(mode="onefile", use_upx=use_upx)
-        elif args.mode == 'onedir':
-            print("\n" + "=" * 60)
-            print("开始编译: 完整目录模式")
-            print("=" * 60)
-            build_project(mode="onedir", use_upx=use_upx)
-        elif args.mode == 'onefile':
-            print("\n" + "=" * 60)
-            print("开始编译: 完整单文件模式")
-            print("=" * 60)
-            build_project(mode="onefile", use_upx=use_upx)
+        print("\n\n" + "=" * 60)
+        print("开始编译: 单文件模式")
+        print("=" * 60)
+        build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
-    # 构建最小化版本（默认或明确指定 --minimal）
-    if build_all or args.minimal:
-        if args.minimal:
-            print("[INFO] 构建最小化版本（不打包浏览器和 Flet，运行时下载）")
-
-        if args.mode == 'both':
-            if build_all:
-                print("\n\n" + "=" * 60)
-                print("开始编译: 最小化目录模式")
-                print("=" * 60)
-            build_project_minimal(mode="onedir", use_upx=use_upx)
-
-            if build_all:
-                print("\n\n" + "=" * 60)
-                print("开始编译: 最小化单文件模式")
-                print("=" * 60)
-            build_project_minimal(mode="onefile", use_upx=use_upx)
-        elif args.mode == 'onedir':
-            print("\n" + "=" * 60)
-            print("开始编译: 最小化目录模式")
-            print("=" * 60)
-            build_project_minimal(mode="onedir", use_upx=use_upx)
-        elif args.mode == 'onefile':
-            print("\n" + "=" * 60)
-            print("开始编译: 最小化单文件模式")
-            print("=" * 60)
-            build_project_minimal(mode="onefile", use_upx=use_upx)
-
-    # 构建完成总结
-    print("\n\n" + "=" * 60)
-    print("[SUCCESS] 构建完成！")
-    print("=" * 60)
-
-    if build_all:
-        # 显示所有4个版本
-        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
-        minimal_onedir_name = full_onedir_name.replace("installer", "minimal-installer")
-        minimal_onefile_name = full_onefile_name.replace("portable", "minimal-portable")
-        if platform_info["platform"] == "windows":
-            full_onefile_name += ".exe"
-            minimal_onefile_name += ".exe"
-
-        print("已构建以下4个版本：")
-        print(f"  1. 完整目录模式: dist/{full_onedir_name}/")
-        print(f"  2. 完整单文件模式: dist/{full_onefile_name}")
-        print(f"  3. 最小化目录模式: dist/{minimal_onedir_name}/")
-        print(f"  4. 最小化单文件模式: dist/{minimal_onefile_name}")
-    elif args.full:
-        full_onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        full_onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
-        if platform_info["platform"] == "windows":
-            full_onefile_name += ".exe"
-
-        print("已构建完整版本：")
-        if args.mode == 'both':
-            print(f"  1. 完整目录模式: dist/{full_onedir_name}/")
-            print(f"  2. 完整单文件模式: dist/{full_onefile_name}")
-        elif args.mode == 'onedir':
-            print(f"  完整目录模式: dist/{full_onedir_name}/")
-        elif args.mode == 'onefile':
-            print(f"  完整单文件模式: dist/{full_onefile_name}")
-    elif args.minimal:
-        minimal_onedir_name = get_dist_name("onedir", version.VERSION, platform_info).replace("installer", "minimal-installer")
-        minimal_onefile_name = get_dist_name("onefile", version.VERSION, platform_info).replace("portable", "minimal-portable")
-        if platform_info["platform"] == "windows":
-            minimal_onefile_name += ".exe"
-
-        print("已构建最小化版本：")
-        if args.mode == 'both':
-            print(f"  1. 最小化目录模式: dist/{minimal_onedir_name}/")
-            print(f"  2. 最小化单文件模式: dist/{minimal_onefile_name}")
-        elif args.mode == 'onedir':
-            print(f"  最小化目录模式: dist/{minimal_onedir_name}/")
-        elif args.mode == 'onefile':
-            print(f"  最小化单文件模式: dist/{minimal_onefile_name}")
-
-    print("=" * 60)
+        print("\n\n" + "=" * 60)
+        print("[SUCCESS] 两个版本编译完成！")
+        print("=" * 60)
+        print(f"目录模式: dist/{onedir_name}/")
+        print(f"单文件模式: dist/{onefile_name}")
+        print("=" * 60)
+    else:
+        print(f"[INFO] 打包模式: {args.mode}")
+        use_upx = args.upx and not args.no_upx
+        build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
 
 if __name__ == "__main__":

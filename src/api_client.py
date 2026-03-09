@@ -36,6 +36,8 @@ class APIClient:
 
             if elapsed < delay_ms:
                 sleep_time = (delay_ms - elapsed) / 1000  # 转换为秒
+                if sleep_time > 0.1:  # 只在等待时间超过100ms时显示提示
+                    print(f"⏳ 限速: 距上次请求{elapsed:.0f}ms，需等待{sleep_time:.2f}s", flush=True)
                 time.sleep(sleep_time)
 
         self._last_request_time = time.time()
