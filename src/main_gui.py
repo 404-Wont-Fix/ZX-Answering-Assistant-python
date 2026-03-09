@@ -29,6 +29,8 @@ except ImportError:
 from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
+from src.ui.views.course_certification_view import CourseCertificationView
+from src.ui.views.cloud_exam_view import CloudExamView
 
 
 class MainApp:
@@ -54,13 +56,17 @@ class MainApp:
         self.answering_view = AnsweringView(page, main_app=self)
         self.extraction_view = ExtractionView(page)
         self.settings_view = SettingsView(page)
+        self.course_certification_view = CourseCertificationView(page)
+        self.cloud_exam_view = CloudExamView(page)
 
         # 缓存每个视图的内容（保持状态）
         self.cached_contents = {
             0: None,  # 评估答题
             1: None,  # 答案提取
-            2: None,  # 设置
-            3: None,  # 关于
+            2: None,  # 课程认证
+            3: None,  # 云考试
+            4: None,  # 设置
+            5: None,  # 关于
         }
 
         # 初始化UI
@@ -90,14 +96,16 @@ class MainApp:
         print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
-        """窗口关闭时的清理函数"""
-        try:
-            # 关闭 Playwright 浏览器
-            from src.student_login import close_browser
-            close_browser()
-            print("✅ 浏览器已关闭")
-        except Exception as e:
-            print(f"⚠️ 关闭浏览器时出错: {e}")
+        """
+        窗口关闭时的清理函数
+
+        注意：不在此时直接关闭浏览器，避免 greenlet 线程切换问题
+        atexit 处理器会负责清理
+        """
+        print("🔄 正在关闭窗口...")
+        print("💡 浏览器资源将在程序退出时自动清理")
+        # 不在这里关闭浏览器，避免 greenlet 线程切换错误
+        # atexit 处理器会在 Python 退出时自动清理
 
     def _build_ui(self):
         """构建用户界面"""
@@ -133,6 +141,16 @@ class MainApp:
                     icon=ft.Icons.DOWNLOAD,
                     selected_icon=ft.Icons.DOWNLOAD,
                     label="答案提取",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.SCHOOL,
+                    selected_icon=ft.Icons.SCHOOL,
+                    label="课程认证",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.CLOUD_QUEUE,
+                    selected_icon=ft.Icons.CLOUD,
+                    label="云考试",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.SETTINGS,
@@ -200,8 +218,12 @@ class MainApp:
             elif self.current_destination == 1:
                 cached_content = self.extraction_view.get_content()
             elif self.current_destination == 2:
-                cached_content = self.settings_view.get_content()
+                cached_content = self.course_certification_view.get_content()
             elif self.current_destination == 3:
+                cached_content = self.cloud_exam_view.get_content()
+            elif self.current_destination == 4:
+                cached_content = self.settings_view.get_content()
+            elif self.current_destination == 5:
                 cached_content = self._get_about_content()
             else:
                 return
