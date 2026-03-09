@@ -238,7 +238,7 @@ class APIAutoAnswer:
             Optional[List[Dict]]: 课程列表，如果失败则返回None
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             logger.info("📋 获取课程列表...")
 
@@ -274,7 +274,7 @@ class APIAutoAnswer:
             Optional[Dict]: 课程信息，包含知识点的完成状态，如果失败则返回None
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             logger.info(f"📋 获取课程 {course_id} 的详细信息...")
 
@@ -319,7 +319,7 @@ class APIAutoAnswer:
             Optional[Dict]: 包含章节和知识点信息的字典，如果失败则返回None
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             logger.info(f"📖 获取课程 {course_id} 的章节和知识点信息...")
 
@@ -362,7 +362,7 @@ class APIAutoAnswer:
                      如果返回特殊字符串"skip"，表示需要跳过该知识点
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             # 构造参数字符串（用于签名，不编码）
             params_raw = f"kpid={kpid}"
@@ -440,7 +440,7 @@ class APIAutoAnswer:
             bool: 是否成功保存
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             # 构造请求体中的questions数组（使用大写字段名）
             questions_data = [{"QuestionID": question_id, "AnswerID": answer_id}]
@@ -525,7 +525,7 @@ class APIAutoAnswer:
             bool: 是否成功保存
         """
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             # 构造questions JSON字符串（空数组，表示已完成）
             questions_json = "[]"

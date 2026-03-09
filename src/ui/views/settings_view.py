@@ -5,7 +5,7 @@ This module contains the UI components for the settings page.
 """
 
 import flet as ft
-from src.settings import get_settings_manager, APIRateLevel
+from src.core.config import get_settings_manager, APIRateLevel
 
 
 class SettingsView:
@@ -856,7 +856,7 @@ class SettingsView:
 
         # 应用设置（关闭并重启浏览器）
         try:
-            from src.browser_manager import get_browser_manager
+            from src.core.browser import get_browser_manager
 
             manager = get_browser_manager()
 
@@ -963,7 +963,7 @@ class SettingsView:
     def _restart_browser(self):
         """重启浏览器"""
         try:
-            from src.browser_manager import get_browser_manager
+            from src.core.browser import get_browser_manager
             manager = get_browser_manager()
 
             # 关闭浏览器

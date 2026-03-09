@@ -9,7 +9,7 @@ import json
 import sys
 from pathlib import Path
 from io import StringIO
-from src.student_login import (
+from src.auth.student import (
     get_student_access_token,
     get_student_courses,
     get_uncompleted_chapters,
@@ -20,7 +20,7 @@ from src.student_login import (
     clear_access_token,
     cleanup_browser,
 )
-from src.settings import get_settings_manager
+from src.core.config import get_settings_manager
 
 
 class AnsweringView:
@@ -1036,7 +1036,7 @@ class AnsweringView:
             file_path: JSON文件路径
         """
         from pathlib import Path
-        from src.question_bank_importer import QuestionBankImporter
+        from src.extraction.importer import QuestionBankImporter
 
         file_name = Path(file_path).name
 
@@ -1588,8 +1588,8 @@ class AnsweringView:
                 self._append_log("📌 模式：浏览器自动化（兼容模式）\n")
                 self._append_log("⏳ 正在获取浏览器实例...\n")
 
-                from src.student_login import get_browser_page
-                from src.auto_answer import AutoAnswer
+                from src.auth.student import get_browser_page
+                from src.answering.browser_answer import AutoAnswer
 
                 # 获取浏览器实例
                 browser_page = get_browser_page()
@@ -1687,8 +1687,8 @@ class AnsweringView:
                 self._append_log("📌 模式：API直接请求（暴力模式）\n")
                 self._append_log("⏳ 正在获取access_token...\n")
 
-                from src.student_login import get_cached_access_token
-                from src.api_auto_answer import APIAutoAnswer
+                from src.auth.student import get_cached_access_token
+                from src.answering.api_answer import APIAutoAnswer
 
                 # 获取access_token（使用缓存管理）
                 access_token = get_cached_access_token()
@@ -1793,7 +1793,7 @@ class AnsweringView:
 
         # 如果已导入题库，验证题库课程ID是否与新选择的课程匹配
         if self.question_bank_data:
-            from src.question_bank_importer import QuestionBankImporter
+            from src.extraction.importer import QuestionBankImporter
 
             importer = QuestionBankImporter()
             importer.data = self.question_bank_data
@@ -1968,7 +1968,7 @@ class AnsweringView:
         # 如果有旧课程，返回课程列表；如果没有，保持当前状态
         if old_course:
             # 恢复旧课程并显示课程列表
-            from src.student_login import get_student_courses
+            from src.auth.student import get_student_courses
             try:
                 self.course_list = get_student_courses()
                 course_list_content = self._get_course_list_content()

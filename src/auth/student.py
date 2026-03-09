@@ -11,18 +11,19 @@
 from playwright.sync_api import Browser, Page, BrowserContext
 from typing import Optional, List, Dict, Tuple
 import time
-import json
 import logging
 import requests
 import sys
-import io
 
 # 导入浏览器管理器
-from src.browser_manager import (
+from src.core.browser import (
     get_browser_manager,
     BrowserType,
     run_in_thread_if_asyncio
 )
+
+# 导入Token管理器
+from src.auth.token_manager import get_token_manager
 
 # 创建自定义的 StreamHandler 来处理 Unicode 编码
 class UTF8StreamHandler(logging.StreamHandler):
@@ -51,9 +52,8 @@ logging.basicConfig(
 
 logger = logging.getLogger(__name__)
 
-# 全局变量，缓存access_token
-_cached_access_token = None
-_token_expiry_time = None  # token过期时间（5小时有效期）
+# 获取Token管理器实例
+_token_manager = get_token_manager()
 
 
 # ============================================================================
@@ -129,7 +129,7 @@ def _get_student_access_token_impl(username: str = None, password: str = None, k
         # 如果没有提供用户名和密码，尝试从配置读取或询问用户
         if username is None or password is None:
             try:
-                from src.settings import get_settings_manager
+                from src.core.config import get_settings_manager
                 settings = get_settings_manager()
                 config_username, config_password = settings.get_student_credentials()
 
@@ -276,13 +276,13 @@ def _get_student_access_token_impl(username: str = None, password: str = None, k
                         if error_element:
                             error_text = error_element.text_content()
                             logger.error(f"登录错误提示: {error_text}")
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"检查登录错误提示失败: {e}")
 
                 if access_token:
                     logger.info("✅ 成功获取access_token")
                     # 缓存access_token
-                    set_access_token(access_token)
+                    _token_manager.set_student_token(access_token)
                     # 等待一下确保完全获取到token
                     time.sleep(0.5)
 
@@ -334,7 +334,7 @@ def get_student_access_token_with_credentials() -> Optional[str]:
     """
     # 尝试从配置文件读取凭据
     try:
-        from src.settings import get_settings_manager
+        from src.core.config import get_settings_manager
         settings = get_settings_manager()
         config_username, config_password = settings.get_student_credentials()
 
@@ -593,7 +593,7 @@ def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 
     """
     # 使用API客户端发送请求
     try:
-        from src.api_client import get_api_client
+        from src.core.api_client import get_api_client
 
         api_client = get_api_client()
 
@@ -805,7 +805,7 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     Returns:
         Optional[List[Dict]]: 课程列表，如果失败则返回None
     """
-    from src.api_client import get_api_client
+    from src.core.api_client import get_api_client
 
     # API端点
     url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
@@ -887,7 +887,7 @@ def get_student_courses(access_token: str, max_retries: Optional[int] = None, de
     Returns:
         Optional[List[Dict]]: 课程列表，如果失败则返回None
     """
-    from src.api_client import get_api_client
+    from src.core.api_client import get_api_client
 
     try:
         logger.info("正在获取学生端课程列表...")
@@ -968,16 +968,12 @@ def get_student_courses(access_token: str, max_retries: Optional[int] = None, de
 
 def set_access_token(token: str):
     """
-    设置access_token缓存
+    设置access_token缓存（向后兼容的包装函数）
 
     Args:
         token: access_token字符串
     """
-    global _cached_access_token, _token_expiry_time
-    _cached_access_token = token
-    # token有效期5小时（18000秒），提前10分钟过期
-    _token_expiry_time = time.time() + 18000 - 600
-    logger.info(f"✅ access_token已缓存，有效期至: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime(_token_expiry_time))}")
+    _token_manager.set_student_token(token)
 
 
 def get_cached_access_token() -> Optional[str]:
@@ -988,28 +984,21 @@ def get_cached_access_token() -> Optional[str]:
     Returns:
         Optional[str]: 有效的access_token，如果获取失败则返回None
     """
-    global _cached_access_token, _token_expiry_time
+    # 先尝试从缓存获取
+    cached_token = _token_manager.get_student_token()
+    if cached_token:
+        logger.info(f"✅ 使用缓存的access_token: {cached_token[:20]}...")
+        return cached_token
 
-    # 检查缓存是否存在
-    if not _cached_access_token:
-        logger.info("💡 缓存中无access_token，尝试从浏览器获取...")
-        return get_access_token_from_browser()
-
-    # 检查token是否过期
-    if _token_expiry_time and time.time() > _token_expiry_time:
-        logger.warning("⚠️ 缓存的access_token已过期，重新获取...")
-        return get_access_token_from_browser()
-
-    # token有效，返回缓存的token
-    logger.info(f"✅ 使用缓存的access_token: {_cached_access_token[:20]}...")
-    return _cached_access_token
+    # 缓存不存在或已过期，从浏览器获取
+    logger.info("💡 缓存中无有效access_token，尝试从浏览器获取...")
+    new_token = get_access_token_from_browser()
+    return new_token
 
 
 def clear_access_token():
-    """清除access_token缓存"""
-    global _cached_access_token, _token_expiry_time
-    _cached_access_token = None
-    _token_expiry_time = None
+    """清除access_token缓存（向后兼容的包装函数）"""
+    _token_manager.clear_student_token()
     logger.info("🗑️ access_token缓存已清除")
 
 

@@ -85,7 +85,7 @@ class BrowserManager:
             # 如果没有指定 headless 参数，从配置文件读取
             if headless is None:
                 try:
-                    from src.settings import get_settings_manager
+                    from src.core.config import get_settings_manager
                     settings = get_settings_manager()
                     headless = settings.get_browser_headless()
                     logger.info(f"从配置文件读取无头模式设置: headless={headless}")
@@ -215,41 +215,52 @@ class BrowserManager:
         关闭指定类型的上下文和页面
 
         Args:
-            browser_type: 浏览器类型
+            browser_type: 浏览器类型（STUDENT, TEACHER, COURSE_CERTIFICATION）
         """
-        # 先关闭页面
-        if browser_type in self._pages:
-            try:
-                self._pages[browser_type].close()
-                logger.debug(f"页面已关闭 ({browser_type.value})")
-            except Exception as e:
-                # 忽略 EPIPE 错误
-                if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
-                    logger.warning(f"关闭页面失败 ({browser_type.value}): {e}")
-            finally:
-                # 无论是否成功，都从字典中移除
+        if browser_type not in self._contexts:
+            logger.debug(f"上下文 {browser_type.value} 不存在")
+            return
+
+        context = self._contexts[browser_type]
+
+        try:
+            if context:
+                # 先关闭该上下文下的所有页面
+                pages_to_close = []
+                try:
+                    pages_to_close = context.pages
+                    logger.debug(f"找到 {len(pages_to_close)} 个页面需要关闭")
+                except Exception as e:
+                    logger.debug(f"获取页面列表失败: {e}")
+
+                for page in pages_to_close:
+                    try:
+                        if not page.is_closed():
+                            page.close()
+                            logger.debug(f"页面已关闭")
+                    except Exception as e:
+                        logger.debug(f"关闭页面失败: {e}")
+
+                # 移除上下文监听器
+                try:
+                    context._impl_obj._channels = []
+                except Exception as e:
+                    logger.debug(f"移除上下文监听器失败: {e}")
+
+                # 关闭上下文
+                context.close()
+                logger.debug(f"上下文已关闭 ({browser_type.value})")
+        except Exception as e:
+            # 忽略 EPIPE 和连接错误
+            if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                logger.warning(f"关闭上下文失败 ({browser_type.value}): {e}")
+        finally:
+            # 无论是否成功，都从字典中移除
+            if browser_type in self._pages:
                 self._pages[browser_type] = None
                 del self._pages[browser_type]
-
-        # 再关闭上下文
-        if browser_type in self._contexts:
-            try:
-                # 尝试先移除所有监听器
-                try:
-                    self._contexts[browser_type]._impl_obj._channels = []
-                except Exception:
-                    pass
-
-                self._contexts[browser_type].close()
-                logger.debug(f"上下文已关闭 ({browser_type.value})")
-            except Exception as e:
-                # 忽略 EPIPE 错误
-                if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
-                    logger.warning(f"关闭上下文失败 ({browser_type.value}): {e}")
-            finally:
-                # 无论是否成功，都从字典中移除
-                self._contexts[browser_type] = None
-                del self._contexts[browser_type]
+            self._contexts[browser_type] = None
+            del self._contexts[browser_type]
 
         logger.info(f"已关闭 {browser_type.value} 上下文")
 
@@ -266,6 +277,8 @@ class BrowserManager:
         注意：此方法会尝试优雅地关闭所有资源。
         如果遇到 greenlet 线程切换错误，会强制清理引用。
         """
+        logger.info("开始关闭浏览器和 Playwright 实例...")
+
         # 先关闭所有上下文和页面
         self.close_all_contexts()
 
@@ -273,24 +286,32 @@ class BrowserManager:
         if self._browser:
             try:
                 # 先移除所有监听器，避免关闭时触发事件
-                self._browser._impl_obj._channels = []
-            except Exception:
-                pass
+                try:
+                    if hasattr(self._browser, '_impl_obj') and self._browser._impl_obj:
+                        self._browser._impl_obj._channels = []
+                        logger.debug("浏览器监听器已移除")
+                except Exception as e:
+                    logger.debug(f"移除浏览器监听器失败: {e}")
 
-            try:
-                self._browser.close()
-                logger.info("浏览器已关闭")
-            except Exception as e:
-                # 检查是否是 greenlet 线程切换错误
-                if "greenlet" in str(e) or "Cannot switch" in str(e):
-                    logger.warning("检测到 greenlet 线程切换错误，强制清理浏览器引用")
-                # 忽略 EPIPE 和连接错误
-                elif "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
-                    logger.warning(f"关闭浏览器失败: {e}")
-                # 对于 greenlet 错误，继续执行清理
+                # 关闭浏览器
+                try:
+                    if self._browser.is_connected():
+                        self._browser.close()
+                        logger.info("浏览器已关闭")
+                    else:
+                        logger.info("浏览器已断开连接，跳过关闭操作")
+                except Exception as e:
+                    # 检查是否是 greenlet 线程切换错误
+                    if "greenlet" in str(e) or "Cannot switch" in str(e):
+                        logger.warning("检测到 greenlet 线程切换错误，强制清理浏览器引用")
+                    # 忽略 EPIPE 和连接错误
+                    elif "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
+                        logger.warning(f"关闭浏览器失败: {e}")
+                    # 对于 greenlet 错误，继续执行清理
             finally:
                 # 无论是否成功，都清理引用
                 self._browser = None
+                logger.debug("浏览器引用已清理")
 
         # 停止 Playwright
         if self._playwright:
@@ -307,6 +328,7 @@ class BrowserManager:
             finally:
                 # 无论是否成功，都清理引用
                 self._playwright = None
+                logger.debug("Playwright 引用已清理")
 
         logger.info("浏览器资源已完全清理")
 
@@ -406,16 +428,25 @@ class BrowserManager:
 
     def is_browser_alive(self) -> bool:
         """
-        检查浏览器是否存活
+        检查浏览器是否存活（增强版）
 
         Returns:
             bool: 浏览器是否连接正常
         """
         if self._browser is None:
+            logger.debug("浏览器实例为 None")
             return False
         try:
-            # 尝试访问浏览器的上下文列表来检查连接状态
+            # 多重检查确保浏览器真正存活
+            # 1. 检查是否已连接
+            if not self._browser.is_connected():
+                logger.warning("浏览器已断开连接")
+                return False
+            # 2. 尝试访问上下文列表
             _ = self._browser.contexts
+            # 3. 尝试访问版本信息
+            _ = self._browser.version
+            logger.debug("浏览器健康检查通过")
             return True
         except Exception as e:
             logger.warning(f"浏览器健康检查失败: {e}")
@@ -423,7 +454,7 @@ class BrowserManager:
 
     def is_context_alive(self, browser_type: BrowserType) -> bool:
         """
-        检查指定上下文是否存活
+        检查指定上下文是否存活（增强版）
 
         Args:
             browser_type: 浏览器类型
@@ -431,14 +462,24 @@ class BrowserManager:
         Returns:
             bool: 上下文是否存活
         """
+        # 先检查浏览器是否存活
         if not self.is_browser_alive():
+            logger.debug(f"浏览器未存活，跳过上下文检查 ({browser_type.value})")
             return False
+
+        # 检查上下文是否存在
         context = self.get_context(browser_type)
         if context is None:
+            logger.debug(f"上下文不存在 ({browser_type.value})")
             return False
+
         try:
-            # 尝试访问上下文的页面列表来检查状态
+            # 多重检查确保上下文真正存活
+            # 1. 尝试访问页面列表
             _ = context.pages
+            # 2. 尝试访问上下文 URL
+            _ = context._impl_obj
+            logger.debug(f"上下文健康检查通过 ({browser_type.value})")
             return True
         except Exception as e:
             logger.warning(f"上下文健康检查失败 ({browser_type.value}): {e}")

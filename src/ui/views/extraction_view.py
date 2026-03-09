@@ -11,9 +11,9 @@ import os
 import sys
 import subprocess
 from typing import Optional, List, Dict
-from src.extract import Extractor
-from src.export import DataExporter
-from src.settings import get_settings_manager
+from src.extraction.extractor import Extractor
+from src.extraction.exporter import DataExporter
+from src.core.config import get_settings_manager
 
 
 class ExtractionView:

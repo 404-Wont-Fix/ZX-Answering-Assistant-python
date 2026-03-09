@@ -14,11 +14,12 @@ from typing import Optional, List, Dict
 import time
 import requests
 import logging
-from src.api_client import get_api_client
-from src.course_api_answer import APICourseAnswer
+import threading
+from src.core.api_client import get_api_client
+from src.certification.api_answer import APICourseAnswer
 
 # 导入浏览器管理器
-from src.browser_manager import (
+from src.core.browser import (
     get_browser_manager,
     BrowserType,
     run_in_thread_if_asyncio
@@ -27,8 +28,79 @@ from src.browser_manager import (
 # 配置日志
 logger = logging.getLogger(__name__)
 
-# 全局变量，保存导入的题库
-_global_question_bank = None
+
+# ============================================================================
+# 题库缓存管理（线程安全）
+# ============================================================================
+
+class QuestionBankCache:
+    """
+    题库缓存管理类（线程安全）
+
+    用于管理课程认证题库的缓存，替代全局变量。
+    """
+
+    def __init__(self):
+        """初始化缓存"""
+        self._cache = {}
+        self._lock = threading.Lock()
+
+    def set(self, key: str, data):
+        """
+        设置缓存
+
+        Args:
+            key: 缓存键名
+            data: 要缓存的数据
+        """
+        with self._lock:
+            self._cache[key] = data
+        logger.debug(f"题库缓存已设置: {key}")
+
+    def get(self, key: str):
+        """
+        获取缓存
+
+        Args:
+            key: 缓存键名
+
+        Returns:
+            缓存的数据，如果不存在则返回None
+        """
+        with self._lock:
+            return self._cache.get(key)
+
+    def clear(self, key: str = None):
+        """
+        清除缓存
+
+        Args:
+            key: 缓存键名，如果为None则清除所有缓存
+        """
+        with self._lock:
+            if key:
+                self._cache.pop(key, None)
+                logger.debug(f"题库缓存已清除: {key}")
+            else:
+                self._cache.clear()
+                logger.debug("所有题库缓存已清除")
+
+    def has(self, key: str) -> bool:
+        """
+        检查缓存是否存在
+
+        Args:
+            key: 缓存键名
+
+        Returns:
+            bool: 缓存是否存在
+        """
+        with self._lock:
+            return key in self._cache
+
+
+# 全局缓存实例
+_question_bank_cache = QuestionBankCache()
 
 
 # ============================================================================
@@ -73,10 +145,8 @@ def import_question_bank(file_path: str) -> bool:
     Returns:
         bool: 导入是否成功
     """
-    global _global_question_bank
-
     try:
-        from src.question_bank_importer import QuestionBankImporter
+        from src.extraction.importer import QuestionBankImporter
 
         print(f"\n正在导入题库文件: {file_path}")
 
@@ -90,8 +160,8 @@ def import_question_bank(file_path: str) -> bool:
             print("❌ 题库文件导入失败")
             return False
 
-        # 保存到全局变量
-        _global_question_bank = importer.data
+        # 保存到缓存
+        _question_bank_cache.set('current', importer.data)
 
         # 显示简化的题库统计信息
         print("\n" + "=" * 60)
@@ -138,7 +208,7 @@ def import_question_bank(file_path: str) -> bool:
                 print(f"  选项：{stats['totalOptions']} 个")
 
         print("=" * 60)
-        print(f"✅ 题库已保存到全局变量")
+        print(f"✅ 题库已缓存")
 
         return True
 
@@ -151,13 +221,12 @@ def import_question_bank(file_path: str) -> bool:
 
 def get_question_bank() -> Optional[Dict]:
     """
-    获取全局题库数据
+    获取缓存的题库数据
 
     Returns:
         Optional[Dict]: 题库数据，如果未导入则返回None
     """
-    global _global_question_bank
-    return _global_question_bank
+    return _question_bank_cache.get('current')
 
 
 def hello_world():
@@ -200,7 +269,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
 
         # 尝试从配置文件读取凭据
         try:
-            from src.settings import get_settings_manager
+            from src.core.config import get_settings_manager
             settings = get_settings_manager()
             config_username, config_password = settings.get_teacher_credentials()
 
@@ -343,8 +412,8 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                     try:
                         page.close()
                         logger.info("页面已关闭")
-                    except:
-                        pass
+                    except Exception as e:
+                        logger.debug(f"关闭页面失败: {e}")
                     return (access_token, None)
                 else:
                     # 返回页面供后续使用

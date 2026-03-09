@@ -7,8 +7,8 @@ This module contains the UI components for the course certification page.
 import flet as ft
 import json
 from pathlib import Path
-from src.question_bank_importer import QuestionBankImporter
-from src.settings import get_settings_manager
+from src.extraction.importer import QuestionBankImporter
+from src.core.config import get_settings_manager
 
 
 class CourseCertificationView:
@@ -548,7 +548,7 @@ class CourseCertificationView:
             progress_dialog: 进度对话框
         """
         try:
-            from src.course_certification import get_access_token
+            from src.certification.workflow import get_access_token
 
             # 调用真实的登录逻辑（GUI模式，跳过交互式提示）
             result = get_access_token(keep_browser_open=True, skip_prompt=True)
@@ -619,7 +619,7 @@ class CourseCertificationView:
         Returns:
             list: 课程列表
         """
-        from src.api_client import get_api_client
+        from src.core.api_client import get_api_client
 
         api_url = "https://zxsz.cqzuxia.com/teacherCertifiApi/api/ModuleTeacher/GetLessonListByTeacher"
 
@@ -647,7 +647,7 @@ class CourseCertificationView:
 
         # 如果已导入题库，验证题库课程ID是否与新选择的课程匹配
         if self.question_bank_data:
-            from src.question_bank_importer import QuestionBankImporter
+            from src.extraction.importer import QuestionBankImporter
 
             importer = QuestionBankImporter()
             importer.data = self.question_bank_data
@@ -1227,7 +1227,7 @@ class CourseCertificationView:
     def _run_certification_task(self, course_id: str, question_bank_data: dict):
         """在后台线程中运行答题任务"""
         try:
-            from src.course_api_answer import APICourseAnswer
+            from src.certification.api_answer import APICourseAnswer
 
             self._append_log("🚀 开始课程认证答题\n")
             self._append_log(f"📚 课程ID: {course_id}\n")

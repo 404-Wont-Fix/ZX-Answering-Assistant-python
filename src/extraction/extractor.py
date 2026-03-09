@@ -37,7 +37,7 @@ class Extractor:
             # 尝试从配置文件读取凭据
             if username is None or password is None:
                 try:
-                    from src.settings import get_settings_manager
+                    from src.core.config import get_settings_manager
                     settings = get_settings_manager()
                     config_username, config_password = settings.get_teacher_credentials()
 
@@ -71,7 +71,7 @@ class Extractor:
             
             # 从配置文件读取无头模式设置
             try:
-                from src.settings import get_settings_manager
+                from src.core.config import get_settings_manager
                 settings = get_settings_manager()
                 headless = settings.get_browser_headless()
                 print(f"💡 从配置文件读取无头模式设置: headless={headless}")
@@ -160,7 +160,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = "https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetClassByTeacherID"
             headers = {
@@ -310,7 +310,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID?classID={class_id}"
             headers = {
@@ -398,7 +398,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetChapterEvaluationByClassID?classID={class_id}"
             headers = {
@@ -486,7 +486,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass?classID={class_id}"
             headers = {
@@ -575,7 +575,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetKnowQuestionEvaluation?classID={class_id}&knowledgeID={knowledge_id}"
             headers = {
@@ -664,7 +664,7 @@ class Extractor:
             return None
 
         try:
-            from src.api_client import get_api_client
+            from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetQuestionAnswerListByQID?classID={class_id}&questionID={question_id}"
             headers = {

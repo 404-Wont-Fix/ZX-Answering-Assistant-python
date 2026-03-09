@@ -14,7 +14,7 @@ import time
 import logging
 
 # 导入浏览器管理器
-from src.browser_manager import (
+from src.core.browser import (
     get_browser_manager,
     BrowserType,
     run_in_thread_if_asyncio
@@ -53,7 +53,7 @@ def _get_access_token_impl() -> Optional[str]:
 
         # 尝试从配置文件读取凭据
         try:
-            from src.settings import get_settings_manager
+            from src.core.config import get_settings_manager
             settings = get_settings_manager()
             config_username, config_password = settings.get_teacher_credentials()
 
