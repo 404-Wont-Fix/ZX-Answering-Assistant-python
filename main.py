@@ -13,6 +13,7 @@ import subprocess
 import os
 import argparse
 import atexit
+from typing import Optional
 
 # 设置控制台编码为 UTF-8（Windows 打包环境必需）
 if sys.platform == 'win32':
@@ -36,6 +37,12 @@ sys.path.insert(0, str(project_root))
 
 # 导入版本信息
 import version
+
+# 导入应用状态管理器
+from src.core.app_state import get_app_state
+
+# 获取应用状态管理器实例
+app_state = get_app_state()
 
 # 显示版本信息
 version.print_version_info()
@@ -109,7 +116,7 @@ def cleanup_on_exit():
     """
     try:
         # 尝试使用浏览器管理器清理
-        from src.browser_manager import get_browser_manager
+        from src.core.browser import get_browser_manager
         manager = get_browser_manager()
         if manager._browser is not None:
             print("🔄 [atexit] 正在清理浏览器资源...")
@@ -179,25 +186,42 @@ def setup_flet_executable():
 setup_playwright_browser()
 setup_flet_executable()
 
-# 导入登录模块和题目提取模块
-from src.teacher_login import get_access_token as teacher_get_access_token
-from src.student_login import (get_student_access_token, get_student_access_token_with_credentials,
-                               get_student_courses, get_uncompleted_chapters, navigate_to_course,
-                               close_browser, get_course_progress_from_page, get_browser_page,
-                               get_cached_access_token)
-from src.course_certification import get_access_token as course_get_access_token, start_answering
-from src.extract import extract_questions, extract_single_course
-from src.export import DataExporter
-from src.question_bank_importer import QuestionBankImporter
-from src.auto_answer import AutoAnswer
-from src.api_auto_answer import APIAutoAnswer
-from src.settings import get_settings_manager, APIRateLevel
+# 导入CLI模式所需的模块
+# 注意：这些导入在模块级别，目前没有循环导入风险
 import time
 
+# 登录和认证模块
+from src.auth.teacher import get_access_token as teacher_get_access_token
+from src.auth.student import (
+    get_student_access_token,
+    get_student_access_token_with_credentials,
+    get_student_courses,
+    get_uncompleted_chapters,
+    navigate_to_course,
+    close_browser,
+    get_course_progress_from_page,
+    get_browser_page,
+    get_cached_access_token
+)
 
-# 全局变量，存储最后一次提取的数据和题库
-last_extracted_data = None
-current_question_bank = None  # 当前加载的题库数据
+# 课程认证模块
+from src.certification.workflow import get_access_token as course_get_access_token, start_answering
+
+# 数据提取和导出模块
+from src.extraction.extractor import extract_questions, extract_single_course
+from src.extraction.exporter import DataExporter
+from src.extraction.importer import QuestionBankImporter
+
+# 自动答题模块
+from src.answering.browser_answer import AutoAnswer
+from src.answering.api_answer import APIAutoAnswer
+
+# 设置模块
+from src.core.config import get_settings_manager, APIRateLevel
+
+
+# 全局变量已被 AppState 替代
+# 使用 app_state.get('last_extracted_data') 和 app_state.get('current_question_bank') 访问
 
 
 # ==================== CLI设置菜单功能 ====================
@@ -456,7 +480,7 @@ def course_certification_menu():
                 continue
 
             # 调用题库导入功能
-            from src.course_certification import import_question_bank
+            from src.certification.workflow import import_question_bank
             success = import_question_bank(file_path)
 
             if success:
@@ -532,7 +556,512 @@ def monitor_course_progress(interval: int = 5):
         print("\n\n⏸️  监控已停止")
 
 
+# ============================================================================
+# 答题菜单处理器类
+# ============================================================================
+
+class AnswerMenuHandler:
+    """
+    答题菜单处理器
+
+    将 show_answer_menu 函数重构为类，提高代码可维护性。
+    """
+
+    def __init__(self, course_info: dict):
+        """
+        初始化答题菜单处理器
+
+        Args:
+            course_info: 课程信息字典
+        """
+        self.course_info = course_info
+        self.auto_all_mode = False
+
+    def show_menu(self) -> bool:
+        """
+        显示答题菜单并处理用户选择
+
+        Returns:
+            bool: 是否应该返回到课程列表
+        """
+        while True:
+            self._display_menu()
+            choice = input("\n请选择操作 (1-4 或 0): ").strip()
+
+            if choice == "1":
+                if self._handle_extract_answers():
+                    return True
+            elif choice == "2":
+                self._handle_load_json_bank()
+            elif choice == "3":
+                if self._handle_browser_auto_answer():
+                    return True
+            elif choice == "4":
+                if self._handle_api_auto_answer():
+                    return True
+            elif choice == "0":
+                print("\n🔙 返回课程列表")
+                return True
+            else:
+                print("\n❌ 无效的选择，请输入 1-4 或 0")
+
+    def _display_menu(self):
+        """显示菜单选项"""
+        print("\n" + "=" * 50)
+        print("📚 答题选项菜单")
+        print("=" * 50)
+        print("1. 提取该课程的答案")
+        print("2. 使用JSON题库")
+        current_bank = app_state.get('current_question_bank')
+        bank_status = " (✅已加载题库)" if current_bank else ""
+        print(f"3. 开始自动做题{bank_status}(兼容模式)")
+        print(f"4. 开始自动做题{bank_status}(暴力模式)")
+        print("0. 退出")
+        print("=" * 50)
+
+    def _handle_extract_answers(self) -> bool:
+        """
+        处理选项1：提取答案
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        print(f"\n📚 正在提取课程答案：{self.course_info['course_name']}")
+        print(f"🆔 课程ID: {self.course_info['course_id']}")
+
+        # 调用独立进程运行教师端答案提取
+        print("\n🔄 正在启动教师端答案提取进程...")
+        try:
+            result = subprocess.run(
+                [sys.executable, "extract_answers.py", self.course_info['course_id']],
+                cwd=str(project_root)
+            )
+
+            if result.returncode == 0:
+                print("\n✅ 答案提取成功！")
+                self._auto_load_latest_bank()
+            else:
+                print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
+        except Exception as e:
+            print(f"\n❌ 启动提取进程失败：{str(e)}")
+
+        # 询问是否启动持续监控
+        monitor_choice = input("\n是否启动持续监控？(yes/no): ").strip().lower()
+        if monitor_choice in ['yes', 'y', '是']:
+            monitor_course_progress(interval=5)
+
+        return True  # 返回课程列表
+
+    def _auto_load_latest_bank(self):
+        """自动加载最新的题库文件"""
+        output_dir = Path("output")
+        if output_dir.exists():
+            json_files = list(output_dir.glob("*.json"))
+            if json_files:
+                latest_file = max(json_files, key=lambda f: f.stat().st_mtime)
+                print(f"\n📁 自动加载最新题库: {latest_file.name}")
+                importer = QuestionBankImporter()
+                if importer.import_from_file(str(latest_file)):
+                    app_state.set('current_question_bank', importer.data)
+                    print("✅ 题库已自动加载，现在可以开始自动做题")
+
+    def _handle_load_json_bank(self):
+        """处理选项2：加载JSON题库"""
+        print("\n📁 使用JSON题库功能")
+        file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
+
+        if not file_path:
+            file_path = self._select_json_file()
+            if not file_path:
+                return
+
+        # 导入题库
+        importer = QuestionBankImporter()
+        if importer.import_from_file(file_path):
+            self._display_bank_info(importer)
+            app_state.set('current_question_bank', importer.data)
+        else:
+            print("❌ 题库导入失败")
+
+    def _select_json_file(self) -> Optional[str]:
+        """
+        选择JSON文件
+
+        Returns:
+            Optional[str]: 选中的文件路径，如果取消则返回None
+        """
+        output_dir = Path("output")
+        if not output_dir.exists():
+            print("❌ output目录不存在")
+            return None
+
+        json_files = list(output_dir.glob("*.json"))
+        if not json_files:
+            print("❌ output目录下没有找到JSON文件")
+            return None
+
+        print("\n可用的JSON文件：")
+        for i, json_file in enumerate(json_files, 1):
+            print(f"  {i}. {json_file.name}")
+
+        file_choice = input("\n请选择文件编号：")
+        try:
+            choice_idx = int(file_choice) - 1
+            if 0 <= choice_idx < len(json_files):
+                return str(json_files[choice_idx])
+            else:
+                print("❌ 无效的选择")
+                return None
+        except ValueError:
+            print("❌ 请输入有效的数字")
+            return None
+
+    def _display_bank_info(self, importer):
+        """显示题库信息"""
+        bank_type = importer.get_bank_type()
+        if bank_type == "single":
+            print("\n✅ 识别为单个课程题库")
+        elif bank_type == "multiple":
+            print("\n✅ 识别为多个课程题库")
+        else:
+            print("\n❌ 未知的题库类型")
+
+        print(importer.format_output())
+
+    def _handle_browser_auto_answer(self) -> bool:
+        """
+        处理选项3：浏览器模式自动答题
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        current_bank = app_state.get('current_question_bank')
+        if not current_bank:
+            print("\n❌ 请先加载题库（选项1或选项2）")
+            return False
+
+        if not self._prepare_auto_answer():
+            return False
+
+        try:
+            return self._run_browser_auto_answer(current_bank)
+        except KeyboardInterrupt:
+            print("\n\n⚠️  用户中断自动做题")
+            return False
+        except Exception as e:
+            print(f"\n❌ 自动做题失败：{str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _prepare_auto_answer(self) -> bool:
+        """准备自动答题"""
+        print("\n🤖 准备开始自动做题...")
+        print(f"🆔 课程ID: {self.course_info['course_id']}")
+        print(f"📚 课程名称: {self.course_info['course_name']}")
+
+        browser_page = get_browser_page()
+        if not browser_page:
+            print("\n❌ 无法获取浏览器实例，请确保已登录学生端")
+            return False
+
+        print("\n💡 提示：请确保当前页面显示的是题目列表（知识点列表）")
+        ready = input("\n是否准备好开始自动做题？(yes/no): ").strip().lower()
+        return ready in ['yes', 'y', '是']
+
+    def _run_browser_auto_answer(self, current_bank) -> bool:
+        """
+        运行浏览器自动答题
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        browser_page = get_browser_page()
+        auto_answer = AutoAnswer(browser_page[1])
+        auto_answer.load_question_bank(current_bank)
+
+        # 询问模式
+        auto_all = input("\n是否一次性做完整个课程的所有未完成知识点？(yes/no): ").strip().lower()
+        self.auto_all_mode = auto_all in ['yes', 'y', '是']
+
+        if self.auto_all_mode:
+            print("\n🔄 自动全部模式：将自动完成所有未完成的知识点")
+            print("💡 提示：按 Ctrl+C 可随时中断")
+
+        # 循环做题
+        return self._auto_answer_loop(auto_answer)
+
+    def _auto_answer_loop(self, auto_answer) -> bool:
+        """
+        自动答题循环
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        knowledge_count = 0
+        total_success = 0
+        total_failed = 0
+
+        while True:
+            # 执行答题
+            result = self._answer_one_knowledge(auto_answer, knowledge_count)
+
+            if result is None:  # 用户中断
+                break
+
+            # 更新统计
+            knowledge_count += 1
+            total_success += result['success']
+            total_failed += result['failed']
+
+            # 显示本次统计
+            self._display_knowledge_stats(result, knowledge_count)
+
+            # 检查是否继续
+            if not self._should_continue_auto(auto_answer, result, knowledge_count, total_success, total_failed):
+                break
+
+        return True
+
+    def _answer_one_knowledge(self, auto_answer, knowledge_count: int) -> Optional[dict]:
+        """
+        答一个知识点
+
+        Returns:
+            Optional[dict]: 答题结果，如果用户中断则返回None
+        """
+        print(f"\n{'='*50}")
+        print(f"📍 知识点 #{knowledge_count + 1}")
+        print(f"{'='*50}")
+
+        if knowledge_count == 0:
+            print("\n🔍 检索第一个可作答的知识点并开始做题...")
+            result = auto_answer.run_auto_answer(max_questions=5)
+        else:
+            print("\n⏳ 网站已自动跳转到下一个知识点，继续做题...")
+            time.sleep(2)
+            result = auto_answer.continue_auto_answer(max_questions=5)
+
+        return result
+
+    def _display_knowledge_stats(self, result: dict, knowledge_count: int):
+        """显示知识点统计"""
+        print("\n" + "=" * 50)
+        print("📊 本知识点完成统计")
+        print("=" * 50)
+        print(f"总题数: {result['total']}")
+        print(f"✅ 成功: {result['success']}")
+        print(f"❌ 失败: {result['failed']}")
+        print(f"⏭️  跳过: {result['skipped']}")
+        print("=" * 50)
+
+    def _should_continue_auto(self, auto_answer, result: dict, knowledge_count: int,
+                            total_success: int, total_failed: int) -> bool:
+        """
+        判断是否继续自动答题
+
+        Returns:
+            bool: True表示继续，False表示停止
+        """
+        # 检查用户是否请求停止
+        if result.get('stopped', False):
+            print("\n" + "=" * 50)
+            print("⚠️  用户请求停止做题")
+            print("=" * 50)
+            print(f"📊 本次完成: {knowledge_count} 个知识点")
+            print(f"✅ 成功作答: {total_success} 题")
+            print(f"❌ 失败: {total_failed} 题")
+            print("=" * 50)
+            return False
+
+        # 检查模式
+        if self.auto_all_mode:
+            return self._handle_auto_all_mode(auto_answer, knowledge_count, total_success, total_failed)
+        else:
+            return self._handle_manual_mode(auto_answer, knowledge_count, total_success, total_failed)
+
+    def _handle_auto_all_mode(self, auto_answer, knowledge_count: int,
+                            total_success: int, total_failed: int) -> bool:
+        """处理自动全部模式"""
+        print(f"\n⏳ 累计完成 {knowledge_count} 个知识点")
+        print("⏳ 网站将自动跳转到下一个知识点...")
+
+        time.sleep(1)
+
+        try:
+            has_next = auto_answer.has_next_knowledge()
+            if has_next:
+                print("✅ 检测到下一个知识点，继续做题...")
+                return True
+            else:
+                print("\n" + "=" * 50)
+                print("✅ 所有知识点已完成！")
+                print("=" * 50)
+                print(f"📊 总计完成 {knowledge_count} 个知识点")
+                print(f"✅ 成功作答: {total_success} 题")
+                print(f"❌ 失败: {total_failed} 题")
+                print("=" * 50)
+                return False
+        except Exception as e:
+            print(f"\n❌ 检查失败: {str(e)}")
+            print("💡 可能所有知识点都已完成")
+            return False
+
+    def _handle_manual_mode(self, auto_answer, knowledge_count: int,
+                           total_success: int, total_failed: int) -> bool:
+        """处理手动模式"""
+        continue_choice = input("\n是否继续做题其他知识点？(yes/no): ").strip().lower()
+        if continue_choice in ['yes', 'y', '是']:
+            switch_auto = input("\n💡 提示：是否切换到自动全部模式？(yes/no): ").strip().lower()
+            if switch_auto in ['yes', 'y', '是']:
+                self.auto_all_mode = True
+                print("\n🔄 已切换到自动全部模式")
+                time.sleep(2)
+
+                try:
+                    can_continue = auto_answer.click_start_button()
+                    if not can_continue:
+                        print("\n✅ 所有知识点已完成！")
+                        print(f"📊 总计完成 {knowledge_count} 个知识点")
+                        print(f"✅ 成功作答: {total_success} 题")
+                        print(f"❌ 失败: {total_failed} 题")
+                        return False
+                except Exception as e:
+                    print(f"\n❌ 查找下一个知识点失败: {str(e)}")
+                    return False
+            else:
+                print("\n💡 请手动切换到下一个知识点，然后按任意键继续...")
+                input()
+                return True
+        else:
+            print("\n" + "=" * 50)
+            print(f"📊 累计完成 {knowledge_count} 个知识点")
+            print(f"✅ 成功作答: {total_success} 题")
+            print(f"❌ 失败: {total_failed} 题")
+            print("=" * 50)
+            return False
+
+    def _handle_api_auto_answer(self) -> bool:
+        """
+        处理选项4：API模式自动答题
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        current_bank = app_state.get('current_question_bank')
+        if not current_bank:
+            print("\n❌ 请先加载题库（选项1或选项2）")
+            return False
+
+        print("\n🚀 API暴力模式自动做题")
+        print(f"🆔 课程ID: {self.course_info['course_id']}")
+        print(f"📚 课程名称: {self.course_info['course_name']}")
+        print("\n💡 提示：此模式使用API直接构造请求完成做题，无需浏览器操作")
+        print("💡 优势：速度更快，不依赖浏览器状态")
+        print("💡 前提：需要学生端的access_token")
+
+        # 获取token
+        access_token = self._get_access_token()
+        if not access_token:
+            return False
+
+        # 询问模式
+        auto_all = input("\n是否自动完成所有未完成的知识点？(yes/no): ").strip().lower()
+        auto_all_mode = auto_all in ['yes', 'y', '是']
+
+        max_knowledges = None
+        if not auto_all_mode:
+            max_input = input("请输入要完成的知识点数量（直接回车完成1个）: ").strip()
+            max_knowledges = int(max_input) if max_input else 1
+
+        try:
+            return self._run_api_auto_answer(access_token, current_bank, auto_all_mode, max_knowledges)
+        except KeyboardInterrupt:
+            print("\n\n⚠️  用户中断自动做题")
+            return False
+        except Exception as e:
+            print(f"\n❌ API自动做题失败：{str(e)}")
+            import traceback
+            traceback.print_exc()
+            return False
+
+    def _get_access_token(self) -> Optional[str]:
+        """
+        获取access_token
+
+        Returns:
+            Optional[str]: token字符串，如果获取失败则返回None
+        """
+        print("\n🔍 正在获取学生端access_token...")
+        access_token = get_cached_access_token()
+
+        if not access_token:
+            print("\n⚠️ 自动获取access_token失败")
+            access_token = input("请手动输入access_token（或回车取消）: ").strip()
+
+            if not access_token:
+                print("❌ 已取消操作")
+                return None
+            else:
+                from src.auth.student import set_access_token
+                set_access_token(access_token)
+
+        return access_token
+
+    def _run_api_auto_answer(self, access_token: str, current_bank: dict,
+                            auto_all_mode: bool, max_knowledges: Optional[int]) -> bool:
+        """
+        运行API自动答题
+
+        Returns:
+            bool: 是否返回到课程列表
+        """
+        api_answer = APIAutoAnswer(access_token)
+        api_answer.load_question_bank(current_bank)
+
+        print("\n" + "=" * 60)
+        print("🚀 开始API暴力模式自动做题")
+        print("=" * 60)
+
+        # 执行自动做题
+        result = api_answer.auto_answer_all_knowledges(
+            self.course_info['course_id'],
+            max_knowledges=max_knowledges if not auto_all_mode else None
+        )
+
+        # 显示结果
+        self._display_api_result(result, auto_all_mode)
+        return True
+
+    def _display_api_result(self, result: dict, auto_all_mode: bool):
+        """显示API答题结果"""
+        print("\n" + "=" * 60)
+        print("📊 最终统计")
+        print("=" * 60)
+        print(f"知识点: {result['completed_knowledges']}/{result['total_knowledges']}")
+        print(f"题目: 总计 {result['total_questions']} 题")
+        print(f"✅ 成功: {result['success']} 题")
+        print(f"❌ 失败: {result['failed']} 题")
+        print(f"⏭️  跳过: {result['skipped']} 题")
+        print("=" * 60)
+
+        if auto_all_mode and result['completed_knowledges'] >= result['total_knowledges']:
+            print("\n🎉 恭喜！所有知识点已完成！")
+
+
+# 保持向后兼容的函数
 def show_answer_menu(course_info: dict) -> bool:
+    """
+    显示答题选项菜单并处理用户选择（向后兼容的包装函数）
+
+    Args:
+        course_info: 课程信息字典，包含 course_id, course_name 等
+
+    Returns:
+        bool: 是否应该返回到课程列表（True表示返回）
+    """
+    handler = AnswerMenuHandler(course_info)
+    return handler.show_menu()
     """
     显示答题选项菜单并处理用户选择
 
@@ -542,7 +1071,7 @@ def show_answer_menu(course_info: dict) -> bool:
     Returns:
         bool: 是否应该返回到课程列表（True表示返回）
     """
-    global current_question_bank
+    # 使用 app_state 管理题库状态
 
     while True:
         print("\n" + "=" * 50)
@@ -550,8 +1079,9 @@ def show_answer_menu(course_info: dict) -> bool:
         print("=" * 50)
         print("1. 提取该课程的答案")
         print("2. 使用JSON题库")
-        print("3. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(兼容模式)")
-        print("4. 开始自动做题" + (" (✅已加载题库)" if current_question_bank else "") + "(暴力模式)")
+        current_bank = app_state.get('current_question_bank')
+        print("3. 开始自动做题" + (" (✅已加载题库)" if current_bank else "") + "(兼容模式)")
+        print("4. 开始自动做题" + (" (✅已加载题库)" if current_bank else "") + "(暴力模式)")
         print("0. 退出")
         print("=" * 50)
 
@@ -582,7 +1112,7 @@ def show_answer_menu(course_info: dict) -> bool:
                             print(f"\n📁 自动加载最新题库: {latest_file.name}")
                             importer = QuestionBankImporter()
                             if importer.import_from_file(str(latest_file)):
-                                current_question_bank = importer.data
+                                app_state.set('current_question_bank', importer.data)
                                 print("✅ 题库已自动加载，现在可以开始自动做题")
                 else:
                     print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
@@ -641,8 +1171,8 @@ def show_answer_menu(course_info: dict) -> bool:
                 else:
                     print("\n❌ 未知的题库类型")
 
-                # 保存题库数据到全局变量
-                current_question_bank = importer.data
+                # 保存题库数据到 app_state
+                app_state.set('current_question_bank', importer.data)
 
                 # 格式化输出题库信息
                 print(importer.format_output())
@@ -654,7 +1184,8 @@ def show_answer_menu(course_info: dict) -> bool:
 
         elif choice == "3":
             # 开始自动做题
-            if not current_question_bank:
+            current_bank = app_state.get('current_question_bank')
+            if not current_bank:
                 print("\n❌ 请先加载题库（选项1或选项2）")
                 continue
 
@@ -687,7 +1218,8 @@ def show_answer_menu(course_info: dict) -> bool:
             # 创建自动做题器并开始
             try:
                 auto_answer = AutoAnswer(browser_page[1])  # 使用page对象
-                auto_answer.load_question_bank(current_question_bank)
+                current_bank = app_state.get('current_question_bank')
+                auto_answer.load_question_bank(current_bank)
 
                 # 循环做题
                 knowledge_count = 0
@@ -821,7 +1353,8 @@ def show_answer_menu(course_info: dict) -> bool:
 
         elif choice == "4":
             # API暴力模式自动做题
-            if not current_question_bank:
+            current_bank = app_state.get('current_question_bank')
+            if not current_bank:
                 print("\n❌ 请先加载题库（选项1或选项2）")
                 continue
 
@@ -848,7 +1381,7 @@ def show_answer_menu(course_info: dict) -> bool:
                     continue
                 else:
                     # 手动输入后，保存到缓存
-                    from src.student_login import set_access_token
+                    from src.auth.student import set_access_token
                     set_access_token(access_token)
 
             # 询问是否自动完成所有知识点
@@ -863,7 +1396,8 @@ def show_answer_menu(course_info: dict) -> bool:
             try:
                 # 创建API自动做题器
                 api_answer = APIAutoAnswer(access_token)
-                api_answer.load_question_bank(current_question_bank)
+                current_bank = app_state.get('current_question_bank')
+                api_answer.load_question_bank(current_bank)
 
                 print("\n" + "=" * 60)
                 print("🚀 开始API暴力模式自动做题")
@@ -1076,14 +1610,14 @@ def main():
                                                 print("提示: 浏览器可能已挂掉或未初始化")
 
                                                 # 检查浏览器状态
-                                                from src.student_login import is_browser_alive
+                                                from src.auth.student import is_browser_alive
                                                 if not is_browser_alive():
                                                     print("\n⚠️ 检测到浏览器已挂掉")
                                                     relogin = input("是否重新登录？(yes/no): ").strip().lower()
                                                     if relogin in ['yes', 'y', '是']:
                                                         print("\n🔄 正在重新登录...")
                                                         # 清除旧的 token
-                                                        from src.student_login import clear_access_token
+                                                        from src.auth.student import clear_access_token
                                                         clear_access_token()
 
                                                         # 重新获取 token（会启动新的浏览器）
@@ -1145,7 +1679,6 @@ def main():
                 print("无效的选择，请重新输入")
         elif choice == "2":
             # 题目提取功能
-            global last_extracted_data
             print("题目提取功能")
             print("1. 获取access_token")
             print("2. 全部提取")
@@ -1167,21 +1700,22 @@ def main():
             elif choice2 == "2":
                 result = extract_questions()
                 if result:
-                    last_extracted_data = result
+                    app_state.set('last_extracted_data', result)
                     print("题目提取完成")
             elif choice2 == "3":
                 result = extract_single_course()
                 if result:
-                    last_extracted_data = result
+                    app_state.set('last_extracted_data', result)
                     print("题目提取完成")
             elif choice2 == "4":
                 # 结果导出功能
-                if last_extracted_data is None:
+                extracted_data = app_state.get('last_extracted_data')
+                if extracted_data is None:
                     print("❌ 没有可导出的数据，请先进行题目提取")
                 else:
                     try:
                         exporter = DataExporter()
-                        file_path = exporter.export_data(last_extracted_data)
+                        file_path = exporter.export_data(extracted_data)
                         print(f"✅ 导出成功！文件路径：{file_path}")
                     except Exception as e:
                         print(f"❌ 导出失败：{str(e)}")
@@ -1223,12 +1757,12 @@ def run_gui_mode():
         # 确保 GUI 退出时清理所有 Playwright 浏览器
         print("🔄 正在清理浏览器资源...")
         try:
-            from src.student_login import cleanup_browser
+            from src.auth.student import cleanup_browser
             cleanup_browser()
         except:
             pass
         try:
-            from src.course_certification import close_browser
+            from src.certification.workflow import close_browser
             close_browser()
         except:
             pass

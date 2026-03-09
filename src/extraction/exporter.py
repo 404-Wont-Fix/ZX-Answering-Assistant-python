@@ -5,7 +5,7 @@
 
 from typing import Dict, List, Optional
 from datetime import datetime
-from src.file_handler import FileHandler
+from src.extraction.file_handler import FileHandler
 
 
 class DataExporter:

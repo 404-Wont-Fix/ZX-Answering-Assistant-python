@@ -58,7 +58,7 @@ class AutoAnswer:
             Page: Playwright页面对象，如果获取失败返回None
         """
         try:
-            from src.browser_manager import get_browser_manager, BrowserType
+            from src.core.browser import get_browser_manager, BrowserType
             manager = get_browser_manager()
             _, page = manager.get_context_and_page(BrowserType.STUDENT)
             return page
@@ -147,8 +147,8 @@ class AutoAnswer:
                     # 非Windows平台，使用input阻塞（简化处理）
                     # 这种情况下用户需要按回车
                     pass
-                except:
-                    pass
+                except Exception as e:
+                    logger.debug(f"键盘监听异常（非阻塞）: {e}")
 
                 time.sleep(0.1)  # 避免CPU占用过高
 
@@ -1593,7 +1593,7 @@ class AutoAnswer:
             }
         """
         # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
-        from src.browser_manager import run_in_thread_if_asyncio
+        from src.core.browser import run_in_thread_if_asyncio
         return run_in_thread_if_asyncio(self._run_auto_answer_impl, max_questions)
 
     def _run_auto_answer_impl(self, max_questions: int = 5) -> Dict:
@@ -1685,7 +1685,7 @@ class AutoAnswer:
             }
         """
         # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
-        from src.browser_manager import run_in_thread_if_asyncio
+        from src.core.browser import run_in_thread_if_asyncio
         return run_in_thread_if_asyncio(self._continue_auto_answer_impl, max_questions)
 
     def _continue_auto_answer_impl(self, max_questions: int = 5) -> Dict:
@@ -1796,7 +1796,7 @@ class AutoAnswer:
             bool: True表示还有更多知识点，False表示已完成
         """
         # 使用工作线程包装器确保所有 Playwright 操作都在工作线程中执行
-        from src.browser_manager import run_in_thread_if_asyncio
+        from src.core.browser import run_in_thread_if_asyncio
         return run_in_thread_if_asyncio(self._has_next_knowledge_impl)
 
     def _has_next_knowledge_impl(self) -> bool:

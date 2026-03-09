@@ -4,7 +4,6 @@ CLI设置管理模块
 """
 
 import json
-import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 from enum import Enum

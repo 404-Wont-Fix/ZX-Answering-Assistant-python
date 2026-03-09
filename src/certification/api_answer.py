@@ -7,7 +7,7 @@
 import html
 import re
 from typing import Dict, List, Optional
-from src.api_client import get_api_client
+from src.core.api_client import get_api_client
 
 
 class APICourseAnswer:

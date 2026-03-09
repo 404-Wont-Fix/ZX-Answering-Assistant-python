@@ -32,6 +32,9 @@ from src.ui.views.settings_view import SettingsView
 from src.ui.views.course_certification_view import CourseCertificationView
 from src.ui.views.cloud_exam_view import CloudExamView
 
+from src.core.browser import get_browser_manager
+from src.core.app_state import get_app_state
+
 
 class MainApp:
     """主应用程序类"""

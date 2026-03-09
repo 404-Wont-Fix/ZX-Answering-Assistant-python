@@ -4,7 +4,7 @@
 """
 
 from typing import Dict, List, Optional
-from src.file_handler import FileHandler
+from src.extraction.file_handler import FileHandler
 
 
 class QuestionBankImporter:
