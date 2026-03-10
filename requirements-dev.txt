@@ -1,41 +1,23 @@
-# 开发和构建依赖
-# 包含打包工具和开发辅助工具
+# Development and build dependencies
+# Includes packaging tools and development utilities
 
 # ============================================
-# 打包工具
+# Packaging tools
 # ============================================
 pyinstaller>=6.0.0
 
 # ============================================
-# Python 版本管理
+# Configuration file handling
 # ============================================
-# 只有在需要冻结依赖版本时使用
-# pip>=23.0
-# pip-tools>=7.0.0
+pyyaml>=6.0
 
 # ============================================
-# 代码质量工具（可选）
+# Progress visualization
 # ============================================
-# pylint>=2.17.0
-# black>=23.0.0
-# isort>=5.12.0
-# mypy>=1.0.0
+rich>=13.0.0
 
 # ============================================
-# 测试工具（可选）
+# Testing tools
 # ============================================
-# pytest>=7.0.0
-# pytest-cov>=4.0.0
-# pytest-asyncio>=0.21.0
-
-# ============================================
-# 使用说明
-# ============================================
-# 安装生产环境依赖:
-#   pip install -r requirements.txt
-#
-# 安装开发环境依赖（包含打包工具）:
-#   pip install -r requirements.txt -r requirements-dev.txt
-#
-# 只安装开发工具（不安装生产依赖）:
-#   pip install -r requirements-dev.txt
+pytest>=7.0.0
+pytest-cov>=4.0.0

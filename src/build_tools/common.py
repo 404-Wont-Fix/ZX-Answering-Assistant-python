@@ -155,6 +155,9 @@ def format_size(size_bytes: int) -> str:
     Returns:
         str: 格式化后的大小字符串（如 "1.23 MB"）
     """
+    if size_bytes == 0:
+        return "0 B"
+
     for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
         if size_bytes < 1024.0:
             return f"{size_bytes:.2f} {unit}"
