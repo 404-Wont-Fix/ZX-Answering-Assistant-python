@@ -95,3 +95,13 @@ build/.build_state.json
 # 测试覆盖率
 coverage.xml
 htmlcov/
+
+# 自动生成的文件
+file_version_info.txt
+*.spec
+
+# 文档和临时文件
+BUILD_IMPROVEMENTS.md
+TESTING.md
+REFACTOR_PLAN.md
+build_config.yaml
