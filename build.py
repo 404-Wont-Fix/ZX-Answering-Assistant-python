@@ -10,6 +10,7 @@ import subprocess
 import argparse
 import shutil
 import py_compile
+import logging
 from pathlib import Path
 from datetime import datetime
 
@@ -24,6 +25,98 @@ if sys.platform == 'win32':
 
 from src.build_tools import ensure_browser_ready, get_browser_size
 from src.build_tools import ensure_flet_ready, get_flet_size
+
+
+class BuildLogger:
+    """
+    构建日志记录器
+    同时输出到控制台和日志文件
+    """
+
+    def __init__(self, log_dir: Path = None):
+        """
+        初始化日志记录器
+
+        Args:
+            log_dir: 日志目录，默认为项目根目录下的 logs 目录
+        """
+        if log_dir is None:
+            log_dir = Path(__file__).parent / "logs"
+
+        self.log_dir = Path(log_dir)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+
+        # 生成日志文件名（带时间戳）
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        self.log_file = self.log_dir / f"build_{timestamp}.log"
+
+        # 配置日志记录器
+        self.logger = logging.getLogger("BuildLogger")
+        self.logger.setLevel(logging.DEBUG)
+
+        # 清除已有的处理器
+        self.logger.handlers.clear()
+
+        # 创建格式化器
+        formatter = logging.Formatter(
+            '%(asctime)s - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        # 文件处理器（记录所有级别）
+        file_handler = logging.FileHandler(
+            self.log_file,
+            encoding='utf-8'
+        )
+        file_handler.setLevel(logging.DEBUG)
+        file_handler.setFormatter(formatter)
+        self.logger.addHandler(file_handler)
+
+        # 控制台处理器（只记录 INFO 及以上级别）
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(logging.INFO)
+        console_handler.setFormatter(formatter)
+        self.logger.addHandler(console_handler)
+
+        self.info(f"日志文件: {self.log_file}")
+
+    def debug(self, message: str):
+        """记录 DEBUG 级别日志"""
+        self.logger.debug(message)
+
+    def info(self, message: str):
+        """记录 INFO 级别日志"""
+        self.logger.info(message)
+
+    def warning(self, message: str):
+        """记录 WARNING 级别日志"""
+        self.logger.warning(message)
+
+    def error(self, message: str):
+        """记录 ERROR 级别日志"""
+        self.logger.error(message)
+
+    def critical(self, message: str):
+        """记录 CRITICAL 级别日志"""
+        self.logger.critical(message)
+
+    def close(self):
+        """关闭日志记录器"""
+        for handler in self.logger.handlers:
+            handler.close()
+        self.logger.handlers.clear()
+
+
+# 全局日志记录器实例
+build_logger = None
+
+
+def get_build_logger() -> BuildLogger:
+    """获取全局构建日志记录器实例"""
+    global build_logger
+    if build_logger is None:
+        build_logger = BuildLogger()
+    return build_logger
 
 
 def compile_to_pyc(
@@ -539,10 +632,17 @@ def build_project(mode="onedir", use_upx=False, build_dir=None, compile_src_flag
 
 def main():
     """主函数"""
-    parser = argparse.ArgumentParser(
-        description="ZX Answering Assistant - 项目打包工具",
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
+    # 初始化日志记录器
+    logger = get_build_logger()
+    logger.info("=" * 60)
+    logger.info("ZX Answering Assistant - 项目打包工具")
+    logger.info("=" * 60)
+
+    try:
+        parser = argparse.ArgumentParser(
+            description="ZX Answering Assistant - 项目打包工具",
+            formatter_class=argparse.RawDescriptionHelpFormatter,
+            epilog="""
 示例:
   python build.py                    # 编译两个版本（onedir + onefile）
   python build.py --mode onefile     # 仅编译单文件版本
@@ -564,11 +664,11 @@ def main():
 
   UPX 下载: https://upx.github.io/
   Windows: 下载 upx-4.2.2-win64.zip，解压后将 upx.exe 添加到 PATH
-        """
-    )
+            """
+        )
 
-    parser.add_argument(
-        '--mode', '-m',
+        parser.add_argument(
+            '--mode', '-m',
         choices=['onefile', 'onedir', 'both'],
         default='both',
         help='打包模式: onefile(单文件), onedir(目录模式), both(两个版本，默认)'
@@ -632,113 +732,132 @@ def main():
 
     project_root = Path(__file__).parent
 
-    # 如果只是复制浏览器
-    if args.copy_browser:
-        print("[TASK] 复制Playwright浏览器")
-        browser_result = ensure_browser_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
+    try:
+        # 如果只是复制浏览器
+        if args.copy_browser:
+            print("[TASK] 复制Playwright浏览器")
+            browser_result = ensure_browser_ready(
+                project_root=project_root,
+                force_copy=args.force_copy
+            )
 
-        if browser_result["ready"]:
-            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
-            print(f"\n[OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
+            if browser_result["ready"]:
+                status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
+                print(f"\n[OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
+                return 0
+            else:
+                print("\n[ERROR] 浏览器准备失败")
+                return 1
+
+        # 如果只是下载Flet
+        if args.copy_flet:
+            print("[TASK] 下载Flet可执行文件")
+            flet_result = ensure_flet_ready(
+                project_root=project_root,
+                force_copy=args.force_copy
+            )
+
+            if flet_result["ready"]:
+                status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
+                print(f"\n[OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
+                return 0
+            else:
+                print("\n[ERROR] Flet准备失败")
+                return 1
+
+        # 如果复制所有依赖
+        if args.copy_all:
+            print("[TASK] 复制所有依赖（Playwright浏览器 + Flet）")
+
+            # 复制Playwright浏览器
+            print("\n[1/2] 准备Playwright浏览器...")
+            browser_result = ensure_browser_ready(
+                project_root=project_root,
+                force_copy=args.force_copy
+            )
+
+            if browser_result["ready"]:
+                status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
+                print(f"   [OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
+            else:
+                print("   [ERROR] 浏览器准备失败")
+                return 1
+
+            # 下载Flet
+            print("\n[2/2] 准备Flet可执行文件...")
+            flet_result = ensure_flet_ready(
+                project_root=project_root,
+                force_copy=args.force_copy
+            )
+
+            if flet_result["ready"]:
+                status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
+                print(f"   [OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
+            else:
+                print("   [ERROR] Flet准备失败")
+                return 1
+
+            print("\n" + "=" * 60)
+            print("[OK] 所有依赖准备完成！")
+            print(f"[INFO] Playwright浏览器: {browser_result['size_mb']:.2f} MB")
+            print(f"[INFO] Flet可执行文件: {flet_result['size_mb']:.2f} MB")
+            print(f"[INFO] 总计: {browser_result['size_mb'] + flet_result['size_mb']:.2f} MB")
+            print("=" * 60)
             return 0
+
+        # 正常打包流程
+        if args.mode == 'both':
+            print("[INFO] 打包模式: 两个版本（onedir + onefile）")
+
+            # 检查是否使用 UPX
+            use_upx = args.upx and not args.no_upx
+
+            # 获取平台信息用于显示
+            platform_info = get_platform_info()
+            import version
+            onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
+            onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
+            if platform_info["platform"] == "windows":
+                onefile_name += ".exe"
+
+            print("\n" + "=" * 60)
+            print("开始编译: 目录模式（推荐）")
+            print("=" * 60)
+            build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
+
+            print("\n\n" + "=" * 60)
+            print("开始编译: 单文件模式")
+            print("=" * 60)
+            build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
+
+            print("\n\n" + "=" * 60)
+            print("[SUCCESS] 两个版本编译完成！")
+            print("=" * 60)
+            print(f"目录模式: dist/{onedir_name}/")
+            print(f"单文件模式: dist/{onefile_name}")
+            print("=" * 60)
         else:
-            print("\n[ERROR] 浏览器准备失败")
-            return 1
+            print(f"[INFO] 打包模式: {args.mode}")
+            use_upx = args.upx and not args.no_upx
+            build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
 
-    # 如果只是下载Flet
-    if args.copy_flet:
-        print("[TASK] 下载Flet可执行文件")
-        flet_result = ensure_flet_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if flet_result["ready"]:
-            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
-            print(f"\n[OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
-            return 0
-        else:
-            print("\n[ERROR] Flet准备失败")
-            return 1
-
-    # 如果复制所有依赖
-    if args.copy_all:
-        print("[TASK] 复制所有依赖（Playwright浏览器 + Flet）")
-
-        # 复制Playwright浏览器
-        print("\n[1/2] 准备Playwright浏览器...")
-        browser_result = ensure_browser_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if browser_result["ready"]:
-            status = "已重新复制" if args.force_copy or browser_result["copied"] else "已存在"
-            print(f"   [OK] 浏览器{status} ({browser_result['size_mb']:.2f} MB)")
-        else:
-            print("   [ERROR] 浏览器准备失败")
-            return 1
-
-        # 下载Flet
-        print("\n[2/2] 准备Flet可执行文件...")
-        flet_result = ensure_flet_ready(
-            project_root=project_root,
-            force_copy=args.force_copy
-        )
-
-        if flet_result["ready"]:
-            status = "已重新下载" if args.force_copy or flet_result["copied"] else "已存在"
-            print(f"   [OK] Flet{status} ({flet_result['size_mb']:.2f} MB)")
-        else:
-            print("   [ERROR] Flet准备失败")
-            return 1
-
-        print("\n" + "=" * 60)
-        print("[OK] 所有依赖准备完成！")
-        print(f"[INFO] Playwright浏览器: {browser_result['size_mb']:.2f} MB")
-        print(f"[INFO] Flet可执行文件: {flet_result['size_mb']:.2f} MB")
-        print(f"[INFO] 总计: {browser_result['size_mb'] + flet_result['size_mb']:.2f} MB")
-        print("=" * 60)
+        # 构建成功
+        logger.info("=" * 60)
+        logger.info("构建流程完成")
+        logger.info("=" * 60)
         return 0
 
-    # 正常打包流程
-    if args.mode == 'both':
-        print("[INFO] 打包模式: 两个版本（onedir + onefile）")
+    except Exception as e:
+        # 捕获并记录异常
+        logger.error(f"构建失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return 1
 
-        # 检查是否使用 UPX
-        use_upx = args.upx and not args.no_upx
-
-        # 获取平台信息用于显示
-        platform_info = get_platform_info()
-        import version
-        onedir_name = get_dist_name("onedir", version.VERSION, platform_info)
-        onefile_name = get_dist_name("onefile", version.VERSION, platform_info)
-        if platform_info["platform"] == "windows":
-            onefile_name += ".exe"
-
-        print("\n" + "=" * 60)
-        print("开始编译: 目录模式（推荐）")
-        print("=" * 60)
-        build_project(mode="onedir", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
-
-        print("\n\n" + "=" * 60)
-        print("开始编译: 单文件模式")
-        print("=" * 60)
-        build_project(mode="onefile", use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
-
-        print("\n\n" + "=" * 60)
-        print("[SUCCESS] 两个版本编译完成！")
-        print("=" * 60)
-        print(f"目录模式: dist/{onedir_name}/")
-        print(f"单文件模式: dist/{onefile_name}")
-        print("=" * 60)
-    else:
-        print(f"[INFO] 打包模式: {args.mode}")
-        use_upx = args.upx and not args.no_upx
-        build_project(mode=args.mode, use_upx=use_upx, build_dir=args.build_dir, compile_src_flag=args.compile_src)
+    finally:
+        # 关闭日志记录器
+        logger.info("关闭日志记录器")
+        logger.close()
 
 
 if __name__ == "__main__":

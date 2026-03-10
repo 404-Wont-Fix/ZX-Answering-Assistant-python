@@ -7,6 +7,63 @@ import shutil
 import os
 from pathlib import Path
 import sys
+from typing import Optional
+
+
+def get_playwright_browser_version() -> Optional[str]:
+    """
+    动态获取 Playwright 浏览器版本
+
+    通过检测已安装的 Playwright 浏览器路径来确定版本号，
+    避免硬编码版本号导致 Playwright 更新后失效。
+
+    Returns:
+        Optional[str]: 浏览器版本目录名（如 "chromium-1200"），
+                      如果检测失败则返回 None
+    """
+    try:
+        from playwright.sync_api import sync_playwright
+
+        with sync_playwright() as p:
+            browser_path = p.chromium.executable_path
+            # 路径格式: .../ms-playwright/chromium-1200/chrome-win/chrome.exe
+            # 我们需要提取 "chromium-1200" 部分
+            path_parts = Path(browser_path).parts
+
+            # 查找包含 "chromium-" 的目录
+            for i, part in enumerate(path_parts):
+                if part.startswith("chromium-"):
+                    return part
+
+            # 如果没有找到，尝试使用父目录结构推断
+            browser_root = Path(browser_path).parent.parent
+            if browser_root.name.startswith("chromium-"):
+                return browser_root.name
+
+            print(f"[WARN] 无法从路径推断浏览器版本: {browser_path}")
+            return None
+
+    except Exception as e:
+        print(f"[WARN] 获取 Playwright 浏览器版本失败: {e}")
+        return None
+
+
+def get_browser_dir_name() -> str:
+    """
+    获取浏览器目录名称
+
+    如果动态检测失败，返回默认的 'chromium-1200' 作为后备选项。
+
+    Returns:
+        str: 浏览器目录名称
+    """
+    version = get_playwright_browser_version()
+    if version:
+        return version
+
+    # 后备选项：使用旧版本号
+    print("[INFO] 使用默认浏览器版本号: chromium-1200")
+    return "chromium-1200"
 
 
 def copy_browser_to_project(target_dir: Path = None, project_root: Path = None) -> dict:
@@ -40,9 +97,10 @@ def copy_browser_to_project(target_dir: Path = None, project_root: Path = None) 
         # 从当前模块位置向上两级到项目根目录
         project_root = Path(__file__).parent.parent.parent
 
-    # 获取目标目录
+    # 获取目标目录（动态检测浏览器版本）
     if target_dir is None:
-        target_dir = project_root / "playwright_browsers" / "chromium-1200"
+        browser_version = get_browser_dir_name()
+        target_dir = project_root / "playwright_browsers" / browser_version
 
     try:
         # 获取Playwright浏览器路径
@@ -113,7 +171,8 @@ def verify_browser(browser_dir: Path = None, project_root: Path = None) -> bool:
         project_root = Path(__file__).parent.parent.parent
 
     if browser_dir is None:
-        browser_dir = project_root / "playwright_browsers" / "chromium-1200"
+        browser_version = get_browser_dir_name()
+        browser_dir = project_root / "playwright_browsers" / browser_version
 
     # 检查目录是否存在
     if not browser_dir.exists():
@@ -144,7 +203,8 @@ def get_browser_size(browser_dir: Path = None, project_root: Path = None) -> flo
         project_root = Path(__file__).parent.parent.parent
 
     if browser_dir is None:
-        browser_dir = project_root / "playwright_browsers" / "chromium-1200"
+        browser_version = get_browser_dir_name()
+        browser_dir = project_root / "playwright_browsers" / browser_version
 
     if not browser_dir.exists():
         return 0.0
@@ -176,7 +236,9 @@ def ensure_browser_ready(project_root: Path = None, force_copy: bool = False) ->
         "size_mb": 0
     }
 
-    browser_dir = project_root / "playwright_browsers" / "chromium-1200"
+    # 动态检测浏览器版本
+    browser_version = get_browser_dir_name()
+    browser_dir = project_root / "playwright_browsers" / browser_version
 
     # 如果不强制复制且浏览器已存在
     if not force_copy and verify_browser(browser_dir, project_root):

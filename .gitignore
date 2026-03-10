@@ -33,7 +33,7 @@ wheels/
 *~
 
 # 日志
-logs/*.log
+logs/
 *.log
 
 # 配置文件（包含敏感信息）
@@ -55,25 +55,35 @@ Thumbs.db
 .coverage
 htmlcov/
 
-.trae/documents/plan_20260107_074914.md
-output/*
+# 用户数据（不应提交）
+.trae/
+output/
+tests/
+.claude/
 账号密码
-.gitignore
 签名
-.trae/*
-tests/*
-.claude/*
-AUTO_ANSWER_GUIDE.md
 sign
 API
-ZX-Answering-Assistant.spec
-playwright_browsers/*
-
-# Flet浏览器（unpacked目录用于打包，download目录包含下载的zip）
-flet_browsers/download/
+AUTO_ANSWER_GUIDE.md
+REFACTOR_PLAN.md
 AGENTS.md
 cli_config.json
-flet_browsers/*
+
+# Playwright 浏览器（缓存目录，不应提交）
+# 忽略所有内容但保留目录结构
+playwright_browsers/chromium-*/
+!playwright_browsers/.gitkeep
+
+# Flet 浏览器（保留 download 目录和标记文件，忽略 unpacked 内容）
+flet_browsers/unpacked/
+!flet_browsers/download/
+!flet_browsers/.gitkeep
+
+# 构建产物（版本化的目录名）
+ZX-Answering-Assistant-v*/
+src_compiled/
+
+# PyInstaller spec 文件（取消注释以跟踪 .spec 文件）
+# ZX-Answering-Assistant.spec
 ZX-Answering-Assistant-v*
-src_compiled/*
-REFACTOR_PLAN.md
+flet_browsers/*

@@ -14,7 +14,15 @@ from typing import Optional
 
 # Flet版本配置
 FLET_VERSION = "0.80.2"  # 与requirements.txt中的flet版本保持一致
-FLET_DOWNLOAD_URL = "https://gh.nxnow.top/https://github.com/flet-dev/flet/releases/download/v{version}/flet-windows.zip"
+
+# Flet 下载源配置（按优先级排序）
+FLET_DOWNLOAD_SOURCES = {
+    "official": "https://github.com/flet-dev/flet/releases/download/v{version}/flet-windows.zip",
+    "mirror": "https://gh.nxnow.top/https://github.com/flet-dev/flet/releases/download/v{version}/flet-windows.zip",
+}
+
+# 默认使用官方源
+DEFAULT_DOWNLOAD_SOURCE = "official"
 
 
 def get_flet_temp_dir() -> Path:
@@ -42,18 +50,26 @@ def get_flet_executable_path() -> Path:
     return flet_temp / "app" / "flet" / "flet.exe"
 
 
-def download_flet_archive(target_dir: Path, version: str = FLET_VERSION) -> Optional[Path]:
+def download_flet_archive(target_dir: Path, version: str = FLET_VERSION, source: str = DEFAULT_DOWNLOAD_SOURCE) -> Optional[Path]:
     """
     下载Flet Windows压缩包
 
     Args:
         target_dir: 目标目录
         version: Flet版本号
+        source: 下载源 ("official" 或 "mirror")
 
     Returns:
         Path: 下载的zip文件路径，失败返回None
     """
-    url = FLET_DOWNLOAD_URL.format(version=version)
+    # 选择下载源
+    if source in FLET_DOWNLOAD_SOURCES:
+        url_template = FLET_DOWNLOAD_SOURCES[source]
+    else:
+        print(f"⚠️ 未知的下载源 '{source}'，使用官方源")
+        url_template = FLET_DOWNLOAD_SOURCES["official"]
+
+    url = url_template.format(version=version)
     # 保存到 download 子目录
     download_dir = target_dir / "download"
     zip_path = download_dir / f"flet-windows-{version}.zip"
@@ -61,6 +77,7 @@ def download_flet_archive(target_dir: Path, version: str = FLET_VERSION) -> Opti
     print("=" * 60)
     print(f"下载Flet v{version}可执行文件")
     print("=" * 60)
+    print(f"📥 下载源: {source}")
     print(f"📥 下载地址: {url}")
     print(f"📁 保存位置: {zip_path}")
     print("这可能需要几分钟...")
@@ -74,6 +91,11 @@ def download_flet_archive(target_dir: Path, version: str = FLET_VERSION) -> Opti
 
         file_size = zip_path.stat().st_size / (1024 * 1024)
         print(f"✅ 下载完成！大小: {file_size:.2f} MB")
+
+        # 验证文件大小（Flet zip 文件应该在 50-150 MB 之间）
+        if file_size < 50 or file_size > 300:
+            print(f"⚠️ 警告：下载的文件大小异常 ({file_size:.2f} MB)")
+            print(f"⚠️ 文件可能损坏或不完整，建议删除后重新下载")
 
         return zip_path
 
@@ -124,7 +146,8 @@ def extract_flet_archive(zip_path: Path, target_dir: Path) -> bool:
 def copy_flet_to_project(
     target_dir: Path = None,
     project_root: Path = None,
-    version: str = FLET_VERSION
+    version: str = FLET_VERSION,
+    source: str = DEFAULT_DOWNLOAD_SOURCE
 ) -> dict:
     """
     下载并复制Flet可执行文件到项目目录
@@ -162,7 +185,7 @@ def copy_flet_to_project(
 
     try:
         # 1. 下载Flet压缩包（会保存到 download/ 子目录）
-        zip_path = download_flet_archive(target_dir, version)
+        zip_path = download_flet_archive(target_dir, version, source)
         if zip_path is None:
             result["error"] = "下载Flet压缩包失败"
             return result
@@ -317,13 +340,14 @@ def get_flet_size(flet_dir: Path = None, project_root: Path = None) -> float:
     return total_size / (1024 * 1024)
 
 
-def ensure_flet_ready(project_root: Path = None, force_copy: bool = False) -> dict:
+def ensure_flet_ready(project_root: Path = None, force_copy: bool = False, source: str = DEFAULT_DOWNLOAD_SOURCE) -> dict:
     """
     确保Flet可执行文件已准备就绪
 
     Args:
         project_root: 项目根目录
         force_copy: 是否强制重新下载
+        source: 下载源 ("official" 或 "mirror")
 
     Returns:
         dict: 操作结果
@@ -350,8 +374,8 @@ def ensure_flet_ready(project_root: Path = None, force_copy: bool = False) -> di
         return result
 
     # 需要下载Flet
-    print("📦 正在准备Flet可执行文件...")
-    copy_result = copy_flet_to_project(flet_dir, project_root)
+    print(f"📦 正在准备Flet可执行文件（使用 {source} 源）...")
+    copy_result = copy_flet_to_project(flet_dir, project_root, source=source)
 
     if copy_result["success"]:
         result["ready"] = True
