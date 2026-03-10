@@ -4,10 +4,10 @@
 ### 智能答题助手系统
 
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)(LICENSE.txt)
-[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)())
-[![Version](https://img.shields.io/badge/Version-v2.7.0-green)()
-[![Tests](https://img.shields.io/badge/tests-46%20passed-success)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20Linux%20%7C%20Mac-lightgrey)]()
+[![Version](https://img.shields.io/badge/Version-v2.7.0-green)]()
+[![Tests](https://img.shields.io/badge/Tests-46%20passed-success)]()
 
 一个基于 Playwright 的自动化答题系统，支持 **GUI 图形界面** 和 **CLI 命令行** 两种交互方式，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
@@ -362,6 +362,81 @@ python build.py --mode onedir --compile-src --upx
 ✅ 构建验证完成
 ```
 
+### 构建故障排除
+
+#### 问题 1：PyInstaller 找不到模块
+
+**症状**：`ModuleNotFoundError: No module named 'xxx'`
+
+**解决方案**：
+```bash
+# 确保所有依赖已安装
+pip install -r requirements.txt
+
+# 清理并重新构建
+rm -rf build/ dist/
+python build.py
+```
+
+#### 问题 2：Playwright 浏览器下载失败
+
+**症状**：`Executable doesn't exist at ...`
+
+**解决方案**：
+```bash
+# 手动安装 Playwright 浏览器
+python -m playwright install chromium
+
+# 如果已安装但路径错误，复制浏览器到项目
+python build.py --copy-browser
+```
+
+#### 问题 3：Flet 可执行文件缺失
+
+**症状**：`Flet executable not found`
+
+**解决方案**：
+```bash
+# 下载 Flet 可执行文件
+python build.py --copy-flet
+
+# 或同时复制所有依赖
+python build.py --copy-all
+```
+
+#### 问题 4：构建体积过大
+
+**症状**：生成的 EXE 文件超过 500MB
+
+**优化方案**：
+```bash
+# 使用 UPX 压缩（减少 30-50%）
+python build.py --upx
+
+# 使用源码预编译（减少约 10%）
+python build.py --compile-src
+
+# 组合使用效果最佳
+python build.py --mode onedir --upx --compile-src
+```
+
+#### 问题 5：构建速度慢
+
+**症状**：每次构建需要 10 分钟以上
+
+**优化方案**：
+```bash
+# 使用配置文件启用所有优化
+# 编辑 build_config.yaml：
+build:
+  incremental: true    # 增量构建
+  mode: onedir         # 只构建目录模式
+
+# 或使用环境变量
+export BUILD_CACHE_ENABLE=true
+python build.py
+```
+
 ---
 
 ## 测试指南
@@ -493,10 +568,8 @@ ZX-Answering-Assistant-python/
 ├── version.py                     # 版本信息管理
 ├── requirements.txt               # Python 依赖
 ├── requirements-dev.txt            # 开发依赖 (v2.7.0)
-├── TESTING.md                     # 测试指南 (v2.7.0)
-├── BUILD_IMPROVEMENTS.md          # 构建系统文档 (v2.7.0)
 ├── CLAUDE.md                      # Claude Code 指导文档
-└── README.md                      # 项目说明文档
+└── README.md                      # 项目说明文档（含测试指南和构建系统）
 ```
 
 ---
