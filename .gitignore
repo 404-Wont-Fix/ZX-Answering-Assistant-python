@@ -58,7 +58,6 @@ htmlcov/
 # 用户数据（不应提交）
 .trae/
 output/
-tests/
 .claude/
 账号密码
 签名
