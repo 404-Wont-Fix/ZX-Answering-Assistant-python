@@ -94,3 +94,91 @@ def print_version_info():
     print(f"Git提交: {info['git_commit']}")
     print(f"构建模式: {info['build_mode']}")
     print("=" * 60 + "\n")
+
+
+# 版本信息字典（用于 Windows 版本资源）
+VERSION_INFO = {
+    'file_version': (2, 6, 6, 0),
+    'product_version': (2, 6, 6, 0),
+    'file_description': '智能答题助手 - 自动化答题系统',
+    'copyright': 'Copyright (C) 2024-2026',
+    'company_name': 'ZX Project',
+    'product_name': VERSION_NAME,
+}
+
+
+def create_version_file(output_path: str = None) -> Path:
+    """
+    生成 Windows 版本资源文件
+
+    用于 PyInstaller 的 --version-file 参数，为 .exe 添加版本信息。
+
+    Args:
+        output_path: 输出文件路径，默认为项目根目录的 file_version_info.txt
+
+    Returns:
+        Path: 生成的版本文件路径
+    """
+    if output_path is None:
+        project_root = Path(__file__).parent
+        output_path = project_root / "file_version_info.txt"
+
+    output_path = Path(output_path)
+
+    # 解析版本号
+    major, minor, patch, build = VERSION_INFO['file_version']
+    file_version_str = f"{major}, {minor}, {patch}, {build}"
+    file_version_display = f"{major}.{minor}.{patch}.{build}"
+
+    # 生成版本文件内容（PyInstaller 格式）
+    version_content = f"""\
+# UTF-8
+#
+# For more details about fixed file info:
+# http://msdn.microsoft.com/en-us/library/ms646997.aspx
+#
+# Translation: 0x0409 0x04b0 (英语(美国) Unicode)
+VSVersionInfo(
+  ffi=FixedFileInfo(
+    filevers=({file_version_str}),
+    prodvers=({file_version_str}),
+    mask=0x3f,
+    flags=0x0,
+    OS=0x40004,
+    fileType=0x1,
+    subtype=0x0,
+    date=(0, 0)
+  ),
+  kids=[
+    StringFileInfo(
+      [
+      StringTable(
+        u'040904B0',
+        [StringStruct(u'CompanyName', u'{VERSION_INFO['company_name']}'),
+        StringStruct(u'FileDescription', u'{VERSION_INFO['file_description']}'),
+        StringStruct(u'FileVersion', u'{file_version_display}'),
+        StringStruct(u'InternalName', u'{VERSION_NAME}'),
+        StringStruct(u'LegalCopyright', u'{VERSION_INFO['copyright']}'),
+        StringStruct(u'OriginalFilename', u'{VERSION_NAME.replace(" ", "-")}-{VERSION}.exe'),
+        StringStruct(u'ProductName', u'{VERSION_INFO['product_name']}'),
+        StringStruct(u'ProductVersion', u'{file_version_display}')])
+      ]),
+    VarFileInfo([VarStruct(u'Translation', [1033, 1200])])
+  ]
+)
+"""
+
+    # 写入文件
+    try:
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write(version_content)
+
+        print(f"[OK] 版本信息文件已生成: {output_path}")
+        print(f"[INFO] 文件版本: {file_version_display}")
+        print(f"[INFO] 产品版本: {file_version_display}")
+
+        return output_path
+
+    except Exception as e:
+        print(f"[ERROR] 生成版本信息文件失败: {e}")
+        raise
