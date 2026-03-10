@@ -85,5 +85,14 @@ src_compiled/
 
 # PyInstaller spec 文件（取消注释以跟踪 .spec 文件）
 # ZX-Answering-Assistant.spec
-ZX-Answering-Assistant-v*
-flet_browsers/*
+
+# 构建缓存
+.build_cache/
+
+# 构建状态文件
+.build/.build_state.json
+build/.build_state.json
+
+# 测试覆盖率
+coverage.xml
+htmlcov/

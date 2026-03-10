@@ -27,6 +27,45 @@ from .common import (
     calculate_directory_size
 )
 
+from .config import (
+    BuildConfig,
+    get_build_config,
+    reload_config
+)
+
+from .incremental import (
+    should_rebuild,
+    incremental_build_check,
+    clean_build_state
+)
+
+from .cache import (
+    DependencyCache,
+    get_dependency_cache
+)
+
+from .parallel import (
+    build_parallel,
+    build_sequential
+)
+
+from .progress import (
+    BuildProgress,
+    get_build_progress,
+    print_step,
+    print_success,
+    print_error,
+    print_warning,
+    print_info
+)
+
+from .signing import (
+    find_signtool,
+    sign_executable,
+    verify_signature,
+    sign_with_config
+)
+
 from .validator import (
     validate_build,
     validate_build_artifact,
@@ -53,6 +92,33 @@ __all__ = [
     "get_dist_name",
     "format_size",
     "calculate_directory_size",
+    # Configuration management
+    "BuildConfig",
+    "get_build_config",
+    "reload_config",
+    # Incremental build
+    "should_rebuild",
+    "incremental_build_check",
+    "clean_build_state",
+    # Dependency cache
+    "DependencyCache",
+    "get_dependency_cache",
+    # Parallel build
+    "build_parallel",
+    "build_sequential",
+    # Progress visualization
+    "BuildProgress",
+    "get_build_progress",
+    "print_step",
+    "print_success",
+    "print_error",
+    "print_warning",
+    "print_info",
+    # Code signing
+    "find_signtool",
+    "sign_executable",
+    "verify_signature",
+    "sign_with_config",
     # Build validators
     "validate_build",
     "validate_build_artifact",
