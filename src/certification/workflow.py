@@ -251,74 +251,23 @@ def close_browser():
         print(f"⚠️ 关闭浏览器时发生错误: {str(e)}")
 
 
-def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False) -> Optional[tuple]:
+def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username: str, password: str) -> Optional[tuple]:
     """
-    使用Playwright模拟浏览器登录获取课程认证access_token
+    get_access_token 的内部实现函数
+    包含所有实际的 Playwright 操作
+
+    这个函数应该在单独的线程中运行，以避免与 asyncio 冲突
 
     Args:
-        keep_browser_open: 是否保持浏览器打开（用于后续操作）
-        skip_prompt: 是否跳过交互式提示（GUI模式下使用，自动使用已保存的账号）
+        keep_browser_open: 是否保持浏览器打开
+        skip_prompt: 是否跳过交互式提示
+        username: 用户名
+        password: 密码
 
     Returns:
         Optional[tuple]: (access_token, page) 如果成功
-                         如果 keep_browser_open=False，page 为 None
     """
     try:
-        logger.info("正在启动浏览器进行课程认证登录...")
-        print("正在启动浏览器进行课程认证登录...")
-
-        # 尝试从配置文件读取凭据
-        try:
-            from src.core.config import get_settings_manager
-            settings = get_settings_manager()
-            config_username, config_password = settings.get_teacher_credentials()
-
-            if config_username and config_password:
-                print("\n💡 检测到已保存的教师端账号")
-                logger.info("检测到已保存的教师端账号")
-
-                # 如果跳过提示（GUI模式），直接使用已保存的账号
-                if skip_prompt:
-                    print(f"✅ 使用已保存的账号: {config_username[:3]}****")
-                    logger.info(f"使用已保存的账号: {config_username[:3]}****")
-                    username = config_username
-                    password = config_password
-                else:
-                    # CLI模式，询问用户是否使用已保存的账号
-                    use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
-
-                    if use_saved in ['', 'yes', 'y', '是']:
-                        print(f"✅ 使用已保存的账号: {config_username[:3]}****")
-                        logger.info(f"使用已保存的账号: {config_username[:3]}****")
-                        username = config_username
-                        password = config_password
-                    else:
-                        print("💡 请手动输入账号密码")
-                        username = input("请输入课程认证账户：").strip()
-                        password = input("请输入课程认证密码：").strip()
-            else:
-                # 没有已保存的账号
-                if skip_prompt:
-                    print("❌ 未找到已保存的教师端账号")
-                    logger.warning("未找到已保存的教师端账号")
-                    return None
-                else:
-                    username = input("请输入课程认证账户：").strip()
-                    password = input("请输入课程认证密码：").strip()
-        except Exception:
-            if skip_prompt:
-                print("❌ 读取配置文件失败")
-                logger.error("读取配置文件失败")
-                return None
-            else:
-                username = input("请输入课程认证账户：").strip()
-                password = input("请输入课程认证密码：").strip()
-
-        if not username or not password:
-            print("❌ 用户名或密码不能为空")
-            logger.error("用户名或密码不能为空")
-            return None
-
         logger.info(f"使用账户: {username}")
 
         # 使用浏览器管理器
@@ -435,6 +384,93 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
     except Exception as e:
         logger.error(f"Playwright登录异常：{str(e)}")
         print(f"❌ Playwright登录异常：{str(e)}")
+        import traceback
+        traceback.print_exc()
+        return None
+
+
+def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False) -> Optional[tuple]:
+    """
+    使用Playwright模拟浏览器登录获取课程认证access_token
+
+    支持异步兼容模式：在 Flet GUI (asyncio) 环境中自动使用线程包装
+
+    Args:
+        keep_browser_open: 是否保持浏览器打开（用于后续操作）
+        skip_prompt: 是否跳过交互式提示（GUI模式下使用，自动使用已保存的账号）
+
+    Returns:
+        Optional[tuple]: (access_token, page) 如果成功
+                         如果 keep_browser_open=False，page 为 None
+    """
+    try:
+        logger.info("正在启动浏览器进行课程认证登录...")
+        print("正在启动浏览器进行课程认证登录...")
+
+        # 尝试从配置文件读取凭据
+        try:
+            from src.core.config import get_settings_manager
+            settings = get_settings_manager()
+            config_username, config_password = settings.get_teacher_credentials()
+
+            if config_username and config_password:
+                print("\n💡 检测到已保存的教师端账号")
+                logger.info("检测到已保存的教师端账号")
+
+                # 如果跳过提示（GUI模式），直接使用已保存的账号
+                if skip_prompt:
+                    print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                    logger.info(f"使用已保存的账号: {config_username[:3]}****")
+                    username = config_username
+                    password = config_password
+                else:
+                    # CLI模式，询问用户是否使用已保存的账号
+                    use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
+
+                    if use_saved in ['', 'yes', 'y', '是']:
+                        print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                        logger.info(f"使用已保存的账号: {config_username[:3]}****")
+                        username = config_username
+                        password = config_password
+                    else:
+                        print("💡 请手动输入账号密码")
+                        username = input("请输入课程认证账户：").strip()
+                        password = input("请输入课程认证密码：").strip()
+            else:
+                # 没有已保存的账号
+                if skip_prompt:
+                    print("❌ 未找到已保存的教师端账号")
+                    logger.warning("未找到已保存的教师端账号")
+                    return None
+                else:
+                    username = input("请输入课程认证账户：").strip()
+                    password = input("请输入课程认证密码：").strip()
+        except Exception:
+            if skip_prompt:
+                print("❌ 读取配置文件失败")
+                logger.error("读取配置文件失败")
+                return None
+            else:
+                username = input("请输入课程认证账户：").strip()
+                password = input("请输入课程认证密码：").strip()
+
+        if not username or not password:
+            print("❌ 用户名或密码不能为空")
+            logger.error("用户名或密码不能为空")
+            return None
+
+        # 使用异步兼容模式：在 asyncio 环境中运行 Playwright 操作
+        return run_in_thread_if_asyncio(
+            _get_access_token_impl,
+            keep_browser_open,
+            skip_prompt,
+            username,
+            password
+        )
+
+    except Exception as e:
+        logger.error(f"获取访问令牌失败：{str(e)}")
+        print(f"❌ 获取访问令牌失败：{str(e)}")
         import traceback
         traceback.print_exc()
         return None

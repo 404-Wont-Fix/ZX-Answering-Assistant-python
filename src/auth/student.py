@@ -14,6 +14,7 @@ import time
 import logging
 import requests
 import sys
+import json
 
 # 导入浏览器管理器
 from src.core.browser import (
