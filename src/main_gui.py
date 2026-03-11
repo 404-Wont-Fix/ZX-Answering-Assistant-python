@@ -15,8 +15,6 @@ if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
 
 # 在导入 flet 之前设置环境变量
-# 禁止 Flet 自动安装 flet-desktop 包
-os.environ["FLET_NO_INSTALL_DEPS"] = "1"
 # 让 Flet 使用 pip 而不是 uv
 os.environ["UV_SYSTEM_PYTHON"] = "1"
 
@@ -359,7 +357,33 @@ def run_app():
     This function serves as the entry point for running the GUI application.
     It can be called from other modules or run directly.
     """
-    ft.app(target=main)
+    try:
+        # 尝试使用桌面可执行文件
+        ft.app(target=main)
+    except Exception as e:
+        # 如果桌面可执行文件不可用，尝试使用内置 WebView
+        error_msg = str(e)
+        if "flet.exe" in error_msg or "flet executable" in error_msg:
+            print("⚠️  Flet 桌面可执行文件未找到")
+            print("📥 正在切换到内置 WebView 模式...")
+
+            # 设置使用内置模式
+            os.environ["FLET_DESKTOP_EXE_PATH"] = ""
+            os.environ["FLET_WEB_BROWSER_PATH"] = ""
+
+            # 重新尝试启动
+            try:
+                ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+            except Exception as e2:
+                print(f"❌ 启动 Flet 失败: {e2}")
+                print("\n💡 可能的解决方案:")
+                print("   1. 确保已安装 Flet: pip install flet")
+                print("   2. 检查网络连接（首次运行需要下载组件）")
+                print("   3. 尝试使用 CLI 模式: python main.py --cli")
+                raise
+        else:
+            print(f"❌ 启动 Flet 失败: {e}")
+            raise
 
 
 if __name__ == "__main__":

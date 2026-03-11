@@ -288,154 +288,95 @@ python main.py
 
 ## 构建系统 (v2.7.0)
 
-### 新增构建功能
+### 快速开始
 
-v2.7.0 版本对构建系统进行了全面升级，大幅提升开发效率和构建质量。
+完整的构建系统文档请参阅 [BUILD.md](BUILD.md)
 
 ### 核心功能
 
 | 功能 | 描述 | 状态 |
 |------|------|------|
 | **配置文件化** | YAML 配置文件管理所有构建参数 | ✅ |
-| **自动化测试** | pytest 测试框架，46 个测试用例 | ✅ |
-| **增量构建** | 智能检测源代码变更，跳过无变更构建 | ✅ |
-| **依赖缓存** | 缓存 Playwright 浏览器和 Flet 下载 | ✅ |
-| **并行构建** | 同时构建 onedir 和 onefile 版本 | ✅ |
-| **进度可视化** | Rich 进度条实时显示构建进度 | ✅ |
-| **代码签名** | Windows EXE 数字签名支持 | ✅ |
-| **CI/CD** | GitHub Actions 自动构建和发布 | ✅ |
-
-### 构建配置文件
-
-使用 `build_config.yaml` 管理所有构建参数：
-
-```yaml
-# 构建模式
-build:
-  mode: both              # onedir, onefile, both
-  upx: false             # UPX 压缩
-  compile_src: false     # 源码预编译
-  incremental: true      # 增量构建
-
-# 依赖管理
-playwright:
-  auto_detect_version: true   # 自动检测浏览器版本
-  copy_browser: true          # 复制浏览器到项目
-
-flet:
-  download_source: official   # 下载源：official/mirror
-  version: "0.80.2"
-```
+| **源码编译** | Python 源码编译为 .pyc 字节码 | ✅ |
+| **浏览器打包** | Playwright 浏览器可选打包 | ✅ |
+| **UPX 压缩** | 可执行文件压缩（减少 30-50%） | ✅ |
+| **双模式构建** | 支持目录模式和单文件模式 | ✅ |
+| **版本信息** | 自动生成 Windows 版本资源 | ✅ |
 
 ### 构建命令
 
 ```bash
-# 基础构建（使用配置文件）
+# 基础构建（目录模式，推荐）
 python build.py
 
-# 目录模式（推荐，启动快）
-python build.py --mode onedir
-
-# 单文件模式
+# 单文件模式（便携式）
 python build.py --mode onefile
 
-# 启用高级功能
-python build.py --mode onedir --compile-src --upx
+# 同时构建两种模式
+python build.py --mode both
+
+# 启用 UPX 压缩
+python build.py --upx
+
+# 清理构建产物
+python build.py --clean
+
+# 自定义输出目录
+python build.py --build-dir "C:\Builds\MyApp"
 ```
 
-### 性能提升
+### 构建模式对比
 
-| 功能 | 优化前 | 优化后 | 提升 |
-|------|--------|--------|------|
-| 增量构建 | 每次完全构建 | 无变更时跳过 | ~100% |
-| 并行构建 | 串行（7分钟） | 并行（4分钟） | ~40% |
-| 依赖缓存 | 每次下载（5分钟） | 使用缓存（0秒） | ~100% |
-| **总体** | **~12分钟** | **~4分钟** | **~65%** |
+| 模式 | 优点 | 缺点 | 适用场景 |
+|------|------|------|----------|
+| **onedir** | 启动快，易于调试 | 多个文件 | 生产发布 |
+| **onefile** | 单文件，易于分发 | 启动慢 | 便携版本 |
 
-### 构建产物验证
+### 构建配置
 
-构建完成后会自动验证产物：
+编辑 `build_config.yaml` 自定义构建选项：
 
-```bash
-✅ 已生成校验和文件: dist/checksums.txt
-✅ 已生成构建报告: dist/build_report.json
-✅ 构建验证完成
+```yaml
+build:
+  mode: both                  # onedir, onefile, both
+  output_dir: "dist"          # 输出目录
+
+compilation:
+  enabled: true               # 编译为 .pyc
+  optimize: 2                 # 优化级别
+
+playwright:
+  enabled: true               # 打包浏览器
+
+upx:
+  enabled: false              # UPX 压缩
 ```
+
+### 详细文档
+
+- [BUILD.md](BUILD.md) - 完整的构建系统文档
+- 包含故障排除、高级选项等
 
 ### 构建故障排除
 
-#### 问题 1：PyInstaller 找不到模块
-
-**症状**：`ModuleNotFoundError: No module named 'xxx'`
-
-**解决方案**：
+#### PyInstaller 未安装
 ```bash
-# 确保所有依赖已安装
-pip install -r requirements.txt
-
-# 清理并重新构建
-rm -rf build/ dist/
-python build.py
+pip install pyinstaller pyyaml
 ```
 
-#### 问题 2：Playwright 浏览器下载失败
-
-**症状**：`Executable doesn't exist at ...`
-
-**解决方案**：
+#### Playwright 浏览器未安装
 ```bash
-# 手动安装 Playwright 浏览器
 python -m playwright install chromium
-
-# 如果已安装但路径错误，复制浏览器到项目
-python build.py --copy-browser
 ```
 
-#### 问题 3：Flet 可执行文件缺失
-
-**症状**：`Flet executable not found`
-
-**解决方案**：
+#### 构建体积过大
 ```bash
-# 下载 Flet 可执行文件
-python build.py --copy-flet
-
-# 或同时复制所有依赖
-python build.py --copy-all
-```
-
-#### 问题 4：构建体积过大
-
-**症状**：生成的 EXE 文件超过 500MB
-
-**优化方案**：
-```bash
-# 使用 UPX 压缩（减少 30-50%）
+# 启用 UPX 压缩
 python build.py --upx
-
-# 使用源码预编译（减少约 10%）
-python build.py --compile-src
-
-# 组合使用效果最佳
-python build.py --mode onedir --upx --compile-src
 ```
 
-#### 问题 5：构建速度慢
-
-**症状**：每次构建需要 10 分钟以上
-
-**优化方案**：
-```bash
-# 使用配置文件启用所有优化
-# 编辑 build_config.yaml：
-build:
-  incremental: true    # 增量构建
-  mode: onedir         # 只构建目录模式
-
-# 或使用环境变量
-export BUILD_CACHE_ENABLE=true
-python build.py
-```
+#### 更多问题？
+查看 [BUILD.md](BUILD.md) 中的详细故障排除章节
 
 ---
 
