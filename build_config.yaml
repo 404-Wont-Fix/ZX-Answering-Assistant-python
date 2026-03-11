@@ -113,8 +113,8 @@ app:
   # Version information
   version:
     major: 2
-    minor: 7
-    micro: 2
+    minor: 8
+    micro: 0
     build: 0
   # Copyright
   copyright: "Copyright (C) 2024-2026"

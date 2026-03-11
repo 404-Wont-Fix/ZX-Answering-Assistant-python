@@ -9,3 +9,6 @@ keyboard>=0.13.5
 
 # GUI framework
 flet>=0.82.0
+
+# Build dependencies
+py7zr>=0.21.0
