@@ -111,21 +111,33 @@ class BrowserBundler:
         # Copy browser files
         print_info(f"Copying browser files to: {dest_path}")
         try:
-            # Copy entire browser directory
+            # 获取版本号（目录名，如 chromium-1208）
+            revision_dir = browser_path.name  # 例如 "chromium-1208"
+            browser_install_path = dest_path / revision_dir
+
+            # 创建版本号目录
+            ensure_directory(browser_install_path)
+
+            # 复制整个浏览器目录到正确的结构
+            # 源路径: chromium-1208/chrome-win/
+            # 目标路径: playwright_browsers/chromium-1208/chrome-win/
             for item in browser_path.iterdir():
-                dest_item = dest_path / item.name
+                dest_item = browser_install_path / item.name
                 if item.is_dir():
                     if dest_item.exists():
                         shutil.rmtree(dest_item)
                     shutil.copytree(item, dest_item)
+                    print_info(f"  Copied: {item.name}/")
                 else:
                     shutil.copy2(item, dest_item)
+                    print_info(f"  Copied: {item.name}")
 
             # Calculate size
             total_size = sum(f.stat().st_size for f in dest_path.rglob('*') if f.is_file())
             size_mb = total_size / (1024 * 1024)
 
             print_success(f"Browser bundled successfully ({size_mb:.1f} MB)")
+            print_info(f"Structure: {revision_dir}/chrome-win/")
             return True
 
         except Exception as e:

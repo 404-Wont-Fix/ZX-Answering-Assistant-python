@@ -40,12 +40,12 @@ python main.py --mode gui
 
 **CLI Mode:**
 ```bash
-python main.py --mode cli
+python main.py --cli
 ```
 
 ### Standalone Answer Extraction (Runs independently without student portal)
 ```bash
-python extract_answers.py <course_id>
+python -m src.extract_answers <course_id>
 ```
 Extracts answers for a specific course using teacher credentials. Uses separate Playwright instance to avoid conflicts with student portal.
 
@@ -116,7 +116,7 @@ Traditional command-line interface accessed via [main.py](main.py) with hierarch
 ### Browser Manager (v2.6.0 - Unified Browser Management)
 **⚠️ CRITICAL ARCHITECTURAL CHANGE**: The v2.6.0 release introduced a unified browser management system that **replaces** the old subprocess pattern for concurrent Playwright instances.
 
-- **[src/browser_manager.py](src/browser_manager.py)** - Singleton `BrowserManager` class
+- **[src/core/browser.py](src/core/browser.py)** - Singleton `BrowserManager` class
   - **Single Browser Instance**: Only one Playwright browser runs for the entire application
   - **Multiple Contexts**: Each module (student, teacher, course certification) gets an isolated `BrowserContext`
   - **Thread-Safe Work Queue**: All Playwright operations execute in a dedicated worker thread
@@ -125,7 +125,7 @@ Traditional command-line interface accessed via [main.py](main.py) with hierarch
 
 **Usage Pattern:**
 ```python
-from src.browser_manager import get_browser_manager, BrowserType
+from src.core.browser import get_browser_manager, BrowserType
 
 # Get singleton instance
 browser_manager = get_browser_manager()
@@ -169,12 +169,13 @@ result = browser_manager._execute_in_thread(
 - Remember to call `stop_browser()` on application shutdown to clean up resources
 
 ### Authentication Modules
-- **[src/teacher_login.py](src/teacher_login.py)** - Teacher portal login at `https://admin.cqzuxia.com/#/login`
+- **[src/auth/teacher.py](src/auth/teacher.py)** - Teacher portal login at `https://admin.cqzuxia.com/#/login`
   - Accepts username/password via input prompts
   - Extracts `smartedu.admin.token` cookie for API authentication
   - Uses button selector `button:has-text('登录')`
 
-- **[src/student_login.py](src/student_login.py)** - Student portal login at `https://ai.cqzuxia.com/#/login`
+- **[src/auth/student.py](src/auth/student.py)** - Student portal login at `https://ai.cqzuxia.com/#/login`
+  - Token management via `src/auth/token_manager.py`
   - Accepts username/password via input prompts or from `cli_config.json`
   - Monitors `/connect/token` API endpoint to capture access_token
   - Uses multi-strategy login button click: `.loginbtn` class selector → `text=登录` → JavaScript fallback
@@ -189,7 +190,10 @@ result = browser_manager._execute_in_thread(
     - `close_browser()` - Clean up Playwright resources
 
 ### Question Extraction Pipeline
-- **[src/extract.py](src/extract.py)** - Core `Extractor` class implementing the data extraction workflow:
+- **[src/extraction/extractor.py](src/extraction/extractor.py)** - Core `Extractor` class implementing the data extraction workflow:
+  - Standalone function `extract_course_answers(course_id, progress_callback=None)` for single-course extraction
+  - `Extractor` class for interactive extraction with user input
+  - API call chain: class → course → chapter → knowledge → questions → options
   - **`extract_course_answers(course_id)`** - Standalone function for single-course answer extraction (called by extract_answers.py)
     - Logs in via teacher portal
     - Gets class list → filters by grade → selects class
@@ -211,48 +215,42 @@ result = browser_manager._execute_in_thread(
 
   Data flow: `class_list` → `filtered_classes` → `course_list` → `chapter_list` → `knowledge_list` → `knowledge_questions` → `question_options`
 
-  **Important**: All API calls in `extract.py` use `get_api_client()` which applies rate limiting automatically. Do not add manual `time.sleep()` calls.
+  **Important**: All API calls use `get_api_client()` which applies rate limiting automatically. Do not add manual `time.sleep()` calls.
 
 ### Auto-Answering Modules
-- **[src/auto_answer.py](src/auto_answer.py)** - Browser-compatible mode answering
-  - Simulates user interactions in the browser
-  - Selects answers by clicking UI elements
+- **[src/answering/browser_answer.py](src/answering/browser_answer.py)** - Browser-compatible mode answering
+  - `AutoAnswer` class simulates user interactions by clicking UI elements
   - Supports keyboard interrupt ('Q' key) for graceful shutdown
 
-- **[src/api_auto_answer.py](src/api_auto_answer.py)** - API暴力模式
-  - Direct API calls without browser operations
-  - Much faster than browser mode
+- **[src/answering/api_answer.py](src/answering/api_answer.py)** - API暴力模式
+  - `APIAutoAnswer` class for direct API calls (faster than browser mode)
   - Network retry mechanism (up to 3 retries)
   - Supports graceful shutdown with keyboard listener
 
 ### Course Certification Modules (课程认证)
-- **[src/course_certification.py](src/course_certification.py)** - Course certification workflow module
-  - Manages question bank import for course certification
-  - Integrates with APICourseAnswer for automated answering
-  - Uses global state management for browser and question bank
+- **[src/certification/workflow.py](src/certification/workflow.py)** - Course certification workflow module
+  - `get_access_token()` - Teacher authentication for course certification
+  - `start_answering()` - Main answering entry point
+  - `import_question_bank()` - Load JSON question banks
+  - Uses `APICourseAnswer` for automated answering
 
-- **[src/course_api_answer.py](src/course_api_answer.py)** - API-based course certification answering
+- **[src/certification/api_answer.py](src/certification/api_answer.py)** - API-based course certification answering
   - `APICourseAnswer` class for direct API submission
-  - Normalizes text by removing HTML entities and extra whitespace
-  - Implements text similarity matching for answer selection
+  - Text normalization (removes HTML entities, extra whitespace)
+  - Text similarity matching for answer selection
   - Uses different API base: `https://zxsz.cqzuxia.com/teacherCertifiApi/api/TeacherCourseEvaluate`
   - Much faster than browser-based answering
 
 ### Data Management
-- **[src/export.py](src/export.py)** - `DataExporter` class exports extracted data to JSON:
-  - `export_single_course()` - For single course extraction (structured with nested `class.course.chapters`)
-  - `export_all_courses()` - For multi-course extraction (structured with `class.courses[]` array)
-  - Auto-detects data type and generates timestamped filenames
-
-- **[src/question_bank_importer.py](src/question_bank_importer.py)** - `QuestionBankImporter` class imports and parses exported JSON:
-  - Auto-detects bank type: `"single"` (nested `class.course`) vs `"multiple"` (flat `course_list`)
-  - Calculates statistics: total chapters/knowledges/questions/options
-  - Formats detailed output with emoji indicators (✅/❌)
-
-- **[src/file_handler.py](src/file_handler.py)** - File I/O utilities for JSON read/write operations
+- **[src/extraction/exporter.py](src/extraction/exporter.py)** - `DataExporter` class exports extracted data to JSON
+- **[src/extraction/importer.py](src/extraction/importer.py)** - `QuestionBankImporter` class imports and parses exported JSON
+- **[src/extraction/file_handler.py](src/extraction/file_handler.py)** - File I/O utilities for JSON read/write operations
 
 ### API Client and Rate Limiting
-- **[src/api_client.py](src/api_client.py)** - Unified API request client with configurable rate limiting:
+- **[src/core/api_client.py](src/core/api_client.py)** - Unified API request client with configurable rate limiting:
+  - Singleton instance via `get_api_client()`
+  - Request caching with TTL
+  - Smart retry with exponential backoff
   - **Rate Limiting**: Applies delays before **every** API request (not just on retry)
   - **Configurable Levels**: `low` (50ms), `medium` (1s), `medium_high` (2s), `high` (3s)
   - **Automatic Retry**: Network errors trigger exponential backoff (1s, 2s, 4s...)
@@ -260,12 +258,12 @@ result = browser_manager._execute_in_thread(
   - **Global Instance**: Use `get_api_client()` to get the singleton instance
   - **Usage**: All API calls should go through this client, not direct `requests` calls
 
-- **[src/settings.py](src/settings.py)** - CLI settings management with persistent configuration:
+- **[src/core/config.py](src/core/config.py)** - CLI settings management with persistent configuration:
   - **File**: `cli_config.json` (auto-generated on first run)
   - **Credentials Storage**: Saves student/teacher usernames and passwords
   - **API Settings**: Configurable rate level and max retry count
   - **APIRateLevel Enum**: LOW, MEDIUM, MEDIUM_HIGH, HIGH
-  - **Usage Pattern**: `settings_manager = get_settings_manager()` to get singleton instance
+  - Usage: `settings_manager = get_settings_manager()` to get singleton instance
 
 ### Configuration
 - **Configuration is managed through `cli_config.json`** (auto-generated on first run)
@@ -323,9 +321,9 @@ result = browser_manager._execute_in_thread(
 ### Singleton Pattern for Global Services
 The codebase uses singleton instances for critical services to maintain consistency:
 
-1. **API Client** (`src/api_client.py`)
+1. **API Client** (`src/core/api_client.py`)
    ```python
-   from src.api_client import get_api_client
+   from src.core.api_client import get_api_client
    api_client = get_api_client()  # Returns singleton instance
    response = api_client.get(url, headers=headers)
    ```
@@ -333,9 +331,9 @@ The codebase uses singleton instances for critical services to maintain consiste
    - Always use `get_api_client()` to get the global instance
    - The singleton ensures rate limiting works across all API calls
 
-2. **Settings Manager** (`src/settings.py`)
+2. **Settings Manager** (`src/core/config.py`)
    ```python
-   from src.settings import get_settings_manager
+   from src.core.config import get_settings_manager
    settings = get_settings_manager()  # Returns singleton instance
    rate_level = settings.get_rate_level()
    ```
@@ -389,22 +387,17 @@ The project handles Playwright browser paths differently in development vs packa
 - `copy_browser.py` script prepares browser for packaging (copies from system to project directory)
 
 **Playwright 1.57.0+ Headless Mode Compatibility (v2.6.5+)**
-Playwright 1.57.0 introduced `chromium_headless_shell` which doesn't work with bundled browsers in packaged executables.
-
-**Solution**: Use `args=['--headless=new']` parameter when launching headless browser to force full Chromium:
+Playwright 1.57.0 introduced `chromium_headless_shell` which doesn't work with bundled browsers in packaged executables. Use `args=['--headless=new']` parameter when launching headless browser to force full Chromium.
 
 ```python
-# In browser_manager.py
+# In src/core/browser.py
 browser = playwright.chromium.launch(
     headless=headless,
     args=['--headless=new'] if headless else None  # Force full Chromium
 )
 ```
 
-**Important:** When working on Playwright-related code:
-- Be aware of the dual-path system (development vs packaged)
-- Always use `args=['--headless=new']` for headless mode to ensure compatibility
-- Test both in development and after packaging
+**Important:** When working on Playwright-related code, always use `args=['--headless=new']` for headless mode to ensure compatibility. Test both in development and after packaging.
 
 ### GUI View Caching Pattern
 The GUI implements view caching to preserve state when switching between navigation tabs:
@@ -446,7 +439,7 @@ Since Playwright cannot run multiple browser instances in the same process:
 **Solution**: Detect asyncio environment and run Playwright in a separate thread with a new event loop.
 
 ```python
-# In student_login.py and other Playwright modules
+# In src/auth/student.py and other Playwright modules
 try:
     import asyncio
     asyncio.get_running_loop()
@@ -560,7 +553,7 @@ def check_browser_alive():
 ### Windows Console Encoding
 Windows console may not support UTF-8 by default, causing encoding issues when displaying Chinese characters or logging.
 
-**Solution Implemented**: The project uses `UTF8StreamHandler` in [src/student_login.py:16-38](src/student_login.py#L16-L38) for proper encoding:
+**Solution Implemented**: The project uses `UTF8StreamHandler` in [src/auth/student.py](src/auth/student.py) for proper encoding:
 
 ```python
 class UTF8StreamHandler(logging.StreamHandler):
@@ -623,22 +616,19 @@ fix(recovery): implement browser crash detection and recovery
 ⚠️ **Note**: As of v2.6.6, the project does not have a formal test suite. Tests should be added to improve code quality and catch regressions.
 
 **Recommended Test Structure** (to be implemented):
-- `tests/test_teacher_login.py` - Teacher portal login tests
-- `tests/test_student_login.py` - Student portal login tests
-- `tests/test_api_client.py` - API client and rate limiting tests
-- `tests/test_extract.py` - Answer extraction workflow tests
-- `tests/test_browser_manager.py` - Browser manager tests
+- `tests/test_auth_teacher.py` - Teacher portal login tests
+- `tests/test_auth_student.py` - Student portal login tests
+- `tests/test_core_api_client.py` - API client and rate limiting tests
+- `tests/test_core_browser.py` - Browser manager tests
+- `tests/test_extraction_extractor.py` - Answer extraction workflow tests
 
 ### Running Tests (when implemented)
 ```bash
 # Run all tests
-python -m pytest tests/
+python -m pytest tests/ -v
 
 # Run specific test file
-python -m pytest tests/test_teacher_login.py
-
-# Run with verbose output
-python -m pytest tests/ -v
+python -m pytest tests/test_auth_student.py -v
 
 # Run with coverage
 python -m pytest tests/ --cov=src --cov-report=html
@@ -655,7 +645,14 @@ python -m pytest tests/ --cov=src --cov-report=html
 
 Understanding the version history helps when working with older code or debugging version-specific issues:
 
-### v2.7.0 (Latest) - Build System Simplification
+### v2.8.0 - UI Polish and Configuration Updates
+- CLI mode interface beautification with emojis and better formatting
+- Logging disabled in CLI mode for cleaner output
+- Updated PyYAML dependency added to requirements.txt
+- GUI view caching initialization fixed
+- Removed code redundancy (379 lines of duplicate code in main.py)
+
+### v2.7.0 - Build System Simplification
 - Removed complex build tools module (`src/build_tools/`)
 - Simplified build.py with essential features only
 - Removed build-time browser and Flet bundling
@@ -683,6 +680,45 @@ Understanding the version history helps when working with older code or debuggin
 - Subprocess pattern for concurrent browsers (replaced in v2.6.0)
 
 **When Working with Legacy Code:**
-- If you see subprocess calls to `extract_answers.py`, it's pre-v2.6.0 code
+- If you see subprocess calls to `src.extract_answers`, it's pre-v2.6.0 code
 - If you see direct `playwright.sync_api().start()` calls without BrowserManager, it's pre-v2.6.0 code
 - Always prefer BrowserManager for new code unless working on legacy compatibility
+
+## Project Structure (Current as of v2.8.0)
+
+```
+src/
+├── core/               # Core utilities and singletons
+│   ├── api_client.py   # Unified HTTP client with rate limiting & caching
+│   ├── app_state.py    # Thread-safe global state manager
+│   ├── browser.py      # BrowserManager singleton for Playwright
+│   ├── config.py       # CLI settings management (cli_config.json)
+│   └── constants.py    # Application constants
+├── auth/               # Authentication modules
+│   ├── student.py      # Student portal login & token management
+│   ├── teacher.py      # Teacher portal login
+│   └── token_manager.py # Token caching and management
+├── certification/      # Course certification workflow
+│   ├── workflow.py     # Main certification workflow
+│   └── api_answer.py   # API-based answering for certification
+├── extraction/         # Data extraction pipeline
+│   ├── extractor.py    # Answer extraction logic
+│   ├── exporter.py     # JSON export functionality
+│   ├── importer.py     # Question bank import
+│   └── file_handler.py # File I/O utilities
+├── answering/          # Auto-answering modules
+│   ├── browser_answer.py # Browser-based answering
+│   └── api_answer.py     # API-based answering
+├── ui/                 # GUI components (Flet)
+│   ├── main_gui.py     # GUI entry point
+│   └── views/          # Individual view components
+│       ├── answering_view.py
+│       ├── extraction_view.py
+│       ├── course_certification_view.py
+│       ├── settings_view.py
+│       └── cloud_exam_view.py (placeholder)
+├── build_tools/        # Build system utilities
+├── utils/              # General utilities
+├── caching/            # Caching utilities
+└── extract_answers.py  # Standalone extraction script (legacy)
+```

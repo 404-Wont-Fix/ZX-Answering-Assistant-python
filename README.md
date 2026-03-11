@@ -967,7 +967,46 @@ dist/
 python build.py --upx
 ```
 
-### Q4: 浏览器崩溃了怎么办？
+### Q4: 运行打包后的程序提示"浏览器未安装"怎么办？
+
+**A:** 这是 Playwright 浏览器未正确安装的问题。解决方法：
+
+#### 方法 1: 自动安装（推荐）
+首次运行程序时，程序会自动检测并提示安装浏览器。按照提示操作即可。
+
+#### 方法 2: 手动安装
+如果自动安装失败，请手动安装：
+
+```bash
+# Windows 用户
+playwright install chromium
+
+# 或者使用 Python
+python -m playwright install chromium
+```
+
+浏览器将安装到：
+- **Windows**: `C:\Users\<用户名>\AppData\Local\ms-playwright`
+- **Linux/Mac**: `~/.cache/ms-playwright`
+
+#### 方法 3: 使用开发环境（源码运行）
+如果打包版本出现问题，建议直接使用源码运行：
+
+```bash
+# 安装依赖
+pip install -r requirements.txt
+
+# 安装 Playwright 浏览器
+python -m playwright install chromium
+
+# 运行程序
+python main.py          # GUI 模式
+python main.py --cli    # CLI 模式
+```
+
+**提示**: 源码运行比打包版本更稳定，推荐日常使用。
+
+### Q5: 如何选择答题模式？
 
 **A:** v2.2.0+ 版本支持自动恢复：
 
