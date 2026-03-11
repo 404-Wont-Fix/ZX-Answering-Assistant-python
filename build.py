@@ -241,7 +241,14 @@ class BuildSystem:
         # Install browser if needed
         if not bundler.get_browser_path():
             print_info("Installing Playwright browser...")
-            bundler.install_playwright()
+            if not bundler.install_playwright():
+                print_warning("Failed to install browser")
+                return False
+
+        # Bundle browser to output directory
+        if not bundler.bundle_browser(self.dist_dir):
+            print_warning("Browser bundling failed, browser will download on first run")
+            return False
 
         return True
 
