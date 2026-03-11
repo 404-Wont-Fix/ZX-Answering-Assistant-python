@@ -167,16 +167,12 @@ def setup_flet_executable():
     简化版本 - 只设置环境变量
     """
     try:
-        # 设置环境变量，禁止 Flet 自动安装 flet-desktop 包
-        os.environ["FLET_NO_INSTALL_DEPS"] = "1"
         # 设置环境变量，让 Flet 使用 pip 而不是 uv
         os.environ["UV_SYSTEM_PYTHON"] = "1"
 
         if getattr(sys, 'frozen', False):
-            # 在打包环境中，Flet会自动从GitHub下载
-            print("[INFO] 打包环境：Flet将在首次运行时从GitHub下载")
+            print("[OK] 打包环境：Flet desktop 已包含")
         else:
-            # 开发环境，Flet会自动处理
             print("[OK] 使用系统Flet")
     except Exception as e:
         print(f"[WARN] 设置Flet可执行文件失败: {e}")

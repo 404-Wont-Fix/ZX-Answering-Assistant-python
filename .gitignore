@@ -35,6 +35,7 @@ wheels/
 # 日志
 logs/
 *.log
+build.log
 
 # 配置文件（包含敏感信息）
 config/config.yaml
@@ -77,9 +78,14 @@ src_compiled/
 
 # 构建产物
 ZX-Answering-Assistant-v*/
+**/ZX-Answering-Assistant*.exe
+**/ZX-Answering-Assistant*.spec
 
 # PyInstaller
 *.spec
 
 # 自动生成的文件
 file_version_info.txt
+
+# 构建配置（可选，如果不想提交自定义配置）
+# build_config.yaml
