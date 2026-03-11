@@ -72,7 +72,79 @@ def setup_playwright_browser(silent=False):
 
             # 获取打包的浏览器目录
             browsers_dir = Path(sys._MEIPASS) / "playwright_browsers"
+
             if browsers_dir.exists():
+                # 检查打包的浏览器目录结构是否正确
+                # Playwright 期望: playwright_browsers/chromium-XXXX/chrome-win*/
+                # 但旧版本打包可能直接是: playwright_browsers/chrome-win/
+
+                # 检查浏览器目录结构
+                # 期望: playwright_browsers/chromium-XXXX/chrome-win64/
+                chromium_dirs = list(browsers_dir.glob("chromium-*"))
+
+                if chromium_dirs:
+                    # 检查是否使用 chrome-win64
+                    chromium_dir = chromium_dirs[0]
+                    chrome_win64 = chromium_dir / "chrome-win64"
+                    chrome_win = chromium_dir / "chrome-win"
+
+                    if chrome_win64.exists():
+                        log(f"[OK] 使用打包的浏览器: {chromium_dir.name}/chrome-win64/")
+                    elif chrome_win.exists():
+                        # 需要重命名为 chrome-win64
+                        print("[INFO] 检测到 chrome-win，正在重命名为 chrome-win64...")
+                        try:
+                            shutil.move(str(chrome_win), str(chrome_win64))
+                            log(f"[OK] 已重命名为 chrome-win64: {chromium_dir.name}/chrome-win64/")
+                        except Exception as e:
+                            log(f"[WARN] 重命名失败: {e}")
+                    else:
+                        log(f"[WARN] 未找到浏览器目录: {chromium_dir}")
+
+                    # 检查版本号是否匹配，如果不匹配，创建符号链接
+                    try:
+                        import re
+                        from playwright.sync_api import sync_playwright
+                        with sync_playwright() as p:
+                            # 获取 Playwright 期望的版本号
+                            expected_revision = p.chromium.executable_path.rsplit('-', 1)[-1].split('\\')[-1]
+                            # 例如: C:\...\chromium-1208\chrome-win\chrome.exe -> 1208
+                    except:
+                        expected_revision = None
+
+                    if expected_revision and chromium_dir.name != f"chromium-{expected_revision}":
+                        # 版本号不匹配，创建符号链接或重命名
+                        print(f"[INFO] 版本号不匹配: {chromium_dir.name} vs chromium-{expected_revision}")
+                        print(f"[INFO] 创建兼容性链接...")
+
+                        correct_dir = browsers_dir / f"chromium-{expected_revision}"
+                        try:
+                            # 创建符号链接（需要管理员权限）或重命名
+                            if correct_dir.exists():
+                                shutil.rmtree(correct_dir)
+
+                            # 创建目录符号链接或 junction（Windows）
+                            if sys.platform == 'win32':
+                                import subprocess
+                                subprocess.run(['mklink', '/J', str(chromium_dir), str(correct_dir)], check=False, shell=True)
+                            else:
+                                shutil.copytree(str(chromium_dir), str(correct_dir))
+
+                            log(f"[OK] 已创建版本兼容链接: {correct_dir}")
+                        except Exception as e:
+                            # 如果符号链接失败，直接重命名
+                            try:
+                                shutil.move(str(chromium_dir), str(correct_dir))
+                                log(f"[OK] 已重命名为: {correct_dir.name}")
+                            except:
+                                log(f"[WARN] 版本号不匹配，但尝试继续使用: {chromium_dir.name}")
+
+                # 设置Playwright浏览器路径环境变量
+                os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers_dir)
+                # 同时设置用户数据目录指向临时目录
+                os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
+                log(f"[OK] 使用打包的浏览器")
+
                 # 设置Playwright浏览器路径环境变量
                 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers_dir)
                 # 同时设置用户数据目录指向临时目录
@@ -97,21 +169,74 @@ def setup_playwright_browser(silent=False):
                 import glob
                 chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
                 if not chromium_paths:
-                    print("\n" + "=" * 60)
+                    # 浏览器未安装，尝试使用 Playwright API 自动安装
+                    print("\n" + "=" * 70)
                     print("⚠️  Playwright 浏览器未安装")
-                    print("=" * 60)
-                    print("首次使用需要安装浏览器，请运行以下命令：")
-                    print()
-                    print("    python -m playwright install chromium")
-                    print()
-                    print("或者")
-                    print()
-                    print("    playwright install chromium")
-                    print()
-                    print("安装完成后重新运行程序即可")
-                    print("=" * 60)
+                    print("=" * 70)
+                    print("📦 正在自动下载 Chromium 浏览器（约 170MB）")
+                    print("   这可能需要几分钟，请耐心等待...")
+                    print("=" * 70 + "\n")
+
+                    install_success = False
+
+                    # 方法：使用 Playwright 的 API 下载浏览器
+                    try:
+                        from playwright.sync_api import sync_playwright
+
+                        print("🔄 正在连接到 Playwright 服务器...")
+                        with sync_playwright() as p:
+                            print("📥 开始下载 Chromium...")
+                            # 下载 Chromium 浏览器
+                            p.chromium.install()
+
+                            # 验证安装
+                            try:
+                                browser = p.chromium.launch(headless=True)
+                                browser.close()
+                                print("\n" + "=" * 70)
+                                print("✅ 浏览器安装成功！")
+                                print(f"   位置: {user_data_dir}")
+                                print("=" * 70)
+                                install_success = True
+                            except Exception as e:
+                                # 即使安装了，launch 也可能失败，这是正常的
+                                # 重新检查浏览器是否存在
+                                chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
+                                if chromium_paths:
+                                    print("\n" + "=" * 70)
+                                    print("✅ 浏览器安装成功！")
+                                    print(f"   位置: {user_data_dir}")
+                                    print("=" * 70)
+                                    install_success = True
+                                else:
+                                    raise Exception("浏览器安装验证失败")
+                    except Exception as e:
+                        print("\n" + "=" * 70)
+                        print(f"❌ 自动安装失败: {e}")
+                        print("=" * 70)
+                        print()
+                        print("请手动安装浏览器：")
+                        print()
+                        print("📌 方法 1: 使用系统 Python（推荐）")
+                        print("   打开命令提示符，运行：")
+                        print("   playwright install chromium")
+                        print()
+                        print("📌 方法 2: 使用 pip")
+                        print("   pip install playwright")
+                        print("   playwright install chromium")
+                        print()
+                        print("浏览器将安装到:")
+                        print(f"   {user_data_dir}")
+                        print()
+                        print("安装完成后重新运行程序即可")
+                        print("=" * 70 + "\n")
+
+                    if not install_success:
+                        # 暂停一下让用户看到错误信息
+                        import time
+                        time.sleep(2)
                 else:
-                    print(f"[OK] 使用缓存的浏览器: {user_data_dir}")
+                    log(f"[OK] 使用缓存的浏览器: {user_data_dir}")
         else:
             # 开发环境，使用系统浏览器
             log("[OK] 使用系统浏览器")
