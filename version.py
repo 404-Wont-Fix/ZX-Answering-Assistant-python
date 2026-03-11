@@ -13,8 +13,10 @@ from pathlib import Path
 if sys.platform == 'win32':
     try:
         import codecs
-        sys.stdout = codecs.getwriter("utf-8")(sys.stdout.detach())
-        sys.stderr = codecs.getwriter("utf-8")(sys.stderr.detach())
+        # 检查 stdout 是否已经被重新定向，避免重复 detach
+        if hasattr(sys.stdout, 'buffer') and not isinstance(sys.stdout, codecs.Codec):
+            sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
+            sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer)
     except:
         # 如果设置失败，尝试通过环境变量
         os.environ['PYTHONIOENCODING'] = 'utf-8'
