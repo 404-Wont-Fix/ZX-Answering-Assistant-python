@@ -21,8 +21,69 @@ if sys.platform == 'win32':
         # 如果设置失败，尝试通过环境变量
         os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-VERSION = "2.7.8"
+# 版本名称
 VERSION_NAME = "ZX Answering Assistant"
+
+def _get_version_from_config() -> str:
+    """从配置文件读取版本号
+    
+    Returns:
+        版本号字符串，如 '2.7.2'
+    """
+    try:
+        import yaml
+        config_path = Path(__file__).parent / "build_config.yaml"
+        if config_path.exists():
+            with open(config_path, encoding='utf-8') as f:
+                config = yaml.safe_load(f)
+                version = config.get('app', {}).get('version', {})
+                major = version.get('major', 0)
+                minor = version.get('minor', 0)
+                micro = version.get('micro', 0)
+                return f"{major}.{minor}.{micro}"
+    except Exception:
+        pass
+    return None
+
+def _get_version_from_git() -> str:
+    """从 Git 标签读取版本号
+    
+    Returns:
+        版本号字符串，如 '2.7.8'，如果失败返回 None
+    """
+    try:
+        result = subprocess.run(
+            ["git", "describe", "--tags", "--abbrev=0"],
+            capture_output=True,
+            text=True,
+            timeout=5
+        )
+        if result.returncode == 0:
+            version = result.stdout.strip()
+            # 移除前缀 'v'
+            if version.startswith('v'):
+                version = version[1:]
+            return version
+    except Exception:
+        pass
+    return None
+
+def _get_version() -> str:
+    """获取版本号（优先级：配置文件 > Git > 默认值）"""
+    # 首先尝试从配置文件读取
+    version = _get_version_from_config()
+    if version:
+        return version
+    
+    # 如果配置文件不存在，尝试从 Git 读取
+    version = _get_version_from_git()
+    if version:
+        return version
+    
+    # 如果都失败，使用默认值
+    return "0.0.0"
+
+VERSION = _get_version()
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():
@@ -96,6 +157,32 @@ def print_version_info():
     print(f"Git提交: {info['git_commit']}")
     print(f"构建模式: {info['build_mode']}")
     print("=" * 60 + "\n")
+
+
+def create_version_file(file_path: str) -> Path:
+    """创建版本信息文件
+    
+    Args:
+        file_path: 文件路径
+        
+    Returns:
+        Path对象
+    """
+    version_file = Path(file_path)
+    version_file.parent.mkdir(parents=True, exist_ok=True)
+    
+    content = f"""{VERSION_NAME}
+版本号: {VERSION}
+构建日期: {BUILD_DATE}
+构建时间: {BUILD_TIME}
+Git提交: {GIT_COMMIT}
+构建模式: {BUILD_MODE}
+"""
+    
+    with open(version_file, 'w', encoding='utf-8') as f:
+        f.write(content)
+    
+    return version_file
 
 
 # 版本信息字典（用于 Windows 版本资源）

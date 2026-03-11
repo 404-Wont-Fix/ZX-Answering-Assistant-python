@@ -14,7 +14,7 @@ class TestVersionInfo:
 
     def test_version_constants(self):
         """测试版本常量"""
-        code = "import version; assert version.VERSION == '2.7.0'"
+        code = "import version; assert version.VERSION == '2.7.2'"
         result = subprocess.run([sys.executable, "-c", code], capture_output=True)
         assert result.returncode == 0, f"stderr: {result.stderr.decode()}"
 
@@ -26,13 +26,13 @@ class TestVersionInfo:
 
     def test_get_version_string(self):
         """测试获取版本字符串"""
-        code = "import version; s = version.get_version_string(); assert 'ZX Answering Assistant' in s and '2.7.0' in s"
+        code = "import version; s = version.get_version_string(); assert 'ZX Answering Assistant' in s and '2.7.2' in s"
         result = subprocess.run([sys.executable, "-c", code], capture_output=True)
         assert result.returncode == 0
 
     def test_get_full_version_string(self):
         """测试获取完整版本字符串"""
-        code = "import version; s = version.get_full_version_string(); assert 'v2.7.0' in s"
+        code = "import version; s = version.get_full_version_string(); assert 'v2.7.2' in s"
         result = subprocess.run([sys.executable, "-c", code], capture_output=True)
         assert result.returncode == 0
 
@@ -73,7 +73,7 @@ version_file = version.create_version_file(r'{tmp_path}\\test_version2.txt')
 with open(version_file, 'r', encoding='utf-8') as f:
     content = f.read()
     assert 'ZX Answering Assistant' in content
-    assert '2.7.0' in content
+    assert '2.7.2' in content
 """
         result = subprocess.run([sys.executable, "-c", code], capture_output=True)
         assert result.returncode == 0

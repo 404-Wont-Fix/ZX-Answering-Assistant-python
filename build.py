@@ -19,6 +19,7 @@ import shutil
 import subprocess
 import sys
 import yaml
+import re
 from pathlib import Path
 from typing import Dict, Any, List, Optional
 
@@ -273,6 +274,141 @@ class BuildSystem:
         
         return bundler.bundle_flet(self.dist_dir)
 
+    def update_version_file(self) -> bool:
+        """
+        Update version.py with version from config
+        
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            version_config = self.config.get('app', {}).get('version', {})
+            major = version_config.get('major', 0)
+            minor = version_config.get('minor', 0)
+            micro = version_config.get('micro', 0)
+            version_str = f"{major}.{minor}.{micro}"
+            
+            version_file = self.project_root / "version.py"
+            if not version_file.exists():
+                print_warning("version.py not found")
+                return False
+            
+            # Read current content
+            with open(version_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            # Replace VERSION value
+            content = re.sub(
+                r'VERSION\s*=\s*["\'][^"\']+["\']',
+                f'VERSION = "{version_str}"',
+                content
+            )
+            
+            # Write updated content
+            with open(version_file, 'w', encoding='utf-8') as f:
+                f.write(content)
+            
+            print_success(f"Updated version.py to {version_str}")
+            return True
+            
+        except Exception as e:
+            print_error(f"Failed to update version.py: {e}")
+            return False
+
+    def get_version(self) -> str:
+        """
+        Get version string from config or version.py
+        
+        Returns:
+            Version string like '2.7.2'
+        """
+        try:
+            version_config = self.config.get('app', {}).get('version', {})
+            major = version_config.get('major', 0)
+            minor = version_config.get('minor', 0)
+            micro = version_config.get('micro', 0)
+            return f"{major}.{minor}.{micro}"
+        except Exception:
+            pass
+        
+        try:
+            version_file = self.project_root / "version.py"
+            if version_file.exists():
+                with open(version_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                match = re.search(r'VERSION\s*=\s*["\']([^"\']+)["\']', content)
+                if match:
+                    return match.group(1)
+        except Exception:
+            pass
+        
+        return "0.0.0"
+
+    def create_archive(self, mode: str = 'onedir') -> Optional[Path]:
+        """
+        Create 7z archive with version number in filename
+        
+        Args:
+            mode: Build mode ('onedir' or 'onefile')
+            
+        Returns:
+            Path to created archive or None if failed
+        """
+        print_step("Creating archive...")
+        
+        try:
+            import py7zr
+            
+            version = self.get_version()
+            app_name = self.config.get('app', {}).get('exe_name', 'ZX-Answering-Assistant')
+            
+            if mode == 'onedir':
+                source_dir = self.dist_dir / app_name
+                archive_name = f"{app_name}-v{version}-windows-x64-installer.7z"
+            else:
+                source_dir = self.dist_dir / f"{app_name}.exe"
+                archive_name = f"{app_name}-v{version}-windows-x64-portable.7z"
+            
+            archive_path = self.dist_dir / archive_name
+            
+            if not source_dir.exists():
+                print_error(f"Source not found: {source_dir}")
+                return None
+            
+            print_info(f"Creating archive: {archive_name}")
+            
+            # Remove existing archive if it exists
+            if archive_path.exists():
+                archive_path.unlink()
+                print_info(f"Removed existing archive: {archive_path}")
+            
+            with py7zr.SevenZipFile(archive_path, mode='w') as archive:
+                if mode == 'onedir':
+                    archive.writeall(source_dir, arcroot=app_name)
+                else:
+                    archive.write(source_dir, arcname=source_dir.name)
+            
+            # Verify archive is not empty
+            with py7zr.SevenZipFile(archive_path, mode='r') as archive:
+                contents = archive.getnames()
+                if not contents:
+                    print_error("Archive is empty!")
+                    archive_path.unlink()
+                    return None
+            
+            print_success(f"Archive created: {archive_path}")
+            return archive_path
+            
+        except ImportError:
+            print_warning("py7zr not installed, skipping archive creation")
+            print_info("Install with: pip install py7zr")
+            return None
+        except Exception as e:
+            print_error(f"Failed to create archive: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     def generate_version_file(self) -> Optional[Path]:
         """
         Generate Windows version information file
@@ -327,6 +463,10 @@ class BuildSystem:
         # Pre-build steps
         print_step("Running pre-build steps...")
 
+        # Update version.py with version from config
+        if not self.update_version_file():
+            print_warning("Failed to update version.py")
+
         # Compile sources
         if not self.compile_sources():
             print_error("Source compilation failed")
@@ -369,12 +509,25 @@ class BuildSystem:
         print_step("Running post-build steps...")
 
         # Calculate output size
+        # Get version information
+        version_config = self.config.get('app', {}).get('version', {})
+        major = version_config.get('major', 0)
+        minor = version_config.get('minor', 0)
+        micro = version_config.get('micro', 0)
+        version_str = f"{major}.{minor}.{micro}"
+
+        exe_name_base = self.config['app'].get('exe_name', 'ZX-Answering-Assistant')
+        # Format: ZX-Answering-Assistant-v2.7.8-windows-x64-installer (onedir)
+        #         ZX-Answering-Assistant-v2.7.8-windows-x64-portable (onefile)
+        mode_suffix = '-installer' if mode == 'onedir' else '-portable'
+        exe_name_with_version = f"{exe_name_base}-v{version_str}-windows-x64{mode_suffix}"
+
         if mode == 'onefile':
-            exe_name = self.config['app'].get('exe_name', 'ZX-Answering-Assistant') + '.exe'
+            exe_name = exe_name_with_version + '.exe'
             exe_path = self.dist_dir / exe_name
         else:
-            exe_dir = self.dist_dir / self.config['app'].get('exe_name', 'ZX-Answering-Assistant')
-            exe_name = self.config['app'].get('exe_name', 'ZX-Answering-Assistant') + '.exe'
+            exe_dir = self.dist_dir / exe_name_with_version
+            exe_name = exe_name_with_version + '.exe'
             exe_path = exe_dir / exe_name
 
         if exe_path.exists():

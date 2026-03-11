@@ -46,7 +46,21 @@ class SpecGenerator:
         project_root = get_project_root()
 
         # Get configuration values
-        exe_name = self.app_config.get('exe_name', 'ZX-Answering-Assistant')
+        exe_name_base = self.app_config.get('exe_name', 'ZX-Answering-Assistant')
+
+        # Get version information
+        version_config = self.app_config.get('version', {})
+        major = version_config.get('major', 0)
+        minor = version_config.get('minor', 0)
+        micro = version_config.get('micro', 0)
+        version_str = f"{major}.{minor}.{micro}"
+
+        # Add version, platform info and mode suffix to exe/directory name
+        # Format: ZX-Answering-Assistant-v2.7.2-windows-x64-installer (onedir)
+        #         ZX-Answering-Assistant-v2.7.2-windows-x64-portable (onefile)
+        mode_suffix = '-installer' if mode == 'onedir' else '-portable'
+        exe_name = f"{exe_name_base}-v{version_str}-windows-x64{mode_suffix}"
+
         app_name = self.app_config.get('name', 'ZX Answering Assistant')
         icon = self.app_config.get('icon')
         console = self.pyinstaller_config.get('options', {}).get('console', True)
@@ -82,7 +96,7 @@ class SpecGenerator:
         )
 
         # Write spec file
-        spec_filename = f"{exe_name}_{mode}.spec"
+        spec_filename = f"{exe_name_base}_{mode}.spec"
         spec_path = project_root / spec_filename
 
         with open(spec_path, 'w', encoding='utf-8') as f:
@@ -249,6 +263,7 @@ class SpecGenerator:
         spec += '    a.datas,\n'
         spec += '    strip=False,\n'
         spec += '    upx=False,\n'
+        # exe_name already includes version number
         spec += '    name="{exe_name}",\n'.format(exe_name=exe_name)
         spec += ')\n'
 
