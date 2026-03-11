@@ -24,14 +24,14 @@ if sys.platform == 'win32':
     try:
         import codecs
         # 确保 stdout 和 stderr 使用 UTF-8 编码
-        if hasattr(sys.stdout, 'buffer'):
+        # 先检查是否已经被重新定向
+        if hasattr(sys.stdout, 'buffer') and hasattr(sys.stderr, 'buffer'):
             sys.stdout = codecs.getwriter("utf-8")(sys.stdout.buffer)
             sys.stderr = codecs.getwriter("utf-8")(sys.stderr.buffer)
-        else:
-            # 对于某些打包环境，可能没有 buffer 属性
+        elif hasattr(sys.stdout, 'reconfigure'):
             sys.stdout.reconfigure(encoding='utf-8')
             sys.stderr.reconfigure(encoding='utf-8')
-    except:
+    except Exception:
         # 如果上述方法失败，使用环境变量
         os.environ['PYTHONIOENCODING'] = 'utf-8'
 
@@ -164,7 +164,7 @@ def register_cleanup_handlers():
 def setup_flet_executable():
     """
     设置Flet可执行文件
-    如果是打包环境，尝试将预先下载的Flet复制到临时目录
+    简化版本 - 只设置环境变量
     """
     try:
         # 设置环境变量，禁止 Flet 自动安装 flet-desktop 包
@@ -173,23 +173,13 @@ def setup_flet_executable():
         os.environ["UV_SYSTEM_PYTHON"] = "1"
 
         if getattr(sys, 'frozen', False):
-            # 在打包环境中，尝试使用预下载的Flet
-            try:
-                from src.build_tools import copy_flet_to_temp_on_startup
-                # 尝试将Flet复制到临时目录
-                success = copy_flet_to_temp_on_startup()
-                if success:
-                    print("✅ 使用预下载的Flet可执行文件")
-                else:
-                    print("⚠️ 未找到预下载的Flet，运行时将从GitHub下载")
-            except ImportError as e:
-                print(f"⚠️ build_tools 模块未打包: {e}")
-                print("⚠️ Flet将在运行时从GitHub下载")
+            # 在打包环境中，Flet会自动从GitHub下载
+            print("[INFO] 打包环境：Flet将在首次运行时从GitHub下载")
         else:
             # 开发环境，Flet会自动处理
-            print("✅ 使用系统Flet")
+            print("[OK] 使用系统Flet")
     except Exception as e:
-        print(f"⚠️ 设置Flet可执行文件失败: {e}")
+        print(f"[WARN] 设置Flet可执行文件失败: {e}")
 
 
 # 在导入Playwright和Flet之前设置路径
