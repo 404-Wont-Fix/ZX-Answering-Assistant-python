@@ -74,7 +74,7 @@ jobs:
         run: python -m playwright install chromium
 
       - name: Build project
-        run: python build.py --mode both --compile-src
+        run: python build.py --mode both
 
       - name: Generate checksums
         run: |
