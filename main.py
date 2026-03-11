@@ -52,8 +52,17 @@ app_state = get_app_state()
 version.print_version_info()
 
 # 设置Playwright浏览器路径（支持打包后的exe）
-def setup_playwright_browser():
-    """设置Playwright浏览器路径"""
+def setup_playwright_browser(silent=False):
+    """设置Playwright浏览器路径
+
+    Args:
+        silent: 是否静默模式（不打印信息）
+    """
+    def log(msg):
+        """内部日志函数"""
+        if not silent:
+            print(msg)
+
     try:
         # 检查是否在打包环境中
         if getattr(sys, 'frozen', False):
@@ -68,11 +77,11 @@ def setup_playwright_browser():
                 os.environ['PLAYWRIGHT_BROWSERS_PATH'] = str(browsers_dir)
                 # 同时设置用户数据目录指向临时目录
                 os.environ['PLAYWRIGHT_USER_DATA_DIR'] = str(Path(tempfile.gettempdir()) / "playwright_user_data")
-                print(f"[OK] 使用打包的浏览器: {browsers_dir}")
+                log(f"[OK] 使用打包的浏览器: {browsers_dir}")
             else:
                 # 最小化构建：浏览器不存在，需要用户手动安装
-                print(f"[INFO] 打包的浏览器目录不存在: {browsers_dir}")
-                print("[INFO] 检测到最小化构建版本")
+                log(f"[INFO] 打包的浏览器目录不存在: {browsers_dir}")
+                log("[INFO] 检测到最小化构建版本")
 
                 # 使用用户数据目录作为浏览器路径（默认位置）
                 # Windows: AppData\Local\ms-playwright, Linux/Mac: ~/.cache/ms-playwright
@@ -105,9 +114,9 @@ def setup_playwright_browser():
                     print(f"[OK] 使用缓存的浏览器: {user_data_dir}")
         else:
             # 开发环境，使用系统浏览器
-            print("[OK] 使用系统浏览器")
+            log("[OK] 使用系统浏览器")
     except Exception as e:
-        print(f"[WARN] 设置浏览器路径失败: {e}")
+        log(f"[WARN] 设置浏览器路径失败: {e}")
 
 
 # 注册退出时的清理函数
@@ -161,26 +170,35 @@ def register_cleanup_handlers():
     atexit.register(cleanup_on_exit)
 
 
-def setup_flet_executable():
+def setup_flet_executable(silent=False):
     """
     设置Flet可执行文件
     简化版本 - 只设置环境变量
+
+    Args:
+        silent: 是否静默模式（不打印信息）
     """
+    def log(msg):
+        """内部日志函数"""
+        if not silent:
+            print(msg)
+
     try:
         # 设置环境变量，让 Flet 使用 pip 而不是 uv
         os.environ["UV_SYSTEM_PYTHON"] = "1"
 
         if getattr(sys, 'frozen', False):
-            print("[OK] 打包环境：Flet desktop 已包含")
+            log("[OK] 打包环境：Flet desktop 已包含")
         else:
-            print("[OK] 使用系统Flet")
+            log("[OK] 使用系统Flet")
     except Exception as e:
-        print(f"[WARN] 设置Flet可执行文件失败: {e}")
+        log(f"[WARN] 设置Flet可执行文件失败: {e}")
 
 
-# 在导入Playwright和Flet之前设置路径
-setup_playwright_browser()
-setup_flet_executable()
+# 在导入Playwright和Flet之前设置路径（静默模式）
+# 只有在确定使用 GUI 模式时才会显示详细信息
+setup_playwright_browser(silent=True)
+setup_flet_executable(silent=True)
 
 # 导入CLI模式所需的模块
 # 注意：这些导入在模块级别，目前没有循环导入风险
@@ -227,17 +245,14 @@ def settings_menu():
     settings = get_settings_manager()
 
     while True:
-        print("\n" + "=" * 50)
-        print("⚙️ 设置菜单")
-        print("=" * 50)
-        print("1. 设置账号密码")
-        print("2. 设置 API 请求超时重试次数")
-        print("3. 设置 API 请求速率")
-        print("4. 查看当前设置")
-        print("0. 返回")
-        print("=" * 50)
+        print("\n  [1] 🔑 设置账号密码")
+        print("  [2] 🔄 设置 API 请求超时重试次数")
+        print("  [3] ⚡ 设置 API 请求速率")
+        print("  [4] 📋 查看当前设置")
+        print("  [0] 🔙 返回主菜单")
+        print("\n" + "━" * 60)
 
-        choice = input("\n请选择操作 (1-4 或 0): ").strip()
+        choice = input("\n👉 请选择功能 [0-4]: ").strip()
 
         if choice == "1":
             # 设置账号密码
@@ -253,10 +268,10 @@ def settings_menu():
             settings.display_current_settings()
         elif choice == "0":
             # 返回
-            print("\n🔙 返回主菜单")
+            print("\n🔙 返回主菜单...\n")
             break
         else:
-            print("\n❌ 无效的选择，请输入 1-4 或 0")
+            print("\n⚠️  无效的选择，请输入 0-4 之间的数字")
 
 
 def settings_account_password(settings):
@@ -443,16 +458,13 @@ def settings_rate_level(settings):
 def course_certification_menu():
     """课程认证菜单"""
     while True:
-        print("\n" + "=" * 50)
-        print("🎓 课程认证")
-        print("=" * 50)
-        print("1. 开始做题")
-        print("2. 获取access_token")
-        print("3. 导入题库")
-        print("0. 返回")
-        print("=" * 50)
+        print("\n  [1] 🎯 开始做题")
+        print("  [2] 🔑 获取 access_token")
+        print("  [3] 📚 导入题库")
+        print("  [0] 🔙 返回主菜单")
+        print("\n" + "━" * 60)
 
-        choice = input("\n请选择操作 (1-3 或 0): ").strip()
+        choice = input("\n👉 请选择功能 [0-3]: ").strip()
 
         if choice == "1":
             # 开始做题
@@ -485,10 +497,10 @@ def course_certification_menu():
             else:
                 print("\n❌ 题库导入失败")
         elif choice == "0":
-            print("\n🔙 返回主菜单")
+            print("\n🔙 返回主菜单...\n")
             break
         else:
-            print("\n❌ 无效的选择，请输入 1-3 或 0")
+            print("\n⚠️  无效的选择，请输入 0-3 之间的数字")
 
 
 def display_progress_bar(progress_info: dict):
@@ -1058,397 +1070,25 @@ def show_answer_menu(course_info: dict) -> bool:
     """
     handler = AnswerMenuHandler(course_info)
     return handler.show_menu()
-    """
-    显示答题选项菜单并处理用户选择
-
-    Args:
-        course_info: 课程信息字典，包含 course_id, course_name 等
-
-    Returns:
-        bool: 是否应该返回到课程列表（True表示返回）
-    """
-    # 使用 app_state 管理题库状态
-
-    while True:
-        print("\n" + "=" * 50)
-        print("📚 答题选项菜单")
-        print("=" * 50)
-        print("1. 提取该课程的答案")
-        print("2. 使用JSON题库")
-        current_bank = app_state.get('current_question_bank')
-        print("3. 开始自动做题" + (" (✅已加载题库)" if current_bank else "") + "(兼容模式)")
-        print("4. 开始自动做题" + (" (✅已加载题库)" if current_bank else "") + "(暴力模式)")
-        print("0. 退出")
-        print("=" * 50)
-
-        choice = input("\n请选择操作 (1-4 或 0): ").strip()
-
-        if choice == "1":
-            # 提取该课程的答案
-            print(f"\n📚 正在提取课程答案：{course_info['course_name']}")
-            print(f"🆔 课程ID: {course_info['course_id']}")
-
-            # 调用独立进程运行教师端答案提取（避免Playwright冲突）
-            print("\n🔄 正在启动教师端答案提取进程...")
-            try:
-                result = subprocess.run(
-                    [sys.executable, "-m", "src.extract_answers", course_info['course_id']],
-                    cwd=str(project_root)
-                )
-
-                if result.returncode == 0:
-                    print("\n✅ 答案提取成功！")
-                    # 提取成功后自动加载最新的JSON文件
-                    output_dir = Path("output")
-                    if output_dir.exists():
-                        json_files = list(output_dir.glob("*.json"))
-                        if json_files:
-                            # 找最新的文件
-                            latest_file = max(json_files, key=lambda f: f.stat().st_mtime)
-                            print(f"\n📁 自动加载最新题库: {latest_file.name}")
-                            importer = QuestionBankImporter()
-                            if importer.import_from_file(str(latest_file)):
-                                app_state.set('current_question_bank', importer.data)
-                                print("✅ 题库已自动加载，现在可以开始自动做题")
-                else:
-                    print(f"\n❌ 答案提取失败，退出码: {result.returncode}")
-            except Exception as e:
-                print(f"\n❌ 启动提取进程失败：{str(e)}")
-
-            # 询问是否启动持续监控
-            monitor_choice = input("\n是否启动持续监控？(yes/no): ").strip().lower()
-            if monitor_choice in ['yes', 'y', '是']:
-                monitor_course_progress(interval=5)
-                return True  # 监控结束后返回课程列表
-            else:
-                return True  # 不监控，直接返回课程列表
-
-        elif choice == "2":
-            # 使用JSON题库
-            print("\n📁 使用JSON题库功能")
-            file_path = input("请输入JSON文件路径（或直接按回车使用默认路径output/）：")
-
-            if not file_path:
-                # 使用默认路径，列出output目录下的JSON文件
-                output_dir = Path("output")
-                if output_dir.exists():
-                    json_files = list(output_dir.glob("*.json"))
-                    if json_files:
-                        print("\n可用的JSON文件：")
-                        for i, json_file in enumerate(json_files, 1):
-                            print(f"  {i}. {json_file.name}")
-
-                        file_choice = input("\n请选择文件编号：")
-                        try:
-                            choice_idx = int(file_choice) - 1
-                            if 0 <= choice_idx < len(json_files):
-                                file_path = str(json_files[choice_idx])
-                            else:
-                                print("❌ 无效的选择")
-                                continue
-                        except ValueError:
-                            print("❌ 请输入有效的数字")
-                            continue
-                    else:
-                        print("❌ output目录下没有找到JSON文件")
-                        continue
-                else:
-                    print("❌ output目录不存在")
-                    continue
-
-            # 导入题库
-            importer = QuestionBankImporter()
-            if importer.import_from_file(file_path):
-                bank_type = importer.get_bank_type()
-                if bank_type == "single":
-                    print("\n✅ 识别为单个课程题库")
-                elif bank_type == "multiple":
-                    print("\n✅ 识别为多个课程题库")
-                else:
-                    print("\n❌ 未知的题库类型")
-
-                # 保存题库数据到 app_state
-                app_state.set('current_question_bank', importer.data)
-
-                # 格式化输出题库信息
-                print(importer.format_output())
-            else:
-                print("❌ 题库导入失败")
-
-            # 完成后继续显示菜单
-            continue
-
-        elif choice == "3":
-            # 开始自动做题
-            current_bank = app_state.get('current_question_bank')
-            if not current_bank:
-                print("\n❌ 请先加载题库（选项1或选项2）")
-                continue
-
-            print("\n🤖 准备开始自动做题...")
-            print(f"🆔 课程ID: {course_info['course_id']}")
-            print(f"📚 课程名称: {course_info['course_name']}")
-
-            # 获取浏览器实例
-            browser_page = get_browser_page()
-            if not browser_page:
-                print("\n❌ 无法获取浏览器实例，请确保已登录学生端")
-                continue
-
-            print("\n💡 提示：请确保当前页面显示的是题目列表（知识点列表）")
-            print("💡 如果当前已经在答题界面，请先返回到知识点列表")
-
-            ready = input("\n是否准备好开始自动做题？(yes/no): ").strip().lower()
-            if ready not in ['yes', 'y', '是']:
-                print("❌ 已取消自动做题")
-                continue
-
-            # 询问是否一次性做完所有知识点
-            auto_all = input("\n是否一次性做完整个课程的所有未完成知识点？(yes/no): ").strip().lower()
-            auto_all_mode = auto_all in ['yes', 'y', '是']
-
-            if auto_all_mode:
-                print("\n🔄 自动全部模式：将自动完成所有未完成的知识点")
-                print("💡 提示：按 Ctrl+C 可随时中断")
-
-            # 创建自动做题器并开始
-            try:
-                auto_answer = AutoAnswer(browser_page[1])  # 使用page对象
-                current_bank = app_state.get('current_question_bank')
-                auto_answer.load_question_bank(current_bank)
-
-                # 循环做题
-                knowledge_count = 0
-                total_success = 0
-                total_failed = 0
-
-                while True:
-                    print(f"\n{'='*50}")
-                    print(f"📍 知识点 #{knowledge_count + 1}")
-                    print(f"{'='*50}")
-
-                    # 第一个知识点：检索并开始做题
-                    # 之后的知识点：网站自动跳转后继续做题
-                    if knowledge_count == 0:
-                        print("\n🔍 检索第一个可作答的知识点并开始做题...")
-                        result = auto_answer.run_auto_answer(max_questions=5)
-                    else:
-                        print("\n⏳ 网站已自动跳转到下一个知识点，继续做题...")
-                        import time
-                        time.sleep(2)  # 等待跳转完成
-                        result = auto_answer.continue_auto_answer(max_questions=5)
-
-                    # 统计
-                    knowledge_count += 1
-                    total_success += result['success']
-                    total_failed += result['failed']
-
-                    # 显示本次统计
-                    print("\n" + "=" * 50)
-                    print("📊 本知识点完成统计")
-                    print("=" * 50)
-                    print(f"总题数: {result['total']}")
-                    print(f"✅ 成功: {result['success']}")
-                    print(f"❌ 失败: {result['failed']}")
-                    print(f"⏭️  跳过: {result['skipped']}")
-                    print("=" * 50)
-
-                    # 检查用户是否请求停止
-                    if result.get('stopped', False):
-                        print("\n" + "=" * 50)
-                        print("⚠️  用户请求停止做题")
-                        print("=" * 50)
-                        print(f"📊 本次完成: {knowledge_count} 个知识点")
-                        print(f"✅ 成功作答: {total_success} 题")
-                        print(f"❌ 失败: {total_failed} 题")
-                        print("=" * 50)
-                        break
-
-                    # 检查是否是自动全部模式
-                    if auto_all_mode:
-                        # 自动全部模式：网站会自动跳转到下一个知识点，继续循环
-                        print(f"\n⏳ 累计完成 {knowledge_count} 个知识点")
-                        print("⏳ 网站将自动跳转到下一个知识点...")
-
-                        # 检查是否还能继续（如果没有找到开始按钮，说明所有知识点都完成了）
-                        # 通过检查当前页面是否有"开始测评"按钮来判断
-                        import time
-                        time.sleep(1)  # 等待跳转
-
-                        try:
-                            # 尝试查找开始测评按钮（使用线程安全的方法）
-                            has_next = auto_answer.has_next_knowledge()
-                            if has_next:
-                                # 找到了，可以继续
-                                print("✅ 检测到下一个知识点，继续做题...")
-                                continue
-                            else:
-                                # 没找到，说明所有知识点都完成了
-                                print("\n" + "=" * 50)
-                                print("✅ 所有知识点已完成！")
-                                print("=" * 50)
-                                print(f"📊 总计完成 {knowledge_count} 个知识点")
-                                print(f"✅ 成功作答: {total_success} 题")
-                                print(f"❌ 失败: {total_failed} 题")
-                                print("=" * 50)
-                                break
-                        except Exception as e:
-                            print(f"\n❌ 检查失败: {str(e)}")
-                            print("💡 可能所有知识点都已完成")
-                            break
-                    else:
-                        # 手动模式：询问是否继续
-                        continue_choice = input("\n是否继续做题其他知识点？(yes/no): ").strip().lower()
-                        if continue_choice in ['yes', 'y', '是']:
-                            # 询问是否切换到自动全部模式
-                            switch_auto = input("\n💡 提示：是否切换到自动全部模式？(yes/no): ").strip().lower()
-                            if switch_auto in ['yes', 'y', '是']:
-                                auto_all_mode = True
-                                print("\n🔄 已切换到自动全部模式")
-                                print("⏳ 等待2秒后自动查找下一个知识点...")
-                                import time
-                                time.sleep(2)
-
-                                # 尝试开始下一个知识点
-                                try:
-                                    can_continue = auto_answer.click_start_button()
-                                    if not can_continue:
-                                        print("\n✅ 所有知识点已完成！")
-                                        print(f"📊 总计完成 {knowledge_count} 个知识点")
-                                        print(f"✅ 成功作答: {total_success} 题")
-                                        print(f"❌ 失败: {total_failed} 题")
-                                        break
-                                except Exception as e:
-                                    print(f"\n❌ 查找下一个知识点失败: {str(e)}")
-                                    break
-                            else:
-                                # 继续手动模式，需要用户手动切换
-                                print("\n💡 请手动切换到下一个知识点，然后按任意键继续...")
-                                input()
-                                continue
-                        else:
-                            # 用户选择不继续
-                            print("\n" + "=" * 50)
-                            print(f"📊 累计完成 {knowledge_count} 个知识点")
-                            print(f"✅ 成功作答: {total_success} 题")
-                            print(f"❌ 失败: {total_failed} 题")
-                            print("=" * 50)
-                            break
-
-                return True
-
-            except KeyboardInterrupt:
-                print("\n\n⚠️  用户中断自动做题")
-                print(f"📊 本次完成: {knowledge_count} 个知识点, {total_success} 题")
-                continue
-            except Exception as e:
-                print(f"\n❌ 自动做题失败：{str(e)}")
-                import traceback
-                traceback.print_exc()
-                continue
-
-        elif choice == "4":
-            # API暴力模式自动做题
-            current_bank = app_state.get('current_question_bank')
-            if not current_bank:
-                print("\n❌ 请先加载题库（选项1或选项2）")
-                continue
-
-            print("\n🚀 API暴力模式自动做题")
-            print(f"🆔 课程ID: {course_info['course_id']}")
-            print(f"📚 课程名称: {course_info['course_name']}")
-            print("\n💡 提示：此模式使用API直接构造请求完成做题，无需浏览器操作")
-            print("💡 优势：速度更快，不依赖浏览器状态")
-            print("💡 前提：需要学生端的access_token")
-
-            # 获取access_token（使用缓存管理）
-            print("\n🔍 正在获取学生端access_token...")
-
-            # 使用缓存函数，自动处理token的获取和缓存
-            access_token = get_cached_access_token()
-
-            if not access_token:
-                # 缓存获取失败，提示用户手动输入
-                print("\n⚠️ 自动获取access_token失败")
-                access_token = input("请手动输入access_token（或回车取消）: ").strip()
-
-                if not access_token:
-                    print("❌ 已取消操作")
-                    continue
-                else:
-                    # 手动输入后，保存到缓存
-                    from src.auth.student import set_access_token
-                    set_access_token(access_token)
-
-            # 询问是否自动完成所有知识点
-            auto_all = input("\n是否自动完成所有未完成的知识点？(yes/no): ").strip().lower()
-            auto_all_mode = auto_all in ['yes', 'y', '是']
-
-            max_knowledges = None
-            if not auto_all_mode:
-                max_input = input("请输入要完成的知识点数量（直接回车完成1个）: ").strip()
-                max_knowledges = int(max_input) if max_input else 1
-
-            try:
-                # 创建API自动做题器
-                api_answer = APIAutoAnswer(access_token)
-                current_bank = app_state.get('current_question_bank')
-                api_answer.load_question_bank(current_bank)
-
-                print("\n" + "=" * 60)
-                print("🚀 开始API暴力模式自动做题")
-                print("=" * 60)
-
-                # 执行自动做题
-                result = api_answer.auto_answer_all_knowledges(
-                    course_info['course_id'],
-                    max_knowledges=max_knowledges if not auto_all_mode else None
-                )
-
-                # 显示结果
-                print("\n" + "=" * 60)
-                print("📊 最终统计")
-                print("=" * 60)
-                print(f"知识点: {result['completed_knowledges']}/{result['total_knowledges']}")
-                print(f"题目: 总计 {result['total_questions']} 题")
-                print(f"✅ 成功: {result['success']} 题")
-                print(f"❌ 失败: {result['failed']} 题")
-                print(f"⏭️  跳过: {result['skipped']} 题")
-                print("=" * 60)
-
-                if auto_all_mode and result['completed_knowledges'] >= result['total_knowledges']:
-                    print("\n🎉 恭喜！所有知识点已完成！")
-
-                return True
-
-            except KeyboardInterrupt:
-                print("\n\n⚠️  用户中断自动做题")
-                continue
-            except Exception as e:
-                print(f"\n❌ API自动做题失败：{str(e)}")
-                import traceback
-                traceback.print_exc()
-                continue
-
-        elif choice == "0":
-            # 退出
-            print("\n🔙 返回课程列表")
-            return True
-
-        else:
-            print("\n❌ 无效的选择，请输入 1-4 或 0")
-            continue
 
 
 def main():
+    """CLI 主循环"""
     while True:
-        print("欢迎使用智能答题助手系统")
-        print("1. 开始答题")
-        print("2. 题目抓取")
-        print("3. 课程认证")
-        print("4. 设置")
-        print("0. 退出系统")
-        choice = input("请选择操作：")
+        print("\n" + "=" * 60)
+        print("🚀 ZX 智能答题助手 - 主菜单")
+        print("=" * 60)
+        print()
+        print("  [1] 📝 开始答题")
+        print("  [2] 📥 题目提取")
+        print("  [3] 🎓 课程认证")
+        print("  [4] ⚙️  系统设置")
+        print("  [0] 🚪 退出系统")
+        print()
+        print("=" * 60)
+
+        choice = input("\n👉 请选择功能 [0-4]: ").strip()
+
         if choice == "1":
             # 调用开始答题功能
             print("开始答题功能")
@@ -1675,13 +1315,17 @@ def main():
                 print("无效的选择，请重新输入")
         elif choice == "2":
             # 题目提取功能
-            print("题目提取功能")
-            print("1. 获取access_token")
-            print("2. 全部提取")
-            print("3. 提取单个课程")
-            print("4. 结果导出")
-            print("0. 返回")
-            choice2 = input("请选择：")
+            print("\n" + "━" * 60)
+            print("📥 题目提取")
+            print("━" * 60)
+            print("  [1] 🔑 获取 access_token")
+            print("  [2] 📚 全部提取")
+            print("  [3] 📖 提取单个课程")
+            print("  [4] 💾 结果导出")
+            print("  [0] 🔙 返回主菜单")
+            print("━" * 60)
+
+            choice2 = input("\n👉 请选择功能 [0-4]: ").strip()
             if choice2 == "1":
                 # 获取access_token
                 print("正在获取access_token...")
@@ -1716,29 +1360,46 @@ def main():
                     except Exception as e:
                         print(f"❌ 导出失败：{str(e)}")
             elif choice2 == "0":
-                print("返回主菜单")
+                print("\n🔙 返回主菜单...\n")
                 continue
             else:
                 print("无效的选择，请重新输入")
         elif choice == "3":
             # 课程认证功能
+            print("\n" + "━" * 60)
+            print("🎓 课程认证")
+            print("━" * 60)
             course_certification_menu()
         elif choice == "4":
             # 设置功能
+            print("\n" + "━" * 60)
+            print("⚙️  系统设置")
+            print("━" * 60)
             settings_menu()
         elif choice == "0":
             # 退出系统
-            print("退出系统，再见！")
+            print("\n" + "=" * 60)
+            print("👋 感谢使用 ZX 智能答题助手！")
+            print("   期待您的下次使用 😊")
+            print("=" * 60 + "\n")
+
             # 关闭浏览器
-            close_browser()
+            try:
+                close_browser()
+            except:
+                pass
             break
         else:
-            print("无效的选择，请重新输入")
+            print("\n⚠️  无效的选择，请输入 0-4 之间的数字")
 
 
 def run_gui_mode():
     """启动GUI模式"""
     try:
+        # 在GUI模式下显示浏览器和Flet信息
+        print("[OK] 使用系统浏览器")
+        print("[OK] 使用系统Flet")
+
         from src.main_gui import run_app
         print("🚀 正在启动图形界面...")
         run_app()
@@ -1802,8 +1463,15 @@ if __name__ == "__main__":
 
     # 决定使用哪种模式
     if args.cli:
-        # CLI模式
-        print("🖥️  启动命令行模式...")
+        # CLI模式（不显示浏览器和Flet信息）
+        # 禁用日志输出，保持界面整洁
+        import logging
+        logging.disable(logging.CRITICAL)
+
+        # 也禁用 Playwright 和其他模块的日志
+        for logger_name in ['src.core.browser', 'src.auth.student', 'src.auth.teacher', 'playwright']:
+            logging.getLogger(logger_name).setLevel(logging.CRITICAL)
+
         main()
     else:
         # GUI模式（默认）

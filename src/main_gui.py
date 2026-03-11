@@ -97,10 +97,12 @@ class MainApp:
     def _cache_all_contents(self):
         """首次加载时缓存所有视图内容"""
         print("🔄 正在初始化所有视图...")
-        self.cached_contents[0] = self.answering_view.get_content()
-        self.cached_contents[1] = self.extraction_view.get_content()
-        self.cached_contents[2] = self.settings_view.get_content()
-        self.cached_contents[3] = self._get_about_content()
+        self.cached_contents[0] = self.answering_view.get_content()  # 评估答题
+        self.cached_contents[1] = self.extraction_view.get_content()  # 答案提取
+        self.cached_contents[2] = self.course_certification_view.get_content()  # 课程认证
+        self.cached_contents[3] = self.cloud_exam_view.get_content()  # 云考试
+        self.cached_contents[4] = self.settings_view.get_content()  # 设置
+        self.cached_contents[5] = self._get_about_content()  # 关于
         print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
