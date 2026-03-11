@@ -18,8 +18,9 @@ if sys.platform == 'win32':
 else:
     os.environ['PYTHONIOENCODING'] = 'utf-8'
 
-# 添加src目录到路径
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
+# 添加项目根目录到路径（确保能导入src模块）
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, project_root)
 
 from src.extraction.extractor import extract_course_answers
 
@@ -29,7 +30,7 @@ def main():
     主函数：从命令行参数获取课程ID并提取答案
     """
     if len(sys.argv) < 2:
-        print("用法: python extract_answers.py <course_id>")
+        print("用法: python -m src.extract_answers <course_id>")
         sys.exit(1)
     
     course_id = sys.argv[1]
@@ -42,7 +43,7 @@ def main():
         print("\n✅ 答案提取成功！")
         
         # 导出答案数据
-        from src.export import DataExporter
+        from src.extraction.exporter import DataExporter
         exporter = DataExporter()
         try:
             course_name = extracted_data.get("course_info", {}).get("courseID", course_id)

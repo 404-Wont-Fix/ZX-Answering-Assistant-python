@@ -633,7 +633,7 @@ class AnswerMenuHandler:
         print("\n🔄 正在启动教师端答案提取进程...")
         try:
             result = subprocess.run(
-                [sys.executable, "extract_answers.py", self.course_info['course_id']],
+                [sys.executable, "-m", "src.extract_answers", self.course_info['course_id']],
                 cwd=str(project_root)
             )
 
@@ -1096,7 +1096,7 @@ def show_answer_menu(course_info: dict) -> bool:
             print("\n🔄 正在启动教师端答案提取进程...")
             try:
                 result = subprocess.run(
-                    [sys.executable, "extract_answers.py", course_info['course_id']],
+                    [sys.executable, "-m", "src.extract_answers", course_info['course_id']],
                     cwd=str(project_root)
                 )
 
