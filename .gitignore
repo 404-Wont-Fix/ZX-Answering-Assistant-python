@@ -68,40 +68,18 @@ REFACTOR_PLAN.md
 AGENTS.md
 cli_config.json
 
-# Playwright 浏览器（缓存目录，不应提交）
-# 忽略所有内容但保留目录结构
-playwright_browsers/chromium-*/
-!playwright_browsers/.gitkeep
+# Playwright 和 Flet 缓存
+playwright_browsers/
+flet_browsers/
 
-# Flet 浏览器（保留 download 目录和标记文件，忽略 unpacked 内容）
-flet_browsers/unpacked/
-!flet_browsers/download/
-!flet_browsers/.gitkeep
-
-# 构建产物（版本化的目录名）
-ZX-Answering-Assistant-v*/
+# 源码编译输出
 src_compiled/
 
-# PyInstaller spec 文件（取消注释以跟踪 .spec 文件）
-# ZX-Answering-Assistant.spec
+# 构建产物
+ZX-Answering-Assistant-v*/
 
-# 构建缓存
-.build_cache/
-
-# 构建状态文件
-.build/.build_state.json
-build/.build_state.json
-
-# 测试覆盖率
-coverage.xml
-htmlcov/
+# PyInstaller
+*.spec
 
 # 自动生成的文件
 file_version_info.txt
-*.spec
-
-# 文档和临时文件
-BUILD_IMPROVEMENTS.md
-TESTING.md
-REFACTOR_PLAN.md
-build_config.yaml

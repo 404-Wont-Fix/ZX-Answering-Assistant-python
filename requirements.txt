@@ -8,7 +8,4 @@ playwright>=1.57.0
 keyboard>=0.13.5
 
 # GUI framework
-flet>=0.80.0
-
-# System utilities (进程管理和清理)
-psutil>=5.9.0
+flet>=0.82.0

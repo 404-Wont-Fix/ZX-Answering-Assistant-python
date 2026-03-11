@@ -30,16 +30,34 @@ from src.auth.token_manager import get_token_manager
 class UTF8StreamHandler(logging.StreamHandler):
     def emit(self, record):
         try:
+            # 检查 stream 是否已被关闭或分离
+            if not hasattr(self, 'stream') or self.stream is None:
+                return
+
             msg = self.format(record)
             stream = self.stream
-            # 尝试使用 UTF-8 编码，如果失败则使用 errors='replace'
-            if hasattr(stream, 'buffer'):
-                stream.buffer.write(msg.encode('utf-8') + b'\n')
-            else:
-                stream.write(msg + self.terminator)
-            self.flush()
+
+            # 检查 stream 是否还有效（避免程序结束时的错误）
+            try:
+                # 尝试使用 UTF-8 编码，如果失败则使用 errors='replace'
+                if hasattr(stream, 'buffer') and not stream.buffer.closed:
+                    stream.buffer.write(msg.encode('utf-8') + b'\n')
+                elif hasattr(stream, 'closed') and not stream.closed:
+                    stream.write(msg + self.terminator)
+                else:
+                    # Stream 已关闭，静默忽略
+                    return
+                self.flush()
+            except (ValueError, OSError):
+                # Stream 已被分离或关闭，静默忽略
+                return
+
         except Exception:
-            self.handleError(record)
+            # 只有在严重错误时才调用 handleError（避免递归错误）
+            try:
+                self.handleError(record)
+            except Exception:
+                pass  # 静默忽略 handleError 中的错误
 
 # 配置日志记录
 logging.basicConfig(

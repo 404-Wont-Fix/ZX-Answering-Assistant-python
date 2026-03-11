@@ -6,12 +6,19 @@ It provides the foundation for building the graphical user interface with a coll
 """
 
 import sys
+import os
 from pathlib import Path
 
 # 添加项目根目录到Python路径（支持开发和打包环境）
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
+
+# 在导入 flet 之前设置环境变量
+# 禁止 Flet 自动安装 flet-desktop 包
+os.environ["FLET_NO_INSTALL_DEPS"] = "1"
+# 让 Flet 使用 pip 而不是 uv
+os.environ["UV_SYSTEM_PYTHON"] = "1"
 
 import flet as ft
 import webbrowser
