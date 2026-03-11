@@ -15,6 +15,10 @@ import argparse
 import atexit
 from typing import Optional
 
+# 在打包环境中，确保 exit 函数可用（Flet 内部可能使用 exit()）
+if 'exit' not in dir(__builtins__):
+    __builtins__.exit = lambda code=0: sys.exit(code)
+
 # 设置控制台编码为 UTF-8（Windows 打包环境必需）
 if sys.platform == 'win32':
     try:
@@ -163,6 +167,11 @@ def setup_flet_executable():
     如果是打包环境，尝试将预先下载的Flet复制到临时目录
     """
     try:
+        # 设置环境变量，禁止 Flet 自动安装 flet-desktop 包
+        os.environ["FLET_NO_INSTALL_DEPS"] = "1"
+        # 设置环境变量，让 Flet 使用 pip 而不是 uv
+        os.environ["UV_SYSTEM_PYTHON"] = "1"
+
         if getattr(sys, 'frozen', False):
             # 在打包环境中，尝试使用预下载的Flet
             try:
@@ -173,8 +182,9 @@ def setup_flet_executable():
                     print("✅ 使用预下载的Flet可执行文件")
                 else:
                     print("⚠️ 未找到预下载的Flet，运行时将从GitHub下载")
-            except ImportError:
-                print("⚠️ build_tools 模块未打包，Flet将在运行时从GitHub下载")
+            except ImportError as e:
+                print(f"⚠️ build_tools 模块未打包: {e}")
+                print("⚠️ Flet将在运行时从GitHub下载")
         else:
             # 开发环境，Flet会自动处理
             print("✅ 使用系统Flet")

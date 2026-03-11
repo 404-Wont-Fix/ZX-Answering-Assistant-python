@@ -51,34 +51,27 @@ Extracts answers for a specific course using teacher credentials. Uses separate 
 
 ### Build Executable
 ```bash
-# Default: build both onedir and onefile versions
-python build.py
-
-# Directory mode only (recommended, faster startup)
+# Directory mode (recommended, faster startup)
 python build.py --mode onedir
 
-# Single file mode only
+# Single file mode
 python build.py --mode onefile
 
-# With source code pre-compilation and cleanup (v2.6.6+)
-python build.py --mode onedir --compile-src
+# Build both modes
+python build.py --mode both
 
 # With UPX compression (reduces size by 30-50%)
 python build.py --upx
 
-# Combined: pre-compile + UPX
-python build.py --mode onedir --compile-src --upx
+# Custom build directory
+python build.py --build-dir D:\BuildOutput
 ```
 Creates executable in `dist/`. Playwright browser downloads on first run of the executable.
 
 **Build Options:**
-- `--mode {onedir,onefile,both}`: Choose build mode (default: both)
-- `--compile-src`: Pre-compile .py files to .pyc and auto-delete source code (onedir only)
+- `--mode {onedir,onefile,both}`: Choose build mode (default: onedir)
 - `--upx`: Enable UPX compression to reduce executable size
-- `--no-upx`: Disable UPX compression
-- `--copy-browser`: Only copy Playwright browser (skip build)
-- `--copy-flet`: Only download Flet executable (skip build)
-- `--copy-all`: Copy all dependencies (skip build)
+- `--build-dir`: Custom build output directory
 
 ## UI Architecture
 
@@ -285,35 +278,24 @@ result = browser_manager._execute_in_thread(
   - Data directories are created automatically as needed
 
 ### Build System
-- **[build.py](build.py)** - PyInstaller build script with advanced features:
+- **[build.py](build.py)** - Simplified PyInstaller build script:
   - Installs PyInstaller if missing
   - Installs dependencies from `requirements.txt`
   - Installs Playwright Chromium browser
   - Creates standalone executable with hidden imports for Playwright modules
-  - Bundles `src/` and `config/` directories into executable
-  - Supports multiple build modes and optimizations
+  - Bundles `src/` directory into executable
+  - Supports onedir and onefile build modes
 
-**Build Features (v2.6.5-v2.6.6):**
+**Build Features:**
 
-1. **Source Code Pre-compilation** (`--compile-src` flag):
-   - Compiles all `.py` files in `src/` to `.pyc` bytecode before packaging
-   - **Auto-deletes source .py files** after packaging (onedir mode only)
-   - Preserves `__init__.py` files (required for Python package imports)
-   - Reduces executable size and provides light source code protection
-   - Example: `python build.py --mode onedir --compile-src`
+1. **Build Modes**:
+   - `onedir`: Directory mode (recommended, faster startup)
+   - `onefile`: Single file mode (portable)
+   - `both`: Build both versions
 
 2. **UPX Compression** (`--upx` flag):
    - Compresses executable and DLLs to reduce size by 30-50%
    - Requires UPX to be installed and in system PATH
-   - Example: `python build.py --upx`
-
-3. **Dual Build Mode** (default):
-   - Builds both `onedir` (directory) and `onefile` (single executable) versions
-   - Use `--mode onedir` or `--mode onefile` to build only one version
-
-**Build Tools:**
-- **[src/build_tools/browser_handler.py](src/build_tools/browser_handler.py)** - Playwright browser preparation
-- **[src/build_tools/flet_handler.py](src/build_tools/flet_handler.py)** - Flet executable handling
 
 - **[version.py](version.py)** - Version information management:
   - `VERSION`: Main version number (e.g., "2.6.6")
@@ -673,12 +655,15 @@ python -m pytest tests/ --cov=src --cov-report=html
 
 Understanding the version history helps when working with older code or debugging version-specific issues:
 
-### v2.6.6 (Latest) - Source Code Cleanup
-- Auto-deletion of .py source files after `--compile-src` build
-- Only .pyc bytecode and `__init__.py` files remain in packaged executable
+### v2.7.0 (Latest) - Build System Simplification
+- Removed complex build tools module (`src/build_tools/`)
+- Simplified build.py with essential features only
+- Removed build-time browser and Flet bundling
+- Cleaner .gitignore and project structure
 
-### v2.6.5 - Build System Improvements
-- Source code pre-compilation to .pyc bytecode
+### v2.6.0 - v2.6.6 - Legacy Build Features
+- Source code pre-compilation to .pyc bytecode (removed in v2.7.0)
+- Complex build tools with browser/Flet handlers (removed in v2.7.0)
 - Playwright 1.57.0+ compatibility fix with `args=['--headless=new']`
 
 ### v2.6.0 - Major Architecture Overhaul
