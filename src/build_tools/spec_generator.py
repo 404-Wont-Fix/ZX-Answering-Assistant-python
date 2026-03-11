@@ -117,9 +117,10 @@ class SpecGenerator:
         # Add Playwright browser if enabled
         playwright_config = self.config.get('playwright', {})
         if playwright_config.get('enabled', False):
-            browser_path = playwright_config.get('dest_path', 'playwright_browsers')
-            # Browser will be copied to dist directory during post-build
-            # No need to include here
+            browser_dest = playwright_config.get('dest_path', 'playwright_browsers')
+            browser_source = project_root / "dist" / browser_dest
+            if browser_source.exists():
+                data_files.append((str(browser_source), browser_dest))
 
         return data_files
 
