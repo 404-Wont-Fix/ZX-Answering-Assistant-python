@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v2.8.2-green.svg)](https://github.com/yourusername/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v2.8.2-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
@@ -160,7 +160,7 @@ ZX Answering Assistant 应运而生，旨在：
 - **网络重试**: 连接失败自动重试（最多 3 次），确保答题成功率
 - **优雅退出**: 按 Q 键随时停止，等待当前题目完成再退出
 - **实时统计**: 显示答题成功率、完成进度、用时统计
-- **题库导入**: 支持 JSON 格式题库导入，离线匹配答案
+- **题库导入**: 支持 JSON 格式题库导入，辅助答案匹配
 - **进度监控**: 实时追踪课程完成情况，显示完成百分比
 - **浏览器崩溃恢复**: 浏览器意外退出后可自动重新登录恢复
 - **统一浏览器管理**: v2.6.0+ 单浏览器实例多上下文，降低资源占用
@@ -332,7 +332,7 @@ graph TB
 | **pyyaml**      | ≥6.0    | 配置文件解析 |
 | **py7zr**       | ≥0.21.0 | 压缩文件处理 |
 
-**注意**: 本项目未包含自动化测试套件，测试部分需要手动验证。
+**注意**: v2.8.2+ 已移除测试套件，准备后续重构。
 
 ### API 端点
 
@@ -1094,7 +1094,7 @@ browser = playwright.chromium.launch(
 ### 1. 克隆项目
 
 ```bash
-git clone https://github.com/yourusername/ZX-Answering-Assistant-python.git
+git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
 ```
 
@@ -1356,7 +1356,7 @@ python main.py
 
 ```bash
 # 1. 克隆项目
-git clone https://github.com/yourusername/ZX-Answering-Assistant-python.git
+git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
 
 # 2. 创建虚拟环境
@@ -1709,12 +1709,13 @@ python main.py --cli    # CLI 模式
 
 ### Q6: 可以在没有网络的环境使用吗？
 
-**A**: 部分功能可以：
+**A**: 不可以，所有功能都需要网络连接：
 
-- ✅ **题库导入**: 可以预先导入 JSON 题库
-- ✅ **离线答题**: 使用导入的题库答题
+- ❌ **自动答题**: 需要调用平台 API 接口
 - ❌ **答案提取**: 需要网络连接
-- ❌ **首次登录**: 需要网络连接
+- ❌ **登录认证**: 需要网络连接
+
+**说明**: 题库导入功能只是用来匹配答案的辅助功能，实际答题过程必须连接到在线平台服务器。
 
 ### Q7: 浏览器崩溃了怎么办？
 
@@ -1737,7 +1738,7 @@ python main.py --cli    # CLI 模式
 
 1. 阅读 [开发指南](#开发指南)
 2. 查看 [CLAUDE.md](CLAUDE.md) 了解架构细节
-3. 选择一个 [Issue](https://github.com/yourusername/ZX-Answering-Assistant-python/issues)
+3. 选择一个 [Issue](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/issues)
 4. Fork 并创建分支
 5. 提交 Pull Request
 
@@ -1745,26 +1746,25 @@ python main.py --cli    # CLI 模式
 
 ## 版本历史
 
-### v2.8.2 (最新) - 稳定性修复和项目优化
+### v2.8.2 (最新) - 稳定性修复和项目结构优化
 
 **稳定性修复**:
 
-- ✅ 修复 Playwright 浏览器路径检测问题
-- ✅ 优化打包后的浏览器初始化逻辑
-- ✅ 改进错误提示信息，提升用户体验
-- ✅ 修复潜在的兼容性问题
+- ✅ 修复 Playwright 浏览器在打包环境中的路径检测问题
+- ✅ 优化 main.py 中的浏览器初始化流程
+- ✅ 改进浏览器自动安装逻辑，增强用户引导
+- ✅ 移除过时的修复脚本（version_fix.py、fix_browser_path.py）
 
 **项目结构调整**:
 
-- ✅ 移除未使用的自动化测试套件
-- ✅ 清理冗余的测试依赖和配置
-- ✅ 优化项目文档结构
-- ✅ 更新开发指南，移除测试相关内容
+- ✅ 删除 tests/ 目录和测试相关文件（准备后续重构）
+- ✅ 删除 requirements-dev.txt，合并到 requirements.txt
+- ✅ 优化 CLI 界面，添加 emoji 和彩色输出
+- ✅ 禁用 CLI 模式日志输出
 
-**其他改进**:
+**代码清理**:
 
-- ✅ 代码质量优化和注释完善
-- ✅ 依赖版本兼容性检查
+- ✅ 删除 ~821 行冗余代码（196 行修复脚本 + 625 行测试代码）
 
 ### v2.8.0 - UI 优化和配置更新
 
@@ -1857,8 +1857,8 @@ python main.py --cli    # CLI 模式
 Made with ❤️ by ZX Project Team
 
 **问题反馈与功能建议**:
-- 📝 提交 [GitHub Issues](https://github.com/yourusername/ZX-Answering-Assistant-python/issues) 报告问题
-- 💬 参与 [GitHub Discussions](https://github.com/yourusername/ZX-Answering-Assistant-python/discussions) 讨论功能建议
+- 📝 提交 [GitHub Issues](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/issues) 报告问题
+- 💬 参与 [GitHub Discussions](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/discussions) 讨论功能建议
 - 📧 发送邮件至：[blog@mali.tianjiaji.top](mailto:blog@mali.tianjiaji.top)
 
 </div>
