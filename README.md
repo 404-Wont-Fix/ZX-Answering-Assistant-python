@@ -378,7 +378,7 @@ python main.py --mode cli
 
 #### 启动应用
 
-双击运行 `main.py` 或在命令行执行：
+ `main.py` 在命令行执行：
 
 ```bash
 python main.py
