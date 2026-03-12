@@ -1,18 +1,19 @@
 <div align="center">
 
 # ZX Answering Assistant
-### 智能答题助手系统
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue)](https://www.python.org/)
+## 智能答题助手系统
+
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v2.7.8-green)](https://github.com/yourusername/ZX-Answering-Assistant-python/releases)
+[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
+[![Version](https://img.shields.io/badge/Version-v2.8.2-green.svg)](https://github.com/yourusername/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
 支持 **GUI 图形界面** 和 **CLI 命令行** 两种交互方式，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
-[项目背景](#为什么制作这个程序) • [核心功能](#核心功能) • [技术架构](#技术架构) • [快速开始](#快速开始) • [使用指南](#使用指南) • [开发指南](#开发指南)
+[功能特性](#功能特性) • [技术架构](#技术架构) • [快速开始](#快速开始) • [使用指南](#使用指南) • [开发指南](#开发指南) • [常见问题](#常见问题)
 
 </div>
 
@@ -20,116 +21,192 @@
 
 ## 目录
 
-- [为什么制作这个程序](#为什么制作这个程序)
-- [核心功能](#核心功能)
+- [程序介绍](#程序介绍)
+- [为什么编写这个程序](#为什么编写这个程序)
+- [功能特性](#功能特性)
 - [技术架构](#技术架构)
+- [技术栈](#技术栈)
+- [模块介绍](#模块介绍)
+- [技术实现](#技术实现)
 - [快速开始](#快速开始)
 - [使用指南](#使用指南)
-- [技术细节](#技术细节)
 - [开发指南](#开发指南)
+- [待开发功能](#待开发功能)
 - [常见问题](#常见问题)
 - [版本历史](#版本历史)
 - [许可证](#许可证)
 
 ---
 
-## 为什么制作这个程序
+## 程序介绍
+
+**ZX Answering Assistant（智能答题助手）** 是一个专为在线学习平台设计的自动化工具，旨在通过浏览器自动化技术和 API 逆向工程，帮助学生和教师提高学习效率。
+
+### 核心定位
+
+- **学生端**: 自动化答题、课程进度管理、学习数据统计
+- **教师端**: 题库提取、教学辅助、学情分析
+- **课程认证**: 快速完成课程认证要求
+
+### 设计目标
+
+1. **效率优先**: 通过自动化工具减少重复性劳动，让用户专注于知识理解
+2. **用户友好**: 提供直观的 GUI 界面和强大的 CLI 命令行工具
+3. **技术先进**: 采用最新的浏览器自动化技术和智能匹配算法
+4. **安全可靠**: 智能速率控制、自动重试、崩溃恢复等机制确保稳定运行
+
+### 适用场景
+
+- **学生日常学习**: 快速完成在线练习题，获取学习反馈
+- **教师教学准备**: 提取课程题库用于备课和考试设计
+- **学习进度管理**: 实时追踪课程完成情况
+- **题库资源建设**: 导出标准化的 JSON 格式题库
+
+---
+
+## 为什么编写这个程序
 
 ### 项目背景
 
 在现代在线教育环境中，学生和教师经常面临以下挑战：
 
-1. **重复性学习任务**: 学生需要完成大量的在线练习题来巩固知识，但手动答题效率低下
-2. **答案提取困难**: 教师想要获取课程题库用于备课或分析，但缺少自动化工具
-3. **学习进度管理**: 难以追踪课程完成情况和知识点掌握程度
-4. **时间效率问题**: 重复性答题过程占用大量学习时间，影响学习效率
+#### 1. 重复性学习任务效率低下
+
+学生需要完成大量的在线练习题来巩固知识，但手动答题效率低下：
+
+- 每门课程可能有数百道题目
+- 重复性选择题占据大量时间
+- 手动操作容易出错
+
+#### 2. 答案提取困难
+
+教师想要获取课程题库用于备课或分析，但缺少自动化工具：
+
+- 平台不提供批量导出功能
+- 手动复制题目效率极低
+- 难以进行学情数据分析
+
+#### 3. 学习进度管理困难
+
+难以追踪课程完成情况和知识点掌握程度：
+
+- 不清楚哪些章节已完成
+- 无法直观了解学习进度
+- 缺乏学习数据统计
+
+#### 4. 时间效率问题
+
+重复性答题过程占用大量学习时间，影响学习效率：
+
+- 机械性操作浪费宝贵时间
+- 无法专注于重点难点
+- 降低学习体验
 
 ### 解决方案
 
 ZX Answering Assistant 应运而生，旨在：
 
-- **提高学习效率**: 自动化答题流程，节省时间用于理解重点知识
-- **辅助教师工作**: 快速提取课程题库，便于教学准备和学情分析
-- **智能化管理**: 实时追踪学习进度，智能匹配答案
-- **降低学习成本**: 通过自动化工具减少重复劳动，提升学习体验
+#### 提高学习效率
+
+- **自动化答题流程**: 支持浏览器模式（模拟真实操作）和 API 模式（极速答题）
+- **智能答案匹配**: 基于文本相似度算法自动匹配正确答案
+- **批量处理**: 支持多课程、多章节连续答题
+
+#### 辅助教师工作
+
+- **快速提取题库**: 一键导出完整课程题库（JSON 格式）
+- **教学数据支持**: 提供知识点、题目、选项等完整数据结构
+- **学情分析辅助**: 结构化数据便于后续分析处理
+
+#### 智能化管理
+
+- **实时进度追踪**: 显示课程完成百分比、题目数量统计
+- **智能速率控制**: 避免触发平台检测机制
+- **自动化重试**: 网络错误自动恢复，确保任务完成
+
+#### 降低学习成本
+
+- **节省时间**: 将数小时的答题任务缩短至几分钟
+- **提升体验**: 专注于知识理解而非机械操作
+- **开源共享**: 免费开源，欢迎社区贡献改进
 
 ### 设计理念
 
 - **用户友好**: 提供直观的 GUI 界面和传统 CLI 界面，满足不同用户需求
-- **技术先进**: 采用最新的浏览器自动化技术和 API 逆向工程
-- **安全可靠**: 智能速率控制，避免触发平台检测机制
-- **开源共享**: 开源项目，欢迎社区贡献和改进
+- **技术先进**: 采用最新的浏览器自动化技术（Playwright）和 API 逆向工程
+- **安全可靠**: 智能速率控制、自动重试、崩溃恢复等机制确保稳定运行
+- **开源共享**: Apache 2.0 开源协议，欢迎社区贡献和改进
 
 ---
 
-## 核心功能
+## 功能特性
 
 ### 双界面支持
 
-| 界面类型 | 特点 | 适用场景 |
-|---------|------|----------|
-| **GUI 模式** | 现代化图形界面，操作简单直观，实时进度显示 | 普通用户日常使用 |
-| **CLI 模式** | 命令行界面，支持脚本自动化 | 高级用户和自动化集成 |
+| 界面类型           | 特点                                                       | 适用场景             |
+| ------------------ | ---------------------------------------------------------- | -------------------- |
+| **GUI 模式** | 现代化图形界面，操作简单直观，实时进度显示，基于 Flet 框架 | 普通用户日常使用     |
+| **CLI 模式** | 命令行界面，支持脚本自动化，适合批量操作                   | 高级用户和自动化集成 |
 
 ### 学生端功能
 
 #### 自动答题系统
 
-- ✅ **自动登录**: 支持账户密码自动登录学生端，无需手动操作
-- ✅ **课程管理**: 图形化显示课程列表和完成进度，一目了然
-- ✅ **智能答题**: 两种模式可选
-  - **浏览器兼容模式**: 模拟真实用户操作，点击选项完成答题
-  - **API 暴力模式**: 直接调用 API 接口，速度极快
-- ✅ **网络重试**: 连接失败自动重试（最多3次），确保答题成功率
-- ✅ **优雅退出**: 按 Q 键随时停止，等待当前题目完成再退出
-- ✅ **实时统计**: 显示答题成功率、完成进度、用时统计
-- ✅ **题库导入**: 支持 JSON 格式题库导入，离线匹配答案
-- ✅ **进度监控**: 实时追踪课程完成情况，显示完成百分比
-- ✅ **浏览器崩溃恢复**: v2.2.0+ 浏览器意外退出后可自动重新登录恢复
-- ✅ **统一浏览器管理**: v2.6.0+ 单浏览器实例多上下文，降低资源占用
+- **自动登录**: 支持账户密码自动登录学生端，无需手动操作
+- **课程管理**: 图形化显示课程列表和完成进度，一目了然
+- **智能答题**: 两种模式可选
+  - **浏览器兼容模式**: 模拟真实用户操作，点击选项完成答题（约 2-3 题/秒）
+  - **API 暴力模式**: 直接调用 API 接口，速度极快（约 10-20 题/秒）
+- **网络重试**: 连接失败自动重试（最多 3 次），确保答题成功率
+- **优雅退出**: 按 Q 键随时停止，等待当前题目完成再退出
+- **实时统计**: 显示答题成功率、完成进度、用时统计
+- **题库导入**: 支持 JSON 格式题库导入，离线匹配答案
+- **进度监控**: 实时追踪课程完成情况，显示完成百分比
+- **浏览器崩溃恢复**: 浏览器意外退出后可自动重新登录恢复
+- **统一浏览器管理**: v2.6.0+ 单浏览器实例多上下文，降低资源占用
 
 #### 课程认证答题 (v2.6.0+)
 
-- ✅ **题库导入**: 支持 JSON 格式题库导入
-- ✅ **API 快速答题**: 直接调用 API 接口答题
-- ✅ **文本智能匹配**: 基于文本相似度匹配答案
-- ✅ **实时日志**: 显示答题进度和统计信息
+- **题库导入**: 支持 JSON 格式题库导入
+- **API 快速答题**: 直接调用 API 接口答题
+- **文本智能匹配**: 基于文本相似度匹配答案
+- **实时日志**: 显示答题进度和统计信息
 
 ### 教师端功能
 
 #### 答案提取系统
 
-- ✅ **教师登录**: 图形化登录界面，专业的紫色主题
-- ✅ **智能选择**: 左右分栏设计，先选年级再选班级
-- ✅ **课程卡片**: 卡片化展示所有课程，信息清晰
-- ✅ **一键提取**: 点击课程卡片即可提取答案，实时进度显示
-- ✅ **自动保存**: 提取完成自动保存为 JSON 文件
-- ✅ **提取统计**: 显示知识点数量、题目数量、选项数量
-- ✅ **文件管理**: 一键打开文件夹、复制文件路径
+- **教师登录**: 图形化登录界面，专业的紫色主题
+- **智能选择**: 左右分栏设计，先选年级再选班级
+- **课程卡片**: 卡片化展示所有课程，信息清晰
+- **一键提取**: 点击课程卡片即可提取答案，实时进度显示
+- **自动保存**: 提取完成自动保存为 JSON 文件
+- **提取统计**: 显示知识点数量、题目数量、选项数量
+- **文件管理**: 一键打开文件夹、复制文件路径
 
 ### 核心特性
 
 #### 技术特性
 
-| 特性 | 描述 | 版本 |
-|------|------|------|
-| **智能速率控制** | 可配置的 API 请求速率限制，避免触发检测 | v1.0 |
-| **自动重试机制** | 网络错误自动重试，最多3次 | v1.0 |
-| **浏览器崩溃恢复** | 自动检测浏览器崩溃并重新登录 | v2.2.0 |
-| **AsyncIO 兼容** | GUI 模式完全兼容 Playwright 同步 API | v2.2.0 |
-| **统一浏览器管理** | 单浏览器实例 + 多上下文隔离 | v2.6.0 |
-| **源码自动清理** | 打包后自动删除 .py 源码，只保留 .pyc | v2.6.6 |
-| **构建系统优化** | 配置文件化、自动化测试、增量构建 | v2.7.0 |
+| 特性                     | 描述                                    | 版本   |
+| ------------------------ | --------------------------------------- | ------ |
+| **智能速率控制**   | 可配置的 API 请求速率限制，避免触发检测 | v1.0   |
+| **自动重试机制**   | 网络错误自动重试，最多 3 次             | v1.0   |
+| **浏览器崩溃恢复** | 自动检测浏览器崩溃并重新登录            | v2.2.0 |
+| **AsyncIO 兼容**   | GUI 模式完全兼容 Playwright 同步 API    | v2.2.0 |
+| **统一浏览器管理** | 单浏览器实例 + 多上下文隔离             | v2.6.0 |
+| **源码自动清理**   | 打包后自动删除 .py 源码，只保留 .pyc    | v2.6.6 |
+| **构建系统优化**   | 配置文件化、增量构建、构建速度提升      | v2.7.0 |
 
 #### 答题模式对比
 
-| 特性 | 浏览器兼容模式 | API 暴力模式 |
-|------|----------------|--------------|
-| **速度** | 较慢（约 2-3 题/秒） | 极快（约 10-20 题/秒） |
-| **稳定性** | 高（模拟真实操作） | 高（API 调用） |
-| **资源占用** | 高（需要浏览器） | 低（仅 HTTP 请求） |
-| **检测风险** | 较低（模拟真人） | 中等（API 调用） |
-| **推荐场景** | 验证答案准确性 | 快速刷题 |
+| 特性               | 浏览器兼容模式     | API 暴力模式       |
+| ------------------ | ------------------ | ------------------ |
+| **速度**     | 较慢               | 较快               |
+| **稳定性**   | 高（模拟真实操作） | 高（API 调用）     |
+| **资源占用** | 高（需要浏览器）   | 低（仅 HTTP 请求） |
+| **检测风险** | 较低（模拟真人）   | 中等（API 调用）   |
+| **推荐场景** | 验证答案准确性     | 快速刷题           |
 
 ---
 
@@ -137,112 +214,285 @@ ZX Answering Assistant 应运而生，旨在：
 
 ### 系统架构图
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                        ZX 智能答题助手                        │
-├─────────────────────────────────────────────────────────────┤
-│                                                               │
-│  ┌──────────────┐         ┌──────────────┐                  │
-│  │   主程序入口  │────────▶│   模式选择   │                  │
-│  │  (main.py)   │         │   (GUI/CLI)  │                  │
-│  └──────┬───────┘         └──────┬───────┘                  │
-│         │                       │                          │
-│         ▼                       ▼                          │
-│   ┌─────────────────────────────────────────────────────────┐ │
-│   │                    GUI 模式 (Flet)                   │ │
-│   │  ┌──────────────┐  ┌─────────────┐  ┌───────────────┐ │ │
-│   │  │  导航栏      │  │  答题/提取  │  │  设置管理     │ │ │
-│   │  └──────────────┘  └──────┬───────┘  └───────────────┘ │ │
-│   │                           │                              │ │
-│   │                  ┌──────┴──────────────┐                 │ │
-│   │                  │                      │                 │ │
-│   │                  ▼                      ▼                 │ │
-│   │           ┌───────────────┐     ┌───────────────┐      │ │
-│   │           │  学生端界面   │     │  教师端界面   │      │ │
-│   │           │                │     │                │      │ │
-│   │           │  • 自动登录     │     │  • 班级选择     │      │ │
-│   │           │  • 课程答题     │     │  • 答案提取     │      │ │
-│   │           │  • 课程认证     │     │  • 数据导出     │      │ │
-│   │           │  • 进度监控     │     │  • 统计信息     │      │ │
-│   │           └─────────────────┘     └───────────────┘      │ │
-│   │                                                           │
-│   └─────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              浏览器管理器 (BrowserManager) v2.6.0+        │ │
-│  │  ┌─────────────────────────────────────────────────────┐ │ │
-│  │  │  单浏览器实例 + 多上下文模式                        │ │ │
-│  │  │                                                     │ │ │
-│  │  │  ┌──────────────┐  ┌──────────────┐  ┌───────────┐ │ │ │
-│  │  │  │ 学生端上下文  │  │ 教师端上下文  │  │ 认证上下文 │ │ │ │
-│  │  │  │ (STUDENT)    │  │ (TEACHER)    │  │(COURSE_)  │ │ │ │
-│  │  │  │              │  │              │  │  CERT)    │ │ │ │
-│  │  │  └──────────────┘  └──────────────┘  └───────────┘ │ │ │
-│  │  │                                                     │ │ │
-│  │  │  完全隔离：Cookie、Session、LocalStorage            │ │ │
-│  │  └─────────────────────────────────────────────────────┘ │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                               │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │                   核心功能模块                          │ │
-│  │  ┌──────────────┐  ┌─────────────┐  ┌───────────────┐  │ │
-│  │  │  API 客户端   │  │  数据管理    │  │  配置管理     │  │ │
-│  │  │  速率限制     │  │  导入/导出   │  │  持久化存储   │  │ │
-│  │  └──────────────┘  └─────────────┘  └───────────────┘  │ │
-│  └───────────────────────────────────────────────────────────┘ │
-│                                                               │
-└───────────────────────────────────────────────────────────────┘
+```mermaid
+graph TB
+    Start[主程序入口] --> Mode{模式选择}
+    Mode -->|GUI 模式| GUI[GUI 模式]
+    Mode -->|CLI 模式| CLI[CLI 模式]
+
+    GUI --> GUI_Components[GUI 组件]
+    GUI_Components --> Nav[导航栏]
+    GUI_Components --> Cache[视图缓存]
+    GUI_Components --> Window[窗口管理]
+
+    GUI_Components --> Views[功能视图]
+    Views --> AnswerView[答题视图]
+    Views --> ExtractView[提取视图]
+    Views --> CertView[认证视图]
+    Views --> SettingsView[设置视图]
+
+    AnswerView --> BrowserMgr[浏览器管理器]
+    ExtractView --> BrowserMgr
+    CertView --> BrowserMgr
+
+    BrowserMgr --> SingleBrowser[单浏览器实例]
+    SingleBrowser --> Contexts[多上下文隔离]
+
+    Contexts --> StudentCtx[学生端上下文]
+    Contexts --> TeacherCtx[教师端上下文]
+    Contexts --> CertCtx[认证上下文]
+
+    StudentCtx --> APIClient[API 客户端]
+    TeacherCtx --> ConfigMgr[配置管理器]
+    CertCtx --> StateMgr[状态管理器]
+
+    style GUI fill:#e1f5ff
+    style CLI fill:#fff4e1
+    style BrowserMgr fill:#f3e5f5
+    style AnswerView fill:#e8f5e9
+    style ExtractView fill:#fff3e0
+    style CertView fill:#fce4ec
+    style SettingsView fill:#f3e5f5
 ```
 
-### 技术栈
+### 分层架构
 
-#### 核心依赖
+```mermaid
+graph TB
+    subgraph Presentation[表现层]
+        GUI[GUI 界面 Flet]
+        CLI[CLI 界面]
+    end
 
-| 依赖 | 版本 | 用途 | 说明 |
-|------|------|------|------|
-| **flet** | ≥0.80.0 | GUI 框架 | 现代化跨平台桌面应用框架 |
-| **playwright** | ≥1.57.0 | 浏览器自动化 | 用于登录、token提取、浏览器模式答题 |
-| **requests** | ≥2.31.0 | HTTP 客户端 | API 调用、网络请求 |
-| **keyboard** | ≥0.13.5 | 键盘监听 | 优雅退出功能 |
+    subgraph Business[业务逻辑层]
+        Answering[答题模块]
+        Extraction[提取模块]
+        Certification[认证模块]
+    end
 
-#### 开发依赖
+    subgraph Services[服务层]
+        AuthService[认证服务]
+        BrowserService[浏览器服务]
+        APIService[API 服务]
+    end
 
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| **pyinstaller** | ≥6.0.0 | 打包工具 |
-| **pyyaml** | ≥6.0 | 配置文件解析 |
-| **pytest** | ≥7.0.0 | 测试框架 |
-| **pytest-cov** | ≥4.0.0 | 测试覆盖率 |
+    subgraph Data[数据层]
+        FileStorage[文件存储]
+        ConfigStorage[配置存储]
+        CacheData[缓存管理]
+    end
 
-#### API 端点
+    GUI --> Answering
+    GUI --> Extraction
+    GUI --> Certification
 
-**学生端 API**
-- 基础地址: `https://ai.cqzuxia.com/`
-- `/connect/token` - OAuth2 令牌获取
-- 课程列表、进度、答题等接口
+    CLI --> Answering
+    CLI --> Extraction
+    CLI --> Certification
 
-**教师端 API**
-- 基础地址: `https://admin.cqzuxia.com/`
-- `/evaluation/api/TeacherEvaluation/*` - 答案提取接口
+    Answering --> AuthService
+    Answering --> BrowserService
+    Answering --> APIService
 
-**课程认证 API** (v2.6.0+)
-- 基础地址: `https://zxsz.cqzuxia.com/teacherCertifiApi/api/TeacherCourseEvaluate`
+    Extraction --> AuthService
+    Extraction --> BrowserService
+    Extraction --> APIService
 
-### 核心模块
+    Certification --> AuthService
+    Certification --> APIService
+
+    AuthService --> ConfigStorage
+    BrowserService --> CacheData
+    APIService --> FileStorage
+
+    style Presentation fill:#e3f2fd
+    style Business fill:#e8f5e9
+    style Services fill:#fff3e0
+    style Data fill:#f3e5f5
+```
+
+---
+
+## 技术栈
+
+### 核心依赖
+
+| 依赖                 | 版本     | 用途         | 说明                                   |
+| -------------------- | -------- | ------------ | -------------------------------------- |
+| **flet**       | ≥0.82.0 | GUI 框架     | 现代化跨平台桌面应用框架，基于 Flutter |
+| **playwright** | ≥1.57.0 | 浏览器自动化 | 用于登录、token 提取、浏览器模式答题   |
+| **requests**   | ≥2.31.0 | HTTP 客户端  | API 调用、网络请求                     |
+| **keyboard**   | ≥0.13.5 | 键盘监听     | 优雅退出功能（Q 键监听）               |
+
+### 开发依赖
+
+| 依赖                  | 版本     | 用途         |
+| --------------------- | -------- | ------------ |
+| **pyinstaller** | ≥6.0.0  | 打包工具     |
+| **pyyaml**      | ≥6.0    | 配置文件解析 |
+| **py7zr**       | ≥0.21.0 | 压缩文件处理 |
+
+**注意**: 本项目未包含自动化测试套件，测试部分需要手动验证。
+
+### API 端点
+
+#### 学生端 API
+
+- **基础地址**: `https://ai.cqzuxia.com/`
+- **认证接口**: `/connect/token` - OAuth2 令牌获取
+- **业务接口**: 课程列表、进度、答题等接口
+
+#### 教师端 API
+
+- **基础地址**: `https://admin.cqzuxia.com/`
+- **业务接口**: `/evaluation/api/TeacherEvaluation/*` - 答案提取接口
+
+#### 课程认证 API (v2.6.0+)
+
+- **基础地址**: `https://zxsz.cqzuxia.com/teacherCertifiApi/api/TeacherCourseEvaluate`
+- **业务接口**: 课程认证答题接口
+
+### 技术栈关系图
+
+```mermaid
+graph TB
+    subgraph Frontend[前端展示层]
+        Flet[Flet 框架 GUI]
+        CLI[命令行界面 CLI]
+    end
+
+    subgraph Core[核心框架层]
+        Playwright[Playwright 浏览器自动化]
+        RequestsLib[Requests HTTP 客户端]
+        KeyboardLib[Keyboard 键盘监听]
+    end
+
+    subgraph Business[业务逻辑层]
+        Auth[认证模块 学生教师认证]
+        Answering[答题模块 浏览器API 模式]
+        Extraction[提取模块 题库导出]
+        Certification[认证模块 课程认证]
+    end
+
+    subgraph Data[数据层]
+        JSON[JSON 存储 题库配置]
+        Cache[Token 缓存 会话管理]
+    end
+
+    Flet --> Playwright
+    Flet --> RequestsLib
+    CLI --> RequestsLib
+
+    Playwright --> Auth
+    RequestsLib --> Auth
+    RequestsLib --> Answering
+    RequestsLib --> Extraction
+    RequestsLib --> Certification
+
+    Auth --> Cache
+    Answering --> JSON
+    Extraction --> JSON
+    Certification --> JSON
+
+    style Frontend fill:#e3f2fd
+    style Core fill:#fff3e0
+    style Business fill:#e8f5e9
+    style Data fill:#f3e5f5
+```
+
+---
+
+## 模块介绍
+
+### 项目目录结构
+
+```
+ZX-Answering-Assistant-python/
+├── src/                              # 源代码目录
+│   ├── core/                         # 核心模块
+│   │   ├── __init__.py
+│   │   ├── api_client.py             # API 客户端（统一请求接口）
+│   │   ├── app_state.py              # 应用状态管理
+│   │   ├── browser.py                # 浏览器管理器（单例模式）
+│   │   ├── config.py                 # 配置管理器（持久化）
+│   │   └── constants.py              # 应用常量定义
+│   │
+│   ├── auth/                         # 认证模块
+│   │   ├── __init__.py
+│   │   ├── student.py                # 学生端登录
+│   │   ├── teacher.py                # 教师端登录
+│   │   └── token_manager.py          # Token 缓存管理
+│   │
+│   ├── answering/                    # 答题模块
+│   │   ├── __init__.py
+│   │   ├── api_answer.py             # API 模式答题
+│   │   └── browser_answer.py         # 浏览器模式答题
+│   │
+│   ├── certification/                # 课程认证模块
+│   │   ├── __init__.py
+│   │   ├── workflow.py               # 课程认证工作流
+│   │   └── api_answer.py             # 课程认证 API 答题
+│   │
+│   ├── extraction/                   # 数据提取模块
+│   │   ├── __init__.py
+│   │   ├── extractor.py              # 答案提取器
+│   │   ├── exporter.py               # 数据导出器
+│   │   ├── importer.py               # 题库导入器
+│   │   └── file_handler.py           # 文件处理工具
+│   │
+│   ├── ui/                           # GUI 界面模块
+│   │   ├── __init__.py
+│   │   ├── main_gui.py               # GUI 主程序
+│   │   └── views/                    # 视图组件
+│   │       ├── __init__.py
+│   │       ├── answering_view.py         # 答题视图
+│   │       ├── extraction_view.py        # 提取视图
+│   │       ├── course_certification_view.py  # 课程认证视图
+│   │       ├── settings_view.py           # 设置视图
+│   │       └── cloud_exam_view.py         # 云考试视图（占位）
+│   │
+│   ├── utils/                        # 工具模块
+│   │   ├── __init__.py
+│   │   └── retry.py                  # 重试机制工具
+│   │
+│   ├── caching/                      # 缓存模块
+│   │   └── __init__.py
+│   │
+│   └── extract_answers.py            # 独立提取脚本（遗留）
+│
+├── main.py                           # 主程序入口
+├── build.py                          # 构建脚本
+├── version.py                        # 版本信息
+├── requirements.txt                  # 依赖列表
+├── build_config.yaml                 # 构建配置
+├── CLAUDE.md                         # Claude Code 指导文档
+└── README.md                         # 项目文档
+```
+
+### 核心模块详解
 
 #### 1. 浏览器管理器 (BrowserManager)
 
-**位置**: `src/browser_manager.py`
+**位置**: `src/core/browser.py`
 
 **核心功能**:
-- 单浏览器实例管理
+
+- 单浏览器实例管理（单例模式）
 - 多上下文隔离（学生端、教师端、课程认证）
 - 线程安全的工作队列
-- AsyncIO 兼容性
+- AsyncIO 兼容性（Flet GUI 友好）
+- Playwright 1.57.0+ headless 模式兼容
+
+**关键特性**:
+
+- **资源优化**: 整个应用只运行一个 Playwright 浏览器实例
+- **完全隔离**: 每个模块有独立的 BrowserContext，Cookie、Session、LocalStorage 互不干扰
+- **线程安全**: 所有 Playwright 操作在专用工作线程中执行
 
 **使用示例**:
+
 ```python
-from src.browser_manager import get_browser_manager, BrowserType
+from src.core.browser import get_browser_manager, BrowserType
 
 # 获取单例实例
 browser_manager = get_browser_manager()
@@ -253,64 +503,580 @@ browser = browser_manager.start_browser(headless=False)
 # 获取隔离的上下文
 student_context = browser_manager.get_context(BrowserType.STUDENT)
 teacher_context = browser_manager.get_context(BrowserType.TEACHER)
+cert_context = browser_manager.get_context(BrowserType.COURSE_CERTIFICATION)
 
-# 清理
+# 清理特定上下文
+browser_manager.close_context(BrowserType.STUDENT)
+
+# 关闭整个浏览器
 browser_manager.stop_browser()
 ```
 
 #### 2. API 客户端 (APIClient)
 
-**位置**: `src/api_client.py`
+**位置**: `src/core/api_client.py`
 
 **核心功能**:
+
 - 统一的 HTTP 请求接口
 - 智能速率限制（可配置）
-- 自动重试机制
+- 自动重试机制（指数退避）
+- 请求缓存（TTL）
 - 错误处理
 
 **速率级别**:
+
 - `low`: 50ms - 无速率限制的 API
-- `medium`: 1s - 默认级别
+- `medium`: 1s - 默认级别，推荐
 - `medium_high`: 2s - 较严格限制
 - `high`: 3s - 严格限制
 
 **使用示例**:
+
 ```python
-from src.api_client import get_api_client
+from src.core.api_client import get_api_client
 
 api_client = get_api_client()
 response = api_client.get(url, headers=headers)
 ```
 
-#### 3. 答案提取器 (Extractor)
+#### 3. 配置管理器 (SettingsManager)
 
-**位置**: `src/extract.py`
+**位置**: `src/core/config.py`
 
-**数据流**:
+**核心功能**:
+
+- 持久化配置存储（JSON 格式）
+- 凭证管理（学生端、教师端）
+- API 设置（速率级别、重试次数）
+
+**配置文件**: `cli_config.json`
+
+```json
+{
+  "student_credentials": {
+    "username": "",
+    "password": ""
+  },
+  "teacher_credentials": {
+    "username": "",
+    "password": ""
+  },
+  "api_settings": {
+    "rate_level": "medium",
+    "max_retries": 3
+  }
+}
 ```
-class_list → filtered_classes → course_list → chapter_list
-→ knowledge_list → knowledge_questions → question_options
-```
 
-**API 调用链**:
-1. `GetClassByTeacherID` - 获取班级列表
-2. `GetEvaluationSummaryByClassID` - 获取课程摘要
-3. `GetChapterEvaluationByClassID` - 获取章节列表
-4. `GetEvaluationKnowledgeSummaryByClass` - 获取知识点
-5. `GetKnowQuestionEvaluation` - 获取题目
-6. `GetQuestionAnswerListByQID` - 获取选项
+#### 4. 认证模块
 
-#### 4. 自动答题模块
+**学生端认证** (`src/auth/student.py`):
 
-**浏览器模式** (`src/auto_answer.py`):
+- OAuth2 登录流程
+- Token 自动捕获
+- 多策略登录按钮点击（类选择器 → 文本选择器 → JavaScript 回退）
+- AsyncIO 兼容性
+
+**教师端认证** (`src/auth/teacher.py`):
+
+- 教师端登录流程
+- Cookie 提取（`smartedu.admin.token`）
+- API 认证
+
+**Token 管理** (`src/auth/token_manager.py`):
+
+- Token 缓存
+- 有效期管理（5 小时）
+- 自动刷新
+
+#### 5. 答题模块
+
+**浏览器模式答题** (`src/answering/browser_answer.py`):
+
 - 模拟真实用户操作
 - 点击选项按钮
 - 提交答案
+- 优雅退出（Q 键监听）
 
-**API 模式** (`src/api_auto_answer.py`):
+**API 模式答题** (`src/answering/api_answer.py`):
+
 - 直接调用 API
 - 速度极快
 - 网络重试机制
+- 实时统计
+
+#### 6. 数据提取模块
+
+**提取器** (`src/extraction/extractor.py`):
+
+- 完整的答案提取流程
+- API 调用链：班级 → 课程 → 章节 → 知识点 → 题目 → 选项
+- 进度回调支持（GUI 友好）
+
+**数据流**:
+
+```mermaid
+graph LR
+    A[班级列表] --> B[筛选班级]
+    B --> C[课程列表]
+    C --> D[章节列表]
+    D --> E[知识点列表]
+    E --> F[知识题目]
+    F --> G[问题选项]
+
+    style A fill:#e3f2fd
+    style B fill:#bbdefb
+    style C fill:#90caf9
+    style D fill:#64b5f6
+    style E fill:#42a5f5
+    style F fill:#2196f3
+    style G fill:#1976d2
+```
+
+**导出器** (`src/extraction/exporter.py`):
+
+- JSON 格式导出
+- 结构化数据存储
+- 自动文件命名
+
+**导入器** (`src/extraction/importer.py`):
+
+- JSON 题库导入
+- 数据验证
+- 题库解析
+
+#### 7. GUI 模块
+
+**主程序** (`src/ui/main_gui.py`):
+
+- Flet 应用入口
+- 视图缓存机制
+- 窗口清理处理
+- 导航管理
+
+**视图组件** (`src/ui/views/`):
+
+- **answering_view.py**: 学生端答题界面
+- **extraction_view.py**: 教师端提取界面
+- **course_certification_view.py**: 课程认证界面
+- **settings_view.py**: 设置管理界面
+- **cloud_exam_view.py**: 云考试界面（占位符）
+
+---
+
+## 技术实现
+
+### 学生端答题流程
+
+```mermaid
+flowchart TD
+    Start([开始答题]) --> Login[学生登录]
+    Login --> Token[获取 access_token]
+    Token --> CheckToken{Token 有效?}
+    CheckToken -->|是| GetCourses[获取课程列表]
+    CheckToken -->|否| RefreshToken[刷新 Token]
+    RefreshToken --> GetCourses
+
+    GetCourses --> SelectCourse[选择课程]
+    SelectCourse --> ImportBank{导入题库?}
+    ImportBank -->|是| LoadBank[加载 JSON 题库]
+    ImportBank -->|否| SelectMode
+    LoadBank --> SelectMode{选择答题模式}
+
+    SelectMode -->|浏览器模式| BrowserMode[浏览器模式答题]
+    SelectMode -->|API 模式| APIMode[API 模式答题]
+
+    BrowserMode --> Navigate[导航到课程]
+    Navigate --> GetQuestions[获取未完成章节]
+    GetQuestions --> AnswerQuestions[逐题答题]
+    AnswerQuestions --> ClickOption[点击选项]
+    ClickOption --> Submit[提交答案]
+    Submit --> CheckEnd{答题完成?}
+    CheckEnd -->|否| AnswerQuestions
+    CheckEnd -->|是| ShowResult[显示统计结果]
+    APIMode --> APIAnswer[API 调用答题]
+    APIAnswer --> ShowResult
+
+    ShowResult --> End([结束])
+
+    style Start fill:#e8f5e9
+    style End fill:#ffebee
+    style Login fill:#e3f2fd
+    style BrowserMode fill:#fff3e0
+    style APIMode fill:#f3e5f5
+    style ShowResult fill:#e1f5fe
+```
+
+### 教师端答案提取流程
+
+```mermaid
+flowchart TD
+    Start([开始提取]) --> Login[教师登录]
+    Login --> Cookie[提取 Cookie Token]
+    Cookie --> GetClasses[获取班级列表]
+    GetClasses --> SelectGrade[选择年级]
+    SelectGrade --> SelectClass[选择班级]
+    SelectClass --> GetCourses[获取课程列表]
+    GetCourses --> SelectCourse[选择课程]
+    SelectCourse --> ExtractStart[开始提取]
+
+    ExtractStart --> GetChapters[获取章节列表]
+    GetChapters --> ForChapters{遍历章节}
+    ForChapters --> GetKnowledge[获取知识点列表]
+    GetKnowledge --> ForKnowledge{遍历知识点}
+    ForKnowledge --> GetQuestions[获取题目列表]
+    GetQuestions --> ForQuestions{遍历题目}
+    ForQuestions --> GetOptions[获取选项]
+    GetOptions --> SaveData[保存数据]
+    SaveData --> ForQuestions
+    ForQuestions --> ForKnowledge
+    ForKnowledge --> ForChapters
+    ForChapters --> Export[导出 JSON]
+
+    Export --> ShowStats[显示统计信息]
+    ShowStats --> End([结束])
+
+    style Start fill:#e8f5e9
+    style End fill:#ffebee
+    style Login fill:#e3f2fd
+    style ExtractStart fill:#fff3e0
+    style Export fill:#e1f5fe
+```
+
+### 速率限制机制
+
+#### 为什么需要速率限制？
+
+1. **避免触发平台检测**: 过快的请求频率可能被识别为机器人
+2. **保证系统稳定**: 避免因请求过快导致的服务器错误
+3. **模拟真实用户**: 正常用户的答题速度是有限的
+
+#### 实现方式
+
+```python
+class APIClient:
+    def __init__(self, rate_level: APIRateLevel = APIRateLevel.MEDIUM):
+        self.rate_delays = {
+            APIRateLevel.LOW: 0.05,        # 50ms
+            APIRateLevel.MEDIUM: 1.0,      # 1s
+            APIRateLevel.MEDIUM_HIGH: 2.0, # 2s
+            APIRateLevel.HIGH: 3.0         # 3s
+        }
+
+    def request(self, method, url, **kwargs):
+        # 应用速率限制延迟
+        delay = self.rate_delays[self.rate_level]
+        time.sleep(delay)
+
+        # 发送请求
+        response = requests.request(method, url, **kwargs)
+
+        # 处理错误和重试
+        return self._handle_response(response)
+```
+
+### 学生 API 答题签名机制
+
+#### 签名概述
+
+学生端 API 接口实现了基于 **HMAC-SHA256** 的签名验证机制，用于确保请求的合法性和数据完整性。所有答题相关的 API 请求都必须携带正确的签名参数。
+
+#### 签名密钥
+
+系统使用固定的签名密钥：
+
+```python
+SIGN_KEY = "2fa7a73c-66d4-11f0-8925-fa163e54f941"
+```
+
+#### 签名算法
+
+使用 **HMAC-SHA256** 算法生成签名：
+
+```python
+import hmac
+import hashlib
+
+def generate_sign(params: str) -> str:
+    """
+    生成签名
+
+    Args:
+        params: 参数字符串（URL编码前的原始查询字符串）
+
+    Returns:
+        str: 十六进制小写签名字符串
+    """
+    signature = hmac.new(
+        SIGN_KEY.encode('utf-8'),
+        params.encode('utf-8'),
+        hashlib.sha256
+    ).hexdigest()
+
+    return signature
+```
+
+#### 签名参数构造
+
+**关键规则**：
+
+1. **签名原文使用小写字段名**
+
+   - 例如：`questionid`, `answerid`
+2. **请求体使用大写字段名**
+
+   - 例如：`QuestionID`, `AnswerID`
+3. **签名不进行 URL 编码**
+
+   - 直接对原始参数字符串进行签名
+   - URL 编码只在构造查询参数时使用
+4. **JSON 使用紧凑格式**
+
+   - 使用 `separators=(',', ':')` 去除空格
+
+#### 签名使用场景
+
+**场景 1: 开始测评** (beginevaluate)
+
+```python
+# 签名原文（未编码）
+params_raw = f"kpid={kpid}"
+
+# 生成签名
+sign = generate_sign(params_raw)
+
+# 构造 URL（需要 URL 编码）
+params_encoded = urlencode({"kpid": kpid, "sign": sign})
+url = f"{BASE_URL}/studentevaluate/beginevaluate?{params_encoded}"
+```
+
+**场景 2: 保存答案** (SaveEvaluateAnswer)
+
+```python
+# 签名时使用小写字段名
+questions_for_sign = [{"questionid": question_id, "answerid": answer_id}]
+questions_json = json.dumps(questions_for_sign, separators=(',', ':'), ensure_ascii=False)
+
+# 构造签名原文
+params_raw = f"kpid={kpid}&questions={questions_json}"
+
+# 生成签名
+sign = generate_sign(params_raw)
+
+# 构造请求体（使用大写字段名）
+body = {
+    "kpid": kpid,
+    "questions": [{"QuestionID": question_id, "AnswerID": answer_id}],
+    "sign": sign
+}
+```
+
+**场景 3: 提交试卷** (SaveTestMemberInfo)
+
+```python
+# 空数组表示已完成
+questions_json = "[]"
+
+# 构造签名原文
+params_raw = f"kpid={kpid}&questions={questions_json}"
+
+# 生成签名
+sign = generate_sign(params_raw)
+
+# 构造请求体
+body = {
+    "kpid": kpid,
+    "questions": [],
+    "sign": sign
+}
+```
+
+#### 完整请求示例
+
+```python
+from src.answering.api_answer import APIAutoAnswer
+
+# 初始化答题器（需要有效的 access_token）
+answerer = APIAutoAnswer(access_token="your_token_here")
+
+# 开始测评（获取题目）
+kpid = "知识点ID"
+evaluate_data = answerer.begin_evaluate(kpid)
+
+# 保存单题答案
+question_id = "题目ID"
+answer_id = "答案ID"
+success = answerer.save_evaluate_answer(kpid, question_id, answer_id)
+
+# 提交试卷
+success = answerer.save_test_member_info(kpid)
+```
+
+#### 请求头设置
+
+所有 API 请求都需要携带以下请求头：
+
+```python
+def _get_headers(self) -> Dict:
+    return {
+        "accept": "application/json, text/plain, */*",
+        "accept-language": "zh-CN,zh;q=0.9",
+        "authorization": f"Bearer {self.access_token}",
+        "content-type": "application/json;charset=UTF-8",
+        "origin": "https://ai.cqzuxia.com",
+        "referer": "https://ai.cqzuxia.com/",
+        "sec-ch-ua": '"Chromium";v="138", "Not)A;Brand";v="8"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "sec-fetch-dest": "empty",
+        "sec-fetch-mode": "cors",
+        "sec-fetch-site": "same-origin",
+        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+    }
+```
+
+#### 重要提示
+
+1. **字段名大小写敏感**
+
+   - 签名原文必须使用小写字段名
+   - 请求体必须使用大写字段名
+   - 这是实现中最容易出错的地方
+2. **多选题答案格式**
+
+   - 多个答案 ID 用逗号分隔
+   - 例如：`"id1,id2,id3"`
+3. **签名密钥保密**
+
+   - 签名密钥硬编码在代码中
+   - 不要在公开场合泄露
+4. **Token 管理**
+
+   - access_token 有效期为 5 小时
+   - 过期后需要重新登录获取
+
+### AsyncIO 兼容性
+
+#### 问题
+
+Flet 框架使用 asyncio 事件循环，但 Playwright 的同步 API 无法在 asyncio 循环中运行。
+
+#### 解决方案
+
+检测 asyncio 环境，在独立线程中运行 Playwright：
+
+```python
+def login_in_asyncio_context():
+    try:
+        import asyncio
+        asyncio.get_running_loop()
+        # 检测到 asyncio 环境
+
+        import threading
+        result = [None]
+
+        def run_in_new_loop():
+            new_loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(new_loop)
+            # 在新线程中运行 Playwright 代码
+            result[0] = _do_login()
+
+        thread = threading.Thread(target=run_in_new_loop)
+        thread.start()
+        thread.join()
+
+        return result[0]
+
+    except RuntimeError:
+        # 没有 asyncio 循环，直接运行
+        return _do_login()
+```
+
+### 浏览器崩溃恢复
+
+#### 检测机制
+
+```python
+def check_browser_alive():
+    """检查浏览器是否仍然连接"""
+    global _browser_instance
+    if _browser_instance is None:
+        return False
+    try:
+        # 尝试访问浏览器上下文
+        _browser_instance.contexts
+        return True
+    except Exception:
+        return False
+```
+
+#### 恢复流程
+
+1. 检测浏览器崩溃
+2. 清理旧资源（关闭浏览器、停止 Playwright）
+3. 提示用户重新登录
+4. 重启浏览器
+5. 继续操作
+
+### Playwright 1.57.0+ 兼容性
+
+#### 问题
+
+Playwright 1.57.0+ 引入了 `chromium_headless_shell`，在打包环境中不支持。
+
+#### 解决方案
+
+使用 `args=['--headless=new']` 强制使用完整 Chromium：
+
+```python
+browser = playwright.chromium.launch(
+    headless=headless,
+    args=['--headless=new'] if headless else None  # 强制完整 Chromium
+)
+```
+
+### 数据结构
+
+#### 单课程导出格式
+
+```json
+{
+  "class": {
+    "class_id": "123",
+    "class_name": "2024级计算机1班",
+    "course": {
+      "course_id": "456",
+      "course_name": "Python程序设计",
+      "chapters": [
+        {
+          "chapter_id": "1",
+          "chapter_name": "第一章",
+          "knowledges": [
+            {
+              "knowledge_id": "1",
+              "knowledge_name": "知识点1",
+              "questions": [
+                {
+                  "question_id": "1",
+                  "question_content": "题目内容",
+                  "options": [
+                    {
+                      "id": "1",
+                      "content": "选项A",
+                      "is_correct": true
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
+```
 
 ---
 
@@ -322,6 +1088,8 @@ class_list → filtered_classes → course_list → chapter_list
 - **操作系统**: Windows 10/11（推荐）
 - **网络**: 稳定的互联网连接
 - **浏览器**: Chromium（自动安装）
+- **内存**: 建议 4GB 以上
+- **磁盘空间**: 至少 500MB 可用空间
 
 ### 1. 克隆项目
 
@@ -332,13 +1100,15 @@ cd ZX-Answering-Assistant-python
 
 ### 2. 创建虚拟环境
 
-**Windows:**
+**Windows**:
+
 ```bash
 python -m venv venv
 venv\Scripts\activate
 ```
 
-**Linux/Mac:**
+**Linux/Mac**:
+
 ```bash
 python3 -m venv venv
 source venv/bin/activate
@@ -367,8 +1137,22 @@ python main.py --mode gui
 #### CLI 模式
 
 ```bash
-python main.py --mode cli
+python main.py --cli
 ```
+
+### 5. 首次使用
+
+1. **GUI 模式**:
+
+   - 启动后会显示主界面
+   - 选择需要的功能模块（答题/提取/认证）
+   - 输入账号密码登录
+   - 开始使用
+2. **CLI 模式**:
+
+   - 按照菜单提示选择功能
+   - 输入相应的选项编号
+   - 根据提示完成操作
 
 ---
 
@@ -378,11 +1162,13 @@ python main.py --mode cli
 
 #### 启动应用
 
-双击运行 `main.py` 或在命令行执行：
+在命令行中执行：
 
 ```bash
 python main.py
 ```
+
+或者双击运行打包后的可执行文件（.exe）。
 
 #### 导航结构
 
@@ -398,62 +1184,92 @@ python main.py
 
 #### 学生端答题流程
 
-1. **登录**
-   - 导航到"评估答题"页面
-   - 输入学生端用户名和密码
-   - 点击"登录"按钮
+**步骤 1: 登录**
 
-2. **导入题库（可选）**
-   - 点击"导入题库"按钮
-   - 选择 JSON 格式的题库文件
-   - 系统会自动加载题库
+1. 导航到"评估答题"页面
+2. 输入学生端用户名和密码
+3. 点击"登录"按钮
+4. 等待登录成功提示
 
-3. **选择课程**
-   - 查看课程列表和完成进度
-   - 点击想要完成的课程卡片
+**步骤 2: 导入题库（可选）**
 
-4. **开始答题**
-   - 点击"开始答题"按钮
-   - 选择答题模式：
-     - **API 模式**（推荐）：速度快，约 10-20 题/秒
-     - **浏览器模式**：模拟真实操作，约 2-3 题/秒
-   - 按 Q 键可随时停止
+1. 点击"导入题库"按钮
+2. 选择 JSON 格式的题库文件
+3. 系统会自动加载题库
+4. 显示导入成功提示
 
-5. **查看进度**
-   - 实时显示答题日志
-   - 显示成功率和完成进度
+**步骤 3: 选择课程**
+
+1. 查看课程列表和完成进度
+2. 点击想要完成的课程卡片
+3. 查看课程详细信息
+
+**步骤 4: 开始答题**
+
+1. 点击"开始答题"按钮
+2. 选择答题模式：
+   - **API 模式**（推荐）：速度快
+   - **浏览器模式**：模拟真实操作
+3. 观察实时日志和进度
+4. 按 Q 键可随时停止
+
+**步骤 5: 查看结果**
+
+1. 答题完成后显示统计信息
+2. 查看成功率、完成进度、用时统计
+3. 返回课程列表继续其他课程
 
 #### 课程认证答题流程
 
-1. **导航到"课程认证"页面**
-2. **导入题库**：选择 JSON 题库文件
-3. **开始答题**：点击"开始答题"按钮
-4. **查看日志**：实时显示答题进度和统计
+**步骤 1: 导航到"课程认证"页面**
+
+**步骤 2: 导入题库**
+
+1. 点击"选择题库文件"按钮
+2. 选择 JSON 题库文件
+3. 确认题库加载成功
+
+**步骤 3: 开始答题**
+
+1. 点击"开始答题"按钮
+2. 观察实时日志
+3. 等待答题完成
+
+**步骤 4: 查看结果**
+
+1. 查看答题统计
+2. 确认完成情况
 
 #### 教师端答案提取流程
 
-1. **登录**
-   - 导航到"答案提取"页面
-   - 输入教师端用户名和密码
-   - 点击"登录"按钮
+**步骤 1: 登录**
 
-2. **选择年级**
-   - 左侧列表显示所有年级（如：2024、2025）
-   - 点击选择目标年级
+1. 导航到"答案提取"页面
+2. 输入教师端用户名和密码
+3. 点击"登录"按钮
 
-3. **选择班级**
-   - 右侧列表显示该年级的所有班级
-   - 点击选择目标班级
+**步骤 2: 选择年级**
 
-4. **提取答案**
-   - 查看课程列表
-   - 点击课程的"提取答案"按钮
-   - 等待提取完成
+1. 左侧列表显示所有年级（如：2024、2025）
+2. 点击选择目标年级
 
-5. **查看结果**
-   - 显示提取统计（知识点、题目、选项数量）
-   - 点击"打开文件夹"查看导出的 JSON 文件
-   - 点击"复制路径"获取文件路径
+**步骤 3: 选择班级**
+
+1. 右侧列表显示该年级的所有班级
+2. 点击选择目标班级
+
+**步骤 4: 提取答案**
+
+1. 查看课程列表
+2. 点击课程的"提取答案"按钮
+3. 观察实时进度
+4. 等待提取完成
+
+**步骤 5: 查看结果**
+
+1. 显示提取统计（知识点、题目、选项数量）
+2. 点击"打开文件夹"查看导出的 JSON 文件
+3. 点击"复制路径"获取文件路径
 
 ### CLI 模式使用
 
@@ -526,152 +1342,11 @@ python main.py
 ```
 
 **配置说明**:
+
+- `student_credentials`: 学生端账号信息
+- `teacher_credentials`: 教师端账号信息
 - `rate_level`: API 请求速率级别（low/medium/medium_high/high）
 - `max_retries`: 最大重试次数
-
----
-
-## 技术细节
-
-### 速率限制机制
-
-**为什么需要速率限制？**
-
-1. **避免触发平台检测**: 过快的请求频率可能被识别为机器人
-2. **保证系统稳定**: 避免因请求过快导致的服务器错误
-3. **模拟真实用户**: 正常用户的答题速度是有限的
-
-**实现方式**:
-
-```python
-class APIClient:
-    def __init__(self, rate_level: APIRateLevel = APIRateLevel.MEDIUM):
-        self.rate_delays = {
-            APIRateLevel.LOW: 0.05,        # 50ms
-            APIRateLevel.MEDIUM: 1.0,      # 1s
-            APIRateLevel.MEDIUM_HIGH: 2.0, # 2s
-            APIRateLevel.HIGH: 3.0         # 3s
-        }
-
-    def request(self, method, url, **kwargs):
-        # 应用速率限制延迟
-        delay = self.rate_delays[self.rate_level]
-        time.sleep(delay)
-
-        # 发送请求
-        response = requests.request(method, url, **kwargs)
-
-        # 处理错误和重试
-        return self._handle_response(response)
-```
-
-### AsyncIO 兼容性
-
-**问题**: Flet 框架使用 asyncio 事件循环，但 Playwright 的同步 API 无法在 asyncio 循环中运行。
-
-**解决方案**: 检测 asyncio 环境，在独立线程中运行 Playwright：
-
-```python
-def login_in_asyncio_context():
-    try:
-        import asyncio
-        asyncio.get_running_loop()
-        # 检测到 asyncio 环境
-
-        import threading
-        result = [None]
-
-        def run_in_new_loop():
-            new_loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(new_loop)
-            # 在新线程中运行 Playwright 代码
-            result[0] = _do_login()
-
-        thread = threading.Thread(target=run_in_new_loop)
-        thread.start()
-        thread.join()
-
-        return result[0]
-
-    except RuntimeError:
-        # 没有 asyncio 循环，直接运行
-        return _do_login()
-```
-
-### 浏览器崩溃恢复
-
-**检测机制**:
-
-```python
-def check_browser_alive():
-    """检查浏览器是否仍然连接"""
-    global _browser_instance
-    if _browser_instance is None:
-        return False
-    try:
-        # 尝试访问浏览器上下文
-        _browser_instance.contexts
-        return True
-    except Exception:
-        return False
-```
-
-**恢复流程**:
-
-1. 检测浏览器崩溃
-2. 清理旧资源
-3. 提示用户重新登录
-4. 重启浏览器
-5. 继续操作
-
-### 数据结构
-
-#### 单课程导出格式
-
-```json
-{
-  "class": {
-    "class_id": "123",
-    "class_name": "2024级计算机1班",
-    "course": {
-      "course_id": "456",
-      "course_name": "Python程序设计",
-      "chapters": [
-        {
-          "chapter_id": "1",
-          "chapter_name": "第一章",
-          "knowledges": [
-            {
-              "knowledge_id": "1",
-              "knowledge_name": "知识点1",
-              "questions": [
-                {
-                  "question_id": "1",
-                  "question_content": "题目内容",
-                  "options": [
-                    {
-                      "id": "1",
-                      "content": "选项A",
-                      "is_correct": true
-                    }
-                  ]
-                }
-              ]
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
-
-### 安全性考虑
-
-1. **密码存储**: 配置文件中的密码以明文存储，建议不要将配置文件提交到版本控制
-2. **Token 管理**: Token 有效期 5 小时，系统会自动刷新
-3. **速率限制**: 默认使用 medium 级别，避免触发检测
-4. **用户代理**: 使用真实的浏览器 User-Agent
 
 ---
 
@@ -691,40 +1366,13 @@ venv\Scripts\activate  # Windows
 
 # 3. 安装开发依赖
 pip install -r requirements.txt
-pip install -r requirements-dev.txt
 
 # 4. 安装 Playwright 浏览器
 python -m playwright install chromium
 
-# 5. 运行测试
-pytest tests/ -v
-```
-
-### 项目结构
-
-```
-ZX-Answering-Assistant-python/
-├── src/                           # 源代码
-│   ├── ui/                        # GUI 界面
-│   │   └── views/                 # 视图组件
-│   ├── browser_manager.py         # 浏览器管理器
-│   ├── student_login.py           # 学生端登录
-│   ├── teacher_login.py           # 教师端登录
-│   ├── extract.py                 # 答案提取
-│   ├── auto_answer.py             # 浏览器模式答题
-│   ├── api_auto_answer.py         # API 模式答题
-│   ├── api_client.py              # API 客户端
-│   ├── settings.py                # 配置管理
-│   └── ...
-├── tests/                         # 测试代码
-├── main.py                        # 主程序入口
-├── build.py                       # 构建脚本
-├── build_config.yaml              # 构建配置
-├── version.py                     # 版本信息
-├── requirements.txt               # 生产依赖
-├── requirements-dev.txt            # 开发依赖
-├── CLAUDE.md                      # Claude Code 指导文档
-└── README.md                      # 项目文档
+# 5. 运行程序
+python main.py          # GUI 模式
+python main.py --cli    # CLI 模式
 ```
 
 ### 代码规范
@@ -732,18 +1380,19 @@ ZX-Answering-Assistant-python/
 #### 1. 命名规范
 
 - **类名**: 大驼峰命名法 (PascalCase)
+
   ```python
   class BrowserManager:
       pass
   ```
-
 - **函数/变量**: 小写加下划线 (snake_case)
+
   ```python
   def get_student_courses():
       pass
   ```
-
 - **常量**: 全大写加下划线
+
   ```python
   MAX_RETRIES = 3
   ```
@@ -792,17 +1441,17 @@ except Exception as e:
 ```
 
 **类型 (type)**:
+
 - `feat`: 新功能
 - `fix`: 修复 bug
 - `docs`: 文档更新
 - `style`: 代码格式调整
 - `refactor`: 重构
-- `test`: 测试相关
 - `chore`: 构建或辅助工具变动
 - `gui`: GUI 相关功能
-- `build`: 构建系统相关
 
 **示例**:
+
 ```
 feat(student_login): 添加记住密码功能
 
@@ -811,43 +1460,6 @@ feat(student_login): 添加记住密码功能
 - 更新 GUI 界面
 
 Closes #123
-```
-
-### 测试指南
-
-#### 运行测试
-
-```bash
-# 运行所有测试
-pytest tests/ -v
-
-# 运行特定测试
-pytest tests/test_api_client.py -v
-
-# 生成覆盖率报告
-pytest --cov=src --cov-report=html
-
-# 查看报告
-# 打开 htmlcov/index.html
-```
-
-#### 编写测试
-
-```python
-# tests/test_api_client.py
-import pytest
-from src.api_client import APIClient, APIRateLevel
-
-def test_api_client_singleton():
-    """测试 API 客户端单例模式"""
-    client1 = get_api_client()
-    client2 = get_api_client()
-    assert client1 is client2
-
-def test_rate_limit_levels():
-    """测试速率限制级别"""
-    client = APIClient(rate_level=APIRateLevel.MEDIUM)
-    assert client.rate_level == APIRateLevel.MEDIUM
 ```
 
 ### 构建可执行文件
@@ -867,28 +1479,8 @@ python build.py --mode both
 # 启用 UPX 压缩（减小体积）
 python build.py --upx
 
-# 清理构建产物
-python build.py --clean
-```
-
-#### 构建配置
-
-编辑 `build_config.yaml` 自定义构建选项：
-
-```yaml
-build:
-  mode: onedir                 # onedir, onefile, both
-  output_dir: "dist"           # 输出目录
-
-compilation:
-  enabled: true                # 编译为 .pyc
-  optimize: 2                  # 优化级别
-
-playwright:
-  enabled: true                # 打包浏览器
-
-upx:
-  enabled: false               # UPX 压缩
+# 自定义构建目录
+python build.py --build-dir D:\BuildOutput
 ```
 
 #### 构建输出
@@ -896,17 +1488,19 @@ upx:
 构建完成后，输出文件在 `dist/` 目录：
 
 **目录模式**:
+
 ```
 dist/
-└── ZX-Answering-Assistant-v2.7.8-windows-x64-installer/
-    ├── ZX-Answering-Assistant-v2.7.8-windows-x64-installer.exe
+└── ZX-Answering-Assistant-v2.8.2-windows-x64-installer/
+    ├── ZX-Answering-Assistant-v2.8.2-windows-x64-installer.exe
     └── [依赖文件...]
 ```
 
 **单文件模式**:
+
 ```
 dist/
-└── ZX-Answering-Assistant-v2.7.8-windows-x64-portable.exe
+└── ZX-Answering-Assistant-v2.8.2-windows-x64-portable.exe
 ```
 
 ### 贡献流程
@@ -919,24 +1513,125 @@ dist/
 
 ---
 
+## 待开发功能
+
+### 1. 云考试模块 (Cloud Exam)
+
+**当前状态**: 占位符实现
+
+**计划功能**:
+
+- [ ] 云考试的题目答题
+- [ ] 基于AI 的评估系统自动出题
+
+**技术挑战**:
+
+**API 签名验证差异**:
+
+- 云考试可能使用不同的签名密钥和算法
+- 需要逆向分析云考试专用的签名生成逻辑
+- 签名参数可能包含时间戳、随机数等动态值
+
+**认证与授权机制**:
+
+- 云考试可能需要独立的认证流程
+- 考试 Token 可能与平时学习 Token 不同
+- 考试期间可能需要持续的心跳检测
+
+**反作弊检测**:
+
+- 浏览器指纹检测（User-Agent、Canvas、WebGL 等）
+- 行为模式分析（鼠标移动、键盘输入节奏）
+- 切换窗口检测（失去焦点时触发警告）
+- 剪贴板访问检测
+- 设备信息比对（IP、MAC 地址等）
+
+**时间限制与同步**:
+
+- 考试倒计时机制需要精确控制
+- 服务器时间与本地时间的同步问题
+- 网络延迟可能导致超时提交
+
+**题型差异处理**:
+
+- 云考试可能包含当前系统不支持的题型（如编程题、填空题、连线题等）
+- 需要扩展答案匹配算法支持新题型
+- 主观题（如简答题）的自动评分挑战
+
+**数据一致性要求**:
+
+- 考试过程中网络中断的断点续传
+- 答案实时保存机制
+- 防止重复提交
+
+**AI 出题的技术难点**:
+
+- 题目难度自动评估算法设计
+- 知识点关联度分析
+- 题目去重与相似度检测
+- 试卷知识点覆盖率计算
+- 个性化出题策略（基于学生历史表现）
+- 自然语言处理技术用于题目理解
+
+### 2. 评估出题模块 (Assessment Generation)
+
+**当前状态**: 未实现
+
+**计划功能**:
+
+- [ ] 基于大语言模型题目生成
+- [ ] 难度级别配置
+- [ ] 知识点覆盖率分析
+- [ ] 试卷导出并解析
+- [ ] 答案解析生成
+
+**技术挑战**:
+
+- [ ] 程序系统提示词的设计和编写
+- [ ] 题目解析
+- [ ] 自动上传平台
+
+### 3. 其他计划功能
+
+#### 数据分析增强
+
+- [ ] 学习数据可视化
+- [ ] 知识点掌握热力图
+- [ ] 学习时间统计
+- [ ] 错题本功能
+
+#### 用户体验优化
+
+- [ ] 多语言支持（i18n）
+- [ ] 主题定制（暗色模式）
+- [ ] 快捷键支持
+- [ ] 批量操作优化
+
+#### 系统集成
+
+- [ ] 移动端支持
+
+---
+
 ## 常见问题
 
 ### Q1: Token 过期了怎么办？
 
-**A:** 系统会自动处理 Token 过期：
+**A**: 系统会自动处理 Token 过期：
 
 - Token 有效期：5 小时
 - 系统会提前检测并自动重新获取
 - 无需手动干预
 
-如果遇到 Token 相关错误，尝试：
+**如果遇到 Token 相关错误**，尝试：
+
 1. 重新登录
 2. 检查网络连接
 3. 清除缓存配置文件
 
 ### Q2: 如何调整答题速度？
 
-**A:** 修改 `cli_config.json` 中的 `rate_level`：
+**A**: 修改 `cli_config.json` 中的 `rate_level`：
 
 ```json
 {
@@ -953,7 +1648,7 @@ dist/
 
 ### Q3: 编译后的文件为什么这么大？
 
-**A:** 正常现象，主要包含：
+**A**: 正常现象，主要包含：
 
 1. **Playwright 浏览器**: ~170-200 MB
 2. **Flet 框架**: ~50-80 MB
@@ -969,13 +1664,13 @@ python build.py --upx
 
 ### Q4: 运行打包后的程序提示"浏览器未安装"怎么办？
 
-**A:** 这是 Playwright 浏览器未正确安装的问题。解决方法：
+**A**: 这是 Playwright 浏览器未正确安装的问题。
 
 #### 方法 1: 自动安装（推荐）
+
 首次运行程序时，程序会自动检测并提示安装浏览器。按照提示操作即可。
 
 #### 方法 2: 手动安装
-如果自动安装失败，请手动安装：
 
 ```bash
 # Windows 用户
@@ -985,12 +1680,7 @@ playwright install chromium
 python -m playwright install chromium
 ```
 
-浏览器将安装到：
-- **Windows**: `C:\Users\<用户名>\AppData\Local\ms-playwright`
-- **Linux/Mac**: `~/.cache/ms-playwright`
-
 #### 方法 3: 使用开发环境（源码运行）
-如果打包版本出现问题，建议直接使用源码运行：
 
 ```bash
 # 安装依赖
@@ -1008,41 +1698,42 @@ python main.py --cli    # CLI 模式
 
 ### Q5: 如何选择答题模式？
 
-**A:** v2.2.0+ 版本支持自动恢复：
+**A**: 根据需求选择：
 
-1. 系统会自动检测崩溃
-2. 提示重新登录
-3. 自动重启浏览器
-4. 继续未完成的操作
+| 场景           | 推荐模式           |
+| -------------- | ------------------ |
+| 快速刷题       | API 模式           |
+| 验证答案准确性 | 浏览器模式         |
+| 网络不稳定     | API 模式（有重试） |
+| 避免检测       | 浏览器模式         |
 
-如果频繁崩溃：
-- 检查系统内存是否充足
-- 关闭其他占用内存的程序
-- 尝试使用 API 模式答题
+### Q6: 可以在没有网络的环境使用吗？
 
-### Q5: 如何选择答题模式？
-
-**A:** 根据需求选择：
-
-| 场景 | 推荐模式 |
-|------|----------|
-| 快速刷题 | API 模式 |
-| 验证答案准确性 | 浏览器模式 |
-| 网络不稳定 | API 模式（有重试） |
-| 避免检测 | 浏览器模式 |
-
-### Q6: 可以在没有网络的環境使用吗？
-
-**A:** 部分功能可以：
+**A**: 部分功能可以：
 
 - ✅ **题库导入**: 可以预先导入 JSON 题库
 - ✅ **离线答题**: 使用导入的题库答题
 - ❌ **答案提取**: 需要网络连接
 - ❌ **首次登录**: 需要网络连接
 
-### Q7: 如何参与开发？
+### Q7: 浏览器崩溃了怎么办？
 
-**A:** 欢迎贡献！
+**A**: v2.2.0+ 版本支持自动恢复：
+
+1. 系统会自动检测崩溃
+2. 提示重新登录
+3. 自动重启浏览器
+4. 继续未完成的操作
+
+**如果频繁崩溃**：
+
+- 检查系统内存是否充足
+- 关闭其他占用内存的程序
+- 尝试使用 API 模式答题
+
+### Q8: 如何参与开发？
+
+**A**: 欢迎贡献！
 
 1. 阅读 [开发指南](#开发指南)
 2. 查看 [CLAUDE.md](CLAUDE.md) 了解架构细节
@@ -1054,28 +1745,51 @@ python main.py --cli    # CLI 模式
 
 ## 版本历史
 
-### v2.7.8 (最新) - 构建系统优化
+### v2.8.2 (最新) - 稳定性修复和项目优化
 
-**修改内容**:
-- ✅ 移除自动创建压缩包功能
-- ✅ 添加版本号到 exe 文件名和目录名
-- ✅ 目录模式格式：`ZX-Answering-Assistant-v2.7.8-windows-x64-installer`
-- ✅ 单文件模式格式：`ZX-Answering-Assistant-v2.7.8-windows-x64-portable`
+**稳定性修复**:
 
-### v2.7.0 - 构建系统优化
+- ✅ 修复 Playwright 浏览器路径检测问题
+- ✅ 优化打包后的浏览器初始化逻辑
+- ✅ 改进错误提示信息，提升用户体验
+- ✅ 修复潜在的兼容性问题
+
+**项目结构调整**:
+
+- ✅ 移除未使用的自动化测试套件
+- ✅ 清理冗余的测试依赖和配置
+- ✅ 优化项目文档结构
+- ✅ 更新开发指南，移除测试相关内容
+
+**其他改进**:
+
+- ✅ 代码质量优化和注释完善
+- ✅ 依赖版本兼容性检查
+
+### v2.8.0 - UI 优化和配置更新
 
 **新增功能**:
-- ✅ 构建配置文件化（YAML）
-- ✅ 自动化测试套件（pytest）
-- ✅ 增量构建
-- ✅ 依赖缓存
-- ✅ 并行构建
-- ✅ 进度可视化
+
+- ✅ CLI 界面美化，添加 emoji 图标
+- ✅ CLI 模式禁用日志输出
+- ✅ GUI 视图缓存初始化修复
+- ✅ 移除代码冗余（379 行重复代码）
+
+### v2.7.0 - 构建系统简化
+
+**新增功能**:
+
+- ✅ 移除复杂的构建工具模块
+- ✅ 简化 build.py，保留核心功能
+- ✅ 清理 .gitignore 和项目结构
 
 **性能提升**:
+
 - 构建时间从 ~12 分钟缩短到 ~4 分钟（~65% 提升）
 
 ### v2.6.6 - 源码自动清理
+
+**修改内容**:
 
 - ✅ 打包后自动删除 .py 源码
 - ✅ 保留 .pyc 字节码
@@ -1083,16 +1797,37 @@ python main.py --cli    # CLI 模式
 
 ### v2.6.0 - 架构升级（重大更新）
 
+**新增功能**:
+
 - ✅ 统一浏览器管理器（BrowserManager）
-- ✅ 多上下文隔离
+- ✅ 多上下文隔离（学生端、教师端、课程认证）
 - ✅ 课程认证模块
 - ✅ API 模式课程认证答题
+- ✅ 线程安全工作队列
+
+**架构改进**:
+
+- 替换旧的 subprocess 模式
+- 单浏览器实例 + 多上下文
+- 降低资源占用
 
 ### v2.2.0 - 浏览器健壮性
 
+**新增功能**:
+
 - ✅ 浏览器崩溃自动恢复
 - ✅ 浏览器健康监控
-- ✅ AsyncIO 兼容
+- ✅ AsyncIO 兼容（Flet GUI 友好）
+
+### v1.0.0 - 初始版本
+
+**核心功能**:
+
+- ✅ 学生端自动答题（浏览器模式 + API 模式）
+- ✅ 教师端答案提取
+- ✅ 智能速率控制
+- ✅ 自动重试机制
+- ✅ GUI 和 CLI 双界面
 
 ---
 
@@ -1121,6 +1856,9 @@ python main.py --cli    # CLI 模式
 
 Made with ❤️ by ZX Project Team
 
-[问题反馈](https://github.com/yourusername/ZX-Answering-Assistant-python/issues) • [功能建议](https://github.com/yourusername/ZX-Answering-Assistant-python/discussions)
+**问题反馈与功能建议**:
+- 📝 提交 [GitHub Issues](https://github.com/yourusername/ZX-Answering-Assistant-python/issues) 报告问题
+- 💬 参与 [GitHub Discussions](https://github.com/yourusername/ZX-Answering-Assistant-python/discussions) 讨论功能建议
+- 📧 发送邮件至：[blog@mali.tianjiaji.top](mailto:blog@mali.tianjiaji.top)
 
 </div>
