@@ -36,6 +36,7 @@ from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
 from src.ui.views.course_certification_view import CourseCertificationView
 from src.ui.views.cloud_exam_view import CloudExamView
+from src.ui.views.evaluation_view import EvaluationView
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
@@ -66,6 +67,7 @@ class MainApp:
         self.settings_view = SettingsView(page)
         self.course_certification_view = CourseCertificationView(page)
         self.cloud_exam_view = CloudExamView(page)
+        self.evaluation_view = EvaluationView(page)
 
         # 缓存每个视图的内容（保持状态）
         self.cached_contents = {
@@ -73,8 +75,9 @@ class MainApp:
             1: None,  # 答案提取
             2: None,  # 课程认证
             3: None,  # 云考试
-            4: None,  # 设置
-            5: None,  # 关于
+            4: None,  # 评估出题
+            5: None,  # 设置
+            6: None,  # 关于
         }
 
         # 初始化UI
@@ -101,8 +104,9 @@ class MainApp:
         self.cached_contents[1] = self.extraction_view.get_content()  # 答案提取
         self.cached_contents[2] = self.course_certification_view.get_content()  # 课程认证
         self.cached_contents[3] = self.cloud_exam_view.get_content()  # 云考试
-        self.cached_contents[4] = self.settings_view.get_content()  # 设置
-        self.cached_contents[5] = self._get_about_content()  # 关于
+        self.cached_contents[4] = self.evaluation_view.get_content()  # 评估出题
+        self.cached_contents[5] = self.settings_view.get_content()  # 设置
+        self.cached_contents[6] = self._get_about_content()  # 关于
         print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
@@ -161,6 +165,11 @@ class MainApp:
                     icon=ft.Icons.CLOUD_QUEUE,
                     selected_icon=ft.Icons.CLOUD,
                     label="云考试",
+                ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.QUIZ,
+                    selected_icon=ft.Icons.QUIZ_OUTLINED,
+                    label="评估出题",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.SETTINGS,
@@ -232,8 +241,10 @@ class MainApp:
             elif self.current_destination == 3:
                 cached_content = self.cloud_exam_view.get_content()
             elif self.current_destination == 4:
-                cached_content = self.settings_view.get_content()
+                cached_content = self.evaluation_view.get_content()
             elif self.current_destination == 5:
+                cached_content = self.settings_view.get_content()
+            elif self.current_destination == 6:
                 cached_content = self._get_about_content()
             else:
                 return
