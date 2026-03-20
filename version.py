@@ -26,21 +26,35 @@ VERSION_NAME = "ZX Answering Assistant"
 
 def _get_version_from_config() -> str:
     """从配置文件读取版本号
-    
+
     Returns:
         版本号字符串，如 '2.7.2'
     """
     try:
         import yaml
-        config_path = Path(__file__).parent / "build_config.yaml"
-        if config_path.exists():
-            with open(config_path, encoding='utf-8') as f:
-                config = yaml.safe_load(f)
-                version = config.get('app', {}).get('version', {})
-                major = version.get('major', 0)
-                minor = version.get('minor', 0)
-                micro = version.get('micro', 0)
-                return f"{major}.{minor}.{micro}"
+        # 在打包环境中，配置文件可能在 _internal 目录
+        if getattr(sys, 'frozen', False):
+            # 打包环境：尝试多个可能的路径
+            possible_paths = [
+                Path(sys._MEIPASS) / "build_config.yaml",
+                Path(__file__).parent / "build_config.yaml",
+                Path(sys.executable).parent / "build_config.yaml",
+            ]
+        else:
+            # 开发环境
+            possible_paths = [
+                Path(__file__).parent / "build_config.yaml",
+            ]
+
+        for config_path in possible_paths:
+            if config_path.exists():
+                with open(config_path, encoding='utf-8') as f:
+                    config = yaml.safe_load(f)
+                    version = config.get('app', {}).get('version', {})
+                    major = version.get('major', 0)
+                    minor = version.get('minor', 0)
+                    micro = version.get('micro', 0)
+                    return f"{major}.{minor}.{micro}"
     except Exception:
         pass
     return None

@@ -89,3 +89,4 @@ file_version_info.txt
 
 # 构建配置（可选，如果不想提交自定义配置）
 # build_config.yaml
+.venv/*
