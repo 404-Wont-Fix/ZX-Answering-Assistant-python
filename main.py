@@ -167,50 +167,71 @@ def setup_playwright_browser(silent=False):
 
                 # 检查浏览器是否已下载（支持 chrome-win 和 chrome-win64）
                 import glob
+                import time
+
+                log("[INFO] 检查浏览器...")
                 chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
                 if not chromium_paths:
+                    # 浏览器未安装，显示提示
+                    log("[INFO] 浏览器未安装，准备自动下载...")
+                    print()  # 空行
+                    time.sleep(1)  # 让用户看到提示
                     # 浏览器未安装，尝试使用 Playwright API 自动安装
                     print("\n" + "=" * 70)
                     print("⚠️  Playwright 浏览器未安装")
                     print("=" * 70)
                     print("📦 正在自动下载 Chromium 浏览器（约 170MB）")
                     print("   这可能需要几分钟，请耐心等待...")
-                    print("=" * 70 + "\n")
+                    print("=" * 70)
+                    print()
+                    print("💡 提示：首次运行需要下载浏览器，请保持网络连接畅通")
+                    print("   下载完成后，下次启动将无需等待")
+                    print()
+                    print("📊 下载进度：")
+                    print("-" * 70)
+                    print(flush=True)
 
                     install_success = False
 
-                    # 方法：使用 Playwright 的 API 下载浏览器
+                    # 方法：使用 subprocess 调用 playwright 命令行工具安装浏览器
                     try:
-                        from playwright.sync_api import sync_playwright
+                        # 使用 subprocess 调用 playwright install 命令
+                        # 不捕获输出，让用户看到实时进度
+                        import subprocess
+                        result = subprocess.run(
+                            [sys.executable, "-m", "playwright", "install", "chromium"],
+                            timeout=600  # 10分钟超时
+                        )
 
-                        print("🔄 正在连接到 Playwright 服务器...")
-                        with sync_playwright() as p:
-                            print("📥 开始下载 Chromium...")
-                            # 下载 Chromium 浏览器
-                            p.chromium.install()
-
-                            # 验证安装
-                            try:
-                                browser = p.chromium.launch(headless=True)
-                                browser.close()
+                        # 检查安装结果
+                        if result.returncode == 0:
+                            print("-" * 70)
+                            print()
+                            # 验证浏览器是否安装成功
+                            chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
+                            if chromium_paths:
                                 print("\n" + "=" * 70)
                                 print("✅ 浏览器安装成功！")
                                 print(f"   位置: {user_data_dir}")
                                 print("=" * 70)
+                                print()
+                                print("🎉 所有组件准备完毕！")
+                                print("⏳ 正在启动程序...")
+                                print()
+                                time.sleep(2)  # 让用户看到成功消息
                                 install_success = True
-                            except Exception as e:
-                                # 即使安装了，launch 也可能失败，这是正常的
-                                # 重新检查浏览器是否存在
-                                chromium_paths = glob.glob(str(user_data_dir / "chromium-*" / "chrome-win*" / "chrome.exe"))
-                                if chromium_paths:
-                                    print("\n" + "=" * 70)
-                                    print("✅ 浏览器安装成功！")
-                                    print(f"   位置: {user_data_dir}")
-                                    print("=" * 70)
-                                    install_success = True
-                                else:
-                                    raise Exception("浏览器安装验证失败")
+                            else:
+                                raise Exception("浏览器安装验证失败（文件未找到）")
+                        else:
+                            raise Exception(f"安装命令执行失败（返回码: {result.returncode}）")
+
+                    except subprocess.TimeoutExpired:
+                        print()
+                        print("-" * 70)
+                        raise Exception("下载超时（超过10分钟），请检查网络连接")
                     except Exception as e:
+                        print()
+                        print("-" * 70)
                         print("\n" + "=" * 70)
                         print(f"❌ 自动安装失败: {e}")
                         print("=" * 70)
@@ -234,9 +255,11 @@ def setup_playwright_browser(silent=False):
                     if not install_success:
                         # 暂停一下让用户看到错误信息
                         import time
-                        time.sleep(2)
+                        time.sleep(3)
                 else:
-                    log(f"[OK] 使用缓存的浏览器: {user_data_dir}")
+                    print(f"[OK] 使用缓存的浏览器: {user_data_dir}")
+                    print("⏳ 正在启动程序...")
+                    print(flush=True)
         else:
             # 开发环境，使用系统浏览器
             log("[OK] 使用系统浏览器")
@@ -1521,12 +1544,29 @@ def main():
 def run_gui_mode():
     """启动GUI模式"""
     try:
+        # 显示初始化信息
+        print()
+        print("=" * 70)
+        print("🚀 ZX 智能答题助手 - 启动中")
+        print("=" * 70)
+        print()
+        print("📋 正在初始化组件...")
+        print("   ✓ 检查浏览器环境...")
+        import time
+        time.sleep(0.3)
+
         # 在GUI模式下显示浏览器和Flet信息
-        print("[OK] 使用系统浏览器")
-        print("[OK] 使用系统Flet")
+        print("   ✓ 浏览器环境检查完成")
+        print("   ✓ Flet 框架就绪")
+        print()
+        print("⏳ 正在加载图形界面...")
+        print(flush=True)
 
         from src.main_gui import run_app
-        print("🚀 正在启动图形界面...")
+        print()
+        print("🎯 图形界面已启动！")
+        print("=" * 70)
+        print()
         run_app()
     except ImportError as e:
         print(f"❌ 导入GUI模块失败: {e}")
@@ -1537,6 +1577,7 @@ def run_gui_mode():
         sys.exit(1)
     finally:
         # 确保 GUI 退出时清理所有 Playwright 浏览器
+        print()
         print("🔄 正在清理浏览器资源...")
         try:
             from src.auth.student import cleanup_browser
@@ -1579,7 +1620,21 @@ def parse_arguments():
     return parser.parse_args()
 
 
+def show_startup_banner():
+    """显示启动横幅"""
+    print()
+    print("╔" + "═" * 68 + "╗")
+    print("║" + " " * 68 + "║")
+    print("║" + "          🚀 ZX 智能答题助手 - 正在启动...          ".center(68) + "║")
+    print("║" + " " * 68 + "║")
+    print("╚" + "═" * 68 + "╝")
+    print(flush=True)
+
+
 if __name__ == "__main__":
+    # 显示启动横幅
+    show_startup_banner()
+
     # 解析命令行参数
     args = parse_arguments()
 

@@ -122,19 +122,19 @@ class SpecGenerator:
         if version_file.exists():
             data_files.append((str(version_file), "."))
 
+        # Add build_config.yaml (for version detection in packaged app)
+        config_file = project_root / "build_config.yaml"
+        if config_file.exists():
+            data_files.append((str(config_file), "."))
+
         # Add compiled sources if enabled
         # Note: We don't add compiled files here because PyInstaller needs .py files for analysis
         # The compiled .pyc files will be used at runtime if properly structured
         # For now, skip adding compiled sources to avoid complexity
         pass
 
-        # Add Playwright browser if enabled
-        playwright_config = self.config.get('playwright', {})
-        if playwright_config.get('enabled', False):
-            browser_dest = playwright_config.get('dest_path', 'playwright_browsers')
-            browser_source = project_root / "dist" / browser_dest
-            if browser_source.exists():
-                data_files.append((str(browser_source), browser_dest))
+        # Playwright browser will be bundled in post-build step to avoid permission issues
+        # Don't add it here
 
         return data_files
 
