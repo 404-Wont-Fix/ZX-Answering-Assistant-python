@@ -80,7 +80,7 @@ compilation:
 # Playwright Browser Bundling
 playwright:
   # Bundle Playwright browser with executable
-  enabled: true
+  enabled: false
 
   # Browser types to bundle
   browsers:
