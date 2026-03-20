@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v2.8.2-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v2.8.5-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
@@ -332,7 +332,7 @@ graph TB
 | **pyyaml**      | ≥6.0    | 配置文件解析 |
 | **py7zr**       | ≥0.21.0 | 压缩文件处理 |
 
-**注意**: v2.8.2+ 已移除测试套件，准备后续重构。
+**注意**: v2.8.5+ 已移除测试套件，准备后续重构。
 
 ### API 端点
 
@@ -448,8 +448,9 @@ ZX-Answering-Assistant-python/
 │   │       ├── answering_view.py         # 答题视图
 │   │       ├── extraction_view.py        # 提取视图
 │   │       ├── course_certification_view.py  # 课程认证视图
-│   │       ├── settings_view.py           # 设置视图
-│   │       └── cloud_exam_view.py         # 云考试视图（占位）
+│   │       ├── cloud_exam_view.py        # 云考试视图（占位）
+│   │       ├── evaluation_view.py        # 评估出题视图（占位）
+│   │       └── settings_view.py          # 设置视图
 │   │
 │   ├── utils/                        # 工具模块
 │   │   ├── __init__.py
@@ -660,8 +661,9 @@ graph LR
 - **answering_view.py**: 学生端答题界面
 - **extraction_view.py**: 教师端提取界面
 - **course_certification_view.py**: 课程认证界面
-- **settings_view.py**: 设置管理界面
 - **cloud_exam_view.py**: 云考试界面（占位符）
+- **evaluation_view.py**: 评估出题界面（占位符）
+- **settings_view.py**: 设置管理界面
 
 ---
 
@@ -1176,9 +1178,12 @@ python main.py
 ┌──────────────────────────────────┐
 │  首页                               │  - 欢迎页面
 │  评估答题                           │  - 学生端答题
-│  课程认证                           │  - 课程认证答题
 │  答案提取                           │  - 教师端答案提取
+│  课程认证                           │  - 课程认证答题
+│  云考试                             │  - 云考试答题（占位）
+│  评估出题                           │  - 评估出题管理（占位）
 │  设置                               │  - 配置管理
+│  关于                               │  - 关于页面
 └──────────────────────────────────┘
 ```
 
@@ -1491,8 +1496,8 @@ python build.py --build-dir D:\BuildOutput
 
 ```
 dist/
-└── ZX-Answering-Assistant-v2.8.2-windows-x64-installer/
-    ├── ZX-Answering-Assistant-v2.8.2-windows-x64-installer.exe
+└── ZX-Answering-Assistant-v2.8.5-windows-x64-installer/
+    ├── ZX-Answering-Assistant-v2.8.5-windows-x64-installer.exe
     └── [依赖文件...]
 ```
 
@@ -1500,7 +1505,7 @@ dist/
 
 ```
 dist/
-└── ZX-Answering-Assistant-v2.8.2-windows-x64-portable.exe
+└── ZX-Answering-Assistant-v2.8.5-windows-x64-portable.exe
 ```
 
 ### 贡献流程
@@ -1575,7 +1580,7 @@ dist/
 
 ### 2. 评估出题模块 (Assessment Generation)
 
-**当前状态**: 未实现
+**当前状态**: 占位符实现（v2.8.5）
 
 **计划功能**:
 
@@ -1746,7 +1751,28 @@ python main.py --cli    # CLI 模式
 
 ## 版本历史
 
-### v2.8.2 (最新) - 稳定性修复和项目结构优化
+### v2.8.5 (最新) - 稳定性修复和功能优化
+
+**新增功能**:
+
+- ✅ 添加答题进度显示功能
+- ✅ 优化日志处理机制
+- ✅ 添加评估出题视图模块（占位实现）
+
+**稳定性修复**:
+
+- ✅ 修复 Playwright 浏览器在打包环境中的路径检测问题
+- ✅ 优化 main.py 中的浏览器初始化流程
+- ✅ 改进浏览器自动安装逻辑，增强用户引导
+
+**项目结构调整**:
+
+- ✅ 删除 tests/ 目录和测试相关文件（准备后续重构）
+- ✅ 删除 requirements-dev.txt，合并到 requirements.txt
+- ✅ 优化 CLI 界面，添加 emoji 和彩色输出
+- ✅ 禁用 CLI 模式日志输出
+
+### v2.8.2 - 稳定性修复和项目结构优化
 
 **稳定性修复**:
 
