@@ -77,20 +77,10 @@ compilation:
   # 2: Remove docstrings and assert statements
   optimize: 2
 
-# Playwright Browser Bundling
+# Playwright Browser Bundling (DEPRECATED - browser downloads on first run)
 playwright:
-  # Bundle Playwright browser with executable
-  enabled: true
-
-  # Browser types to bundle
-  browsers:
-    - chromium
-
-  # Browser source path (auto-detect if null)
-  source_path: null
-
-  # Destination path in the bundled executable
-  dest_path: "playwright_browsers"
+  # Bundle Playwright browser with executable (deprecated, auto-download on first run)
+  enabled: false
 
 # Flet Framework Bundling
 flet:
@@ -114,7 +104,7 @@ app:
   version:
     major: 2
     minor: 8
-    micro: 5
+    micro: 8
     build: 0
   # Copyright
   copyright: "Copyright (C) 2024-2026"
@@ -153,8 +143,6 @@ hooks:
 
   # Post-build hooks (run after PyInstaller)
   post_build:
-    - name: "copy_browser"
-      enabled: true
     - name: "cleanup"
       enabled: true
 

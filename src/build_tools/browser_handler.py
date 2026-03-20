@@ -67,6 +67,15 @@ class BrowserBundler:
             # Check for chromium installation
             chromium_paths = list(browser_path.glob("chromium-*"))
             if chromium_paths:
+                # Sort by version number (descending) to get the latest version
+                def extract_version(path):
+                    """Extract version number from chromium-XXXX directory name"""
+                    try:
+                        return int(path.name.split('-')[-1])
+                    except (ValueError, IndexError):
+                        return 0
+
+                chromium_paths.sort(key=extract_version, reverse=True)
                 browser_dir = chromium_paths[0]
                 print_success(f"Found browser at: {browser_dir}")
                 return browser_dir
@@ -119,14 +128,45 @@ class BrowserBundler:
             ensure_directory(browser_install_path)
 
             # 复制整个浏览器目录到正确的结构
-            # 源路径: chromium-1208/chrome-win/
-            # 目标路径: playwright_browsers/chromium-1208/chrome-win/
+            # 源路径: chromium-1208/chrome-win64/
+            # 目标路径: playwright_browsers/chromium-1208/chrome-win64/
             for item in browser_path.iterdir():
                 dest_item = browser_install_path / item.name
                 if item.is_dir():
+                    # 删除目标目录（如果存在）
                     if dest_item.exists():
-                        shutil.rmtree(dest_item)
-                    shutil.copytree(item, dest_item)
+                        try:
+                            # 在 Windows 上使用 robocopy 避免权限问题
+                            if sys.platform == 'win32':
+                                subprocess.run(
+                                    ['robocopy', str(item), str(dest_item), '/MIR', '/R:2', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS'],
+                                    check=False,
+                                    capture_output=True
+                                )
+                            else:
+                                shutil.rmtree(dest_item)
+                                shutil.copytree(item, dest_item)
+                        except Exception as e:
+                            # 如果 robocopy 失败，使用普通复制
+                            if dest_item.exists():
+                                shutil.rmtree(dest_item)
+                            shutil.copytree(item, dest_item)
+                    else:
+                        # 首次复制，根据平台选择方法
+                        if sys.platform == 'win32':
+                            # Windows: 使用 robocopy
+                            result = subprocess.run(
+                                ['robocopy', str(item), str(dest_item), '/E', '/R:2', '/W:1', '/NFL', '/NDL', '/NJH', '/NJS'],
+                                check=False,
+                                capture_output=True
+                            )
+                            # robocopy 返回 0-7 都表示成功
+                            if result.returncode > 7:
+                                # robocopy 失败，使用普通复制
+                                shutil.copytree(item, dest_item)
+                        else:
+                            # Linux/Mac: 使用标准复制
+                            shutil.copytree(item, dest_item)
                     print_info(f"  Copied: {item.name}/")
                 else:
                     shutil.copy2(item, dest_item)
