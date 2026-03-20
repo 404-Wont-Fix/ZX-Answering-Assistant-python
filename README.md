@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v2.8.5-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v2.8.8-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
@@ -1496,8 +1496,8 @@ python build.py --build-dir D:\BuildOutput
 
 ```
 dist/
-└── ZX-Answering-Assistant-v2.8.5-windows-x64-installer/
-    ├── ZX-Answering-Assistant-v2.8.5-windows-x64-installer.exe
+└── ZX-Answering-Assistant-v2.8.8-windows-x64-installer/
+    ├── ZX-Answering-Assistant-v2.8.8-windows-x64-installer.exe
     └── [依赖文件...]
 ```
 
@@ -1505,7 +1505,7 @@ dist/
 
 ```
 dist/
-└── ZX-Answering-Assistant-v2.8.5-windows-x64-portable.exe
+└── ZX-Answering-Assistant-v2.8.8-windows-x64-portable.exe
 ```
 
 ### 贡献流程
@@ -1751,7 +1751,26 @@ python main.py --cli    # CLI 模式
 
 ## 版本历史
 
-### v2.8.5 (最新) - 稳定性修复和功能优化
+### v2.8.8 (最新) - 构建系统优化
+
+**构建系统优化**:
+
+- ✅ 改进浏览器处理逻辑，移至构建后步骤以避免权限问题
+- ✅ 优化 Chromium 版本检测机制，确保使用最新版本
+- ✅ 添加详细的构建指南文档（BUILD_ADMIN.md）
+- ✅ 优化浏览器下载流程和用户提示
+
+**配置清理**:
+
+- ✅ 移除过时的浏览器配置选项
+- ✅ 简化 build_config.yaml 配置结构
+
+**其他改动**:
+
+- ✅ 改进版本号检测机制
+- ✅ 更新 .gitignore 规则
+
+### v2.8.5 - 稳定性修复和功能优化
 
 **新增功能**:
 
