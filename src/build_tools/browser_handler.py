@@ -67,6 +67,15 @@ class BrowserBundler:
             # Check for chromium installation
             chromium_paths = list(browser_path.glob("chromium-*"))
             if chromium_paths:
+                # Sort by version number (descending) to get the latest version
+                def extract_version(path):
+                    """Extract version number from chromium-XXXX directory name"""
+                    try:
+                        return int(path.name.split('-')[-1])
+                    except (ValueError, IndexError):
+                        return 0
+
+                chromium_paths.sort(key=extract_version, reverse=True)
                 browser_dir = chromium_paths[0]
                 print_success(f"Found browser at: {browser_dir}")
                 return browser_dir
