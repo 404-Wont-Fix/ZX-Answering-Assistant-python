@@ -51,10 +51,13 @@ class AnsweringView:
 
         # 答题相关状态
         self.is_answering = False  # 是否正在答题
-        self.answer_dialog = None  # 答题日志对话框
-        self.log_text = None  # 日志文本控件
+        self.answer_dialog = None  # 答题进度对话框
+        self.progress_percent_text = None  # 进度百分比文本控件
+        self.progress_info_text = None  # 进度信息文本控件（显示：10/16）
+        self.progress_bar = None  # 进度条控件
         self.auto_answer_instance = None  # 自动答题实例
         self.should_stop_answering = False  # 停止答题标志
+        self.answer_progress = {"current": 0, "total": 0}  # 答题进度信息
 
         # 设置管理器
         self.settings_manager = get_settings_manager()
@@ -592,7 +595,7 @@ class AnsweringView:
                 ),
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
-                # 课程统计信息
+                # 课程统计信息（带刷新按钮）
                 ft.Card(
                     content=ft.Container(
                         content=ft.Row(
@@ -602,6 +605,13 @@ class AnsweringView:
                                     f"共 {len(self.course_list)} 门课程",
                                     size=18,
                                     weight=ft.FontWeight.BOLD,
+                                ),
+                                ft.Container(expand=True),  # Spacer
+                                ft.IconButton(
+                                    icon=ft.Icons.REFRESH,
+                                    icon_color=ft.Colors.BLUE,
+                                    tooltip="刷新课程列表",
+                                    on_click=lambda e: self._on_refresh_courses(e),
                                 ),
                             ],
                             spacing=10,
@@ -1411,22 +1421,36 @@ class AnsweringView:
 
     def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
         """
-        创建答题日志对话框
+        创建答题进度对话框（简洁版）
 
         Args:
             title: 对话框标题
 
         Returns:
-            ft.AlertDialog: 日志对话框
+            ft.AlertDialog: 进度对话框
         """
-        # 创建日志文本控件
-        self.log_text = ft.Text(
-            "",
-            size=12,
-            color=ft.Colors.BLACK,
-            selectable=True,
-            no_wrap=False,  # 允许换行
-            max_lines=None,  # 不限制行数
+        # 进度百分比文本
+        self.progress_percent_text = ft.Text(
+            "0%",
+            size=32,
+            weight=ft.FontWeight.BOLD,
+            color=ft.Colors.BLUE,
+        )
+
+        # 进度信息文本（显示：10/16）
+        self.progress_info_text = ft.Text(
+            "准备开始...",
+            size=16,
+            color=ft.Colors.GREY_700,
+        )
+
+        # 进度条
+        self.progress_bar = ft.ProgressBar(
+            width=400,
+            value=0.0,
+            color=ft.Colors.BLUE,
+            bgcolor=ft.Colors.BLUE_GREY_100,
+            bar_height=10,
         )
 
         # 创建对话框
@@ -1434,39 +1458,34 @@ class AnsweringView:
             modal=True,
             title=ft.Row(
                 [
-                    ft.Icon(ft.Icons.PLAY_ARROW, color=ft.Colors.BLUE),
-                    ft.Text(title, color=ft.Colors.BLUE, weight=ft.FontWeight.BOLD),
+                    ft.Icon(ft.Icons.AUTO_GRAPH, color=ft.Colors.BLUE, size=28),
+                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
                 ],
                 spacing=10,
             ),
             content=ft.Container(
                 content=ft.Column(
                     [
+                        # 进度百分比
                         ft.Container(
-                            content=ft.Column(
-                                [self.log_text],
-                                scroll=ft.ScrollMode.ALWAYS,  # 改为 ALWAYS
-                                auto_scroll=False,  # 关闭 auto_scroll
-                            ),
-                            width=600,
-                            height=400,
-                            bgcolor=ft.Colors.GREY_100,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
-                            border_radius=8,
-                            padding=10,
+                            content=self.progress_percent_text,
+                            alignment=ft.Alignment(0, 0),
                         ),
                         ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                        ft.Text(
-                            "⏳ 正在答题中...点击下方按钮可随时停止",
-                            size=12,
-                            color=ft.Colors.ORANGE_700,
-                            weight=ft.FontWeight.BOLD,
-                        ),
+
+                        # 进度条
+                        self.progress_bar,
+                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+
+                        # 进度信息（如：10/16）
+                        self.progress_info_text,
                     ],
                     spacing=0,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
                 ),
-                width=650,
-                padding=20,
+                width=400,
+                padding=ft.padding.symmetric(horizontal=20, vertical=25),
             ),
             actions=[
                 ft.ElevatedButton(
@@ -1476,7 +1495,7 @@ class AnsweringView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.padding.symmetric(horizontal=30, vertical=12),
                     ),
                     on_click=self._on_stop_answering,
                 ),
@@ -1486,32 +1505,68 @@ class AnsweringView:
 
         return dialog
 
-    def _append_log(self, message: str):
+    def _update_progress(self, message: str, current: int = None, total: int = None):
         """
-        追加日志到日志文本控件
+        更新答题进度（使用 page.run_task 确保UI实时更新）
 
         Args:
-            message: 日志消息
+            message: 进度消息
+            current: 当前进度（可选）
+            total: 总数（可选）
         """
-        if self.log_text:
-            current_text = self.log_text.value if self.log_text.value else ""
-            new_text = current_text + message + "\n"
-            # 限制日志长度，只保留最后 2000 个字符
-            if len(new_text) > 2000:
-                new_text = "...(日志已截断)\n" + new_text[-2000:]
-            self.log_text.value = new_text
-            # 在后台线程中更新UI需要使用 update 方法
-            # Flet 会自动处理线程安全的UI更新
+        print(f"[进度更新] {message} - 当前: {current}, 总数: {total}")
+
+        # 检查控件是否已初始化
+        if not all([self.progress_info_text, self.progress_bar, self.progress_percent_text]):
+            print(f"⚠️ 进度控件未初始化")
+            return
+
+        # 检查page是否可用
+        if not self.page:
+            print(f"⚠️ page 对象不可用")
+            return
+
+        # 在主线程中更新UI（使用 run_task 确保实时更新）
+        async def update_ui():
             try:
-                self.log_text.update()
+                # 构建进度信息文本
+                if current is not None and total is not None and total > 0:
+                    progress_info = f"{current}/{total}"
+                else:
+                    progress_info = "正在处理..."
+
+                # 更新进度信息文本
+                self.progress_info_text.value = progress_info
+
+                # 更新进度条和百分比
+                if current is not None and total is not None and total > 0:
+                    # 确定进度：显示具体百分比
+                    progress_value = min(current / total, 1.0)
+                    self.progress_bar.value = progress_value
+                    self.progress_percent_text.value = f"{int(progress_value * 100)}%"
+                    self.answer_progress = {"current": current, "total": total}
+                    print(f"[进度UI] 进度条更新为 {progress_value:.2%} ({current}/{total})")
+                else:
+                    # 不确定进度：显示动画
+                    self.progress_bar.value = None
+                    self.progress_percent_text.value = "⏳"
+                    print(f"[进度UI] 不确定进度模式")
+
+                # 刷新UI
+                self.page.update()
+                print(f"[进度UI] UI刷新成功")
+
             except Exception as e:
-                # 如果更新失败（比如线程问题），忽略错误
-                print(f"⚠️ UI更新失败: {e}")
+                print(f"❌ UI更新异常: {e}")
+                import traceback
+                traceback.print_exc()
+
+        # 使用 run_task 调度UI更新（关键！）
+        self.page.run_task(update_ui)
 
     def _on_stop_answering(self, e):
         """处理停止答题按钮点击事件"""
         print("🛑 用户请求停止答题")
-        self._append_log("🛑 正在停止答题...\n")
         self.should_stop_answering = True
 
         # 如果有自动答题实例，调用其停止方法
@@ -1524,7 +1579,6 @@ class AnsweringView:
             self.answer_dialog = None
 
         self.is_answering = False
-        self._append_log("✅ 答题已停止\n")
 
     def _start_answering(self, mode: str, course_id: str):
         """
@@ -1566,7 +1620,7 @@ class AnsweringView:
         self.answer_dialog = self._create_answer_log_dialog(f"自动答题 - {mode_name}")
         self.page.show_dialog(self.answer_dialog)
 
-        # 在后台线程中运行答题任务
+        # 使用 Flet 的 run_thread 来确保 UI 更新的线程安全
         self.page.run_thread(lambda: self._run_answering_task(mode, course_id))
 
     def _run_answering_task(self, mode: str, course_id: str):
@@ -1577,39 +1631,56 @@ class AnsweringView:
             mode: 答题模式
             course_id: 课程ID
         """
+        def _log(msg):
+            """内部日志函数，只打印到控制台"""
+            print(msg.strip())
+
         try:
             mode_name = "兼容模式" if mode == "compatibility" else "暴力模式"
-            self._append_log(f"🚀 开始{mode_name}答题\n")
-            self._append_log(f"📚 课程ID: {course_id}\n")
-            self._append_log("-" * 50 + "\n")
+            _log(f"🚀 开始{mode_name}答题")
+            _log(f"📚 课程ID: {course_id}")
 
             if mode == "compatibility":
                 # ========== 兼容模式：使用浏览器自动化 ==========
-                self._append_log("📌 模式：浏览器自动化（兼容模式）\n")
-                self._append_log("⏳ 正在获取浏览器实例...\n")
+                _log("📌 模式：浏览器自动化（兼容模式）")
+                self._update_progress("正在初始化浏览器...")
 
-                from src.auth.student import get_browser_page
+                from src.auth.student import get_browser_page, get_cached_access_token, get_uncompleted_chapters
                 from src.answering.browser_answer import AutoAnswer
 
                 # 获取浏览器实例
                 browser_page = get_browser_page()
                 if not browser_page:
-                    self._append_log("❌ 无法获取浏览器实例\n")
-                    self._append_log("💡 请确保已经登录学生端\n")
+                    _log("❌ 无法获取浏览器实例")
+                    self._update_progress("❌ 无法获取浏览器实例")
                     return
 
-                self._append_log("✅ 浏览器实例获取成功\n")
+                _log("✅ 浏览器实例获取成功")
+                self._update_progress("正在获取未完成知识点...")
+
+                # 获取未完成知识点列表
+                access_token = get_cached_access_token()
+                if not access_token:
+                    _log("❌ 无法获取 access_token")
+                    self._update_progress("❌ 无法获取 access_token")
+                    return
+
+                uncompleted_list = get_uncompleted_chapters(access_token, course_id, delay_ms=0, max_retries=1)
+                total_knowledges = len(uncompleted_list) if uncompleted_list else 0
+                _log(f"✅ 获取到 {total_knowledges} 个未完成知识点")
+
+                self._update_progress("正在加载题库...")
 
                 # 创建自动做题器（传入日志回调）
                 page = browser_page[1]  # 使用page对象
-                auto_answer = AutoAnswer(page, log_callback=self._append_log)
+                auto_answer = AutoAnswer(page, log_callback=_log)
                 self.auto_answer_instance = auto_answer
 
                 # 加载题库
-                self._append_log("📖 正在加载题库...\n")
+                _log("📖 正在加载题库...")
                 auto_answer.load_question_bank(self.question_bank_data)
-                self._append_log("✅ 题库加载成功\n")
-                self._append_log("-" * 50 + "\n")
+                _log("✅ 题库加载成功")
+                self._update_progress("准备开始答题...")
 
                 # 答题循环
                 knowledge_count = 0
@@ -1619,42 +1690,50 @@ class AnsweringView:
                 while True:
                     # 检查停止信号
                     if self.should_stop_answering:
-                        self._append_log("⚠️ 检测到停止信号，答题已终止\n")
+                        _log("⚠️ 检测到停止信号，答题已终止")
                         break
-
-                    self._append_log(f"\n📍 知识点 #{knowledge_count + 1}\n")
-                    self._append_log("-" * 50 + "\n")
 
                     # 第一个知识点：检索并开始做题
                     # 之后的知识点：网站自动跳转后继续做题
                     if knowledge_count == 0:
-                        self._append_log("🔍 检索第一个可作答的知识点...\n")
+                        _log("🔍 检索第一个可作答的知识点...")
                         result = auto_answer.run_auto_answer(max_questions=5)
                     else:
-                        self._append_log("⏳ 网站已自动跳转，继续做题...\n")
+                        _log("⏳ 网站已自动跳转，继续做题...")
                         import time
                         time.sleep(2)  # 等待跳转完成
                         result = auto_answer.continue_auto_answer(max_questions=5)
 
-                    # 统计
+                    # 统计（先增加计数）
                     knowledge_count += 1
                     total_success += result['success']
                     total_failed += result['failed']
 
                     # 显示本次统计
-                    self._append_log(f"\n📊 知识点完成统计:\n")
-                    self._append_log(f"  总题数: {result['total']}\n")
-                    self._append_log(f"  ✅ 成功: {result['success']}\n")
-                    self._append_log(f"  ❌ 失败: {result['failed']}\n")
-                    self._append_log(f"  ⏭️  跳过: {result['skipped']}\n")
+                    _log(f"📊 知识点完成统计: 总题数={result['total']}, 成功={result['success']}, 失败={result['failed']}, 跳过={result['skipped']}")
 
                     # 检查用户是否请求停止
                     if result.get('stopped', False) or self.should_stop_answering:
-                        self._append_log("\n⚠️ 用户请求停止做题\n")
+                        _log("⚠️ 用户请求停止做题")
                         break
 
+                    # 更新进度（在完成当前知识点后更新）
+                    if total_knowledges > 0:
+                        _log(f"📍 已完成 {knowledge_count}/{total_knowledges} 个知识点")
+                        self._update_progress(
+                            f"已完成 {knowledge_count}/{total_knowledges} 个知识点，成功 {total_success} 题",
+                            knowledge_count,
+                            total_knowledges
+                        )
+                    else:
+                        _log(f"📍 已完成 {knowledge_count} 个知识点")
+                        self._update_progress(
+                            f"已完成 {knowledge_count} 个知识点，成功 {total_success} 题",
+                            knowledge_count,
+                            None
+                        )
+
                     # 检查是否还有更多知识点
-                    # 通过检查当前页面是否有"开始测评"按钮来判断
                     import time
                     time.sleep(1)
 
@@ -1662,59 +1741,87 @@ class AnsweringView:
                         has_next = auto_answer.has_next_knowledge()
                         if has_next:
                             # 找到了，可以继续
-                            self._append_log(f"\n✅ 检测到下一个知识点，继续...\n")
+                            _log("✅ 检测到下一个知识点，继续...")
                             continue
                         else:
                             # 没找到，说明所有知识点都完成了
-                            self._append_log("\n✅ 所有知识点已完成！\n")
+                            _log("✅ 所有知识点已完成！")
                             break
                     except Exception as e:
-                        self._append_log(f"\n❌ 检查失败: {str(e)}\n")
-                        self._append_log("💡 可能所有知识点都已完成\n")
+                        _log(f"❌ 检查失败: {str(e)}")
+                        _log("💡 可能所有知识点都已完成")
                         break
 
                 # 最终统计
-                self._append_log("\n" + "=" * 50 + "\n")
-                self._append_log("📊 最终统计\n")
-                self._append_log("=" * 50 + "\n")
-                self._append_log(f"📍 完成知识点: {knowledge_count} 个\n")
-                self._append_log(f"✅ 成功作答: {total_success} 题\n")
-                self._append_log(f"❌ 失败: {total_failed} 题\n")
-                self._append_log("=" * 50 + "\n")
+                _log("📊 最终统计")
+                _log(f"📍 完成知识点: {knowledge_count} 个")
+                _log(f"✅ 成功作答: {total_success} 题")
+                _log(f"❌ 失败: {total_failed} 题")
+
+                if total_knowledges > 0:
+                    self._update_progress(
+                        f"✅ 完成！已处理 {knowledge_count}/{total_knowledges} 个知识点",
+                        knowledge_count,
+                        total_knowledges
+                    )
+                else:
+                    self._update_progress(
+                        f"✅ 完成！已处理 {knowledge_count} 个知识点",
+                        knowledge_count,
+                        knowledge_count
+                    )
 
             elif mode == "brute":
                 # ========== 暴力模式：使用API直接请求 ==========
-                self._append_log("📌 模式：API直接请求（暴力模式）\n")
-                self._append_log("⏳ 正在获取access_token...\n")
+                _log("📌 模式：API直接请求（暴力模式）")
+                self._update_progress("正在获取 access_token...")
 
-                from src.auth.student import get_cached_access_token
+                from src.auth.student import get_cached_access_token, get_uncompleted_chapters
                 from src.answering.api_answer import APIAutoAnswer
 
                 # 获取access_token（使用缓存管理）
                 access_token = get_cached_access_token()
 
                 if not access_token:
-                    self._append_log("⚠️ 自动获取access_token失败\n")
-                    self._append_log("💡 请先登录学生端获取token\n")
+                    _log("⚠️ 自动获取access_token失败")
+                    self._update_progress("❌ 无法获取 access_token")
                     return
 
-                self._append_log("✅ access_token获取成功\n")
-                self._append_log(f"🔑 Token: {access_token[:20]}...\n")
+                _log("✅ access_token获取成功")
+                self._update_progress("正在获取未完成知识点...")
 
-                # 创建API自动做题器（传入日志回调）
-                api_answer = APIAutoAnswer(access_token, log_callback=self._append_log)
+                # 获取未完成知识点数量
+                try:
+                    uncompleted_list = get_uncompleted_chapters(access_token, course_id, delay_ms=0, max_retries=1)
+                    total_knowledges = len(uncompleted_list) if uncompleted_list else 0
+                    _log(f"✅ 获取到 {total_knowledges} 个未完成知识点")
+                except Exception as e:
+                    _log(f"⚠️ 获取知识点列表失败: {e}")
+                    total_knowledges = 0
+
+                self._update_progress("正在加载题库...")
+
+                # 创建进度回调函数
+                def _progress_update(current: int, total: int, message: str = ""):
+                    """进度回调函数"""
+                    msg = message or f"已完成 {current}/{total} 个知识点"
+                    self._update_progress(msg, current, total)
+
+                # 创建API自动做题器（传入日志回调和进度回调）
+                api_answer = APIAutoAnswer(
+                    access_token,
+                    log_callback=_log,
+                    progress_callback=_progress_update
+                )
                 self.auto_answer_instance = api_answer
 
                 # 加载题库
-                self._append_log("📖 正在加载题库...\n")
+                _log("📖 正在加载题库...")
                 api_answer.load_question_bank(self.question_bank_data)
-                self._append_log("✅ 题库加载成功\n")
-                self._append_log("-" * 50 + "\n")
+                _log("✅ 题库加载成功")
 
-                # 执行自动做题
-                self._append_log("🚀 开始自动完成所有知识点\n")
-                self._append_log("💡 提示：按 Ctrl+C 可随时中断\n")
-                self._append_log("-" * 50 + "\n")
+                # 执行自动做题（进度条会在 auto_answer_all_knowledges 内部自动更新）
+                _log("🚀 开始自动完成所有知识点")
 
                 result = api_answer.auto_answer_all_knowledges(
                     course_id,
@@ -1722,21 +1829,27 @@ class AnsweringView:
                 )
 
                 # 显示结果
-                self._append_log("\n" + "=" * 50 + "\n")
-                self._append_log("📊 最终统计\n")
-                self._append_log("=" * 50 + "\n")
-                self._append_log(f"📍 知识点: {result['completed_knowledges']}/{result['total_knowledges']}\n")
-                self._append_log(f"📝 题目总计: {result['total_questions']} 题\n")
-                self._append_log(f"✅ 成功: {result['success']} 题\n")
-                self._append_log(f"❌ 失败: {result['failed']} 题\n")
-                self._append_log(f"⏭️  跳过: {result['skipped']} 题\n")
-                self._append_log("=" * 50 + "\n")
+                _log("📊 最终统计")
+                _log(f"📍 知识点: {result['completed_knowledges']}/{result['total_knowledges']}")
+                _log(f"📝 题目总计: {result['total_questions']} 题")
+                _log(f"✅ 成功: {result['success']} 题")
+                _log(f"❌ 失败: {result['failed']} 题")
+                _log(f"⏭️  跳过: {result['skipped']} 题")
 
-                if result['completed_knowledges'] >= result['total_knowledges']:
-                    self._append_log("\n🎉 恭喜！所有知识点已完成！\n")
+                # 显示最终完成状态
+                completed = result['completed_knowledges']
+                total = result['total_knowledges']
+                self._update_progress(
+                    f"✅ 完成！已处理 {completed}/{total} 个知识点，成功 {result['success']} 题",
+                    completed,
+                    total
+                )
+
+                if completed >= total:
+                    _log("🎉 恭喜！所有知识点已完成！")
 
             # 完成
-            self._append_log("\n🎉 答题任务完成！\n")
+            _log("🎉 答题任务完成！")
 
             # 延迟后自动关闭对话框
             import time
@@ -1746,11 +1859,11 @@ class AnsweringView:
                 self.answer_dialog = None
 
         except KeyboardInterrupt:
-            self._append_log("\n⚠️ 用户中断答题\n")
+            _log("⚠️ 用户中断答题")
         except Exception as e:
-            self._append_log(f"\n❌ 答题过程出错: {str(e)}\n")
+            _log(f"❌ 答题过程出错: {str(e)}")
             import traceback
-            self._append_log(f"📋 详细错误:\n{traceback.format_exc()}\n")
+            _log(f"📋 详细错误:\n{traceback.format_exc()}")
         finally:
             self.is_answering = False
             self.should_stop_answering = False
@@ -1759,9 +1872,131 @@ class AnsweringView:
     def _on_back_from_course_detail(self, e):
         """处理从课程详情返回的按钮点击事件"""
         print("DEBUG: 返回课程列表")
-        # 切换回课程列表界面
+
+        # 立即切换回课程列表界面（快速返回，不刷新数据）
         courses_content = self._get_courses_content()
         self.current_content.content = courses_content
+        self.page.update()
+
+        # 可选：在后台静默刷新课程数据（不阻塞UI，不显示进度）
+        # 如果需要看到刷新进度，可以点击"刷新课程列表"按钮
+        print("💡 提示：如需刷新最新数据，请点击刷新按钮")
+
+    def _on_refresh_courses(self, e):
+        """手动刷新课程列表（用户主动触发）"""
+        print("🔄 用户请求刷新课程列表")
+
+        # 显示刷新提示
+        self.page.snack_bar = ft.SnackBar(
+            ft.Text("正在刷新课程数据...", color=ft.Colors.WHITE),
+            bgcolor=ft.Colors.BLUE,
+            duration=3000,
+        )
+        self.page.snack_bar.open = True
+        self.page.update()
+
+        # 在后台线程中刷新
+        def refresh_in_background():
+            """后台刷新课程数据"""
+            try:
+                from src.auth.student import get_cached_access_token, get_student_courses
+                access_token = get_cached_access_token()
+
+                if not access_token:
+                    def show_error():
+                        self.page.snack_bar = ft.SnackBar(
+                            ft.Text("⚠️ 无法获取 access_token", color=ft.Colors.WHITE),
+                            bgcolor=ft.Colors.RED,
+                            duration=3000,
+                        )
+                        self.page.snack_bar.open = True
+                        self.page.update()
+
+                    async def async_error():
+                        show_error()
+                    self.page.run_task(async_error)
+                    return
+
+                # 获取最新的课程列表
+                courses = get_student_courses(access_token)
+
+                if not courses or len(courses) == 0:
+                    def show_no_courses():
+                        self.page.snack_bar = ft.SnackBar(
+                            ft.Text("⚠️ 未获取到课程列表", color=ft.Colors.WHITE),
+                            bgcolor=ft.Colors.ORANGE,
+                            duration=3000,
+                        )
+                        self.page.snack_bar.open = True
+                        self.page.update()
+
+                    async def async_no_courses():
+                        show_no_courses()
+                    self.page.run_task(async_no_courses)
+                    return
+
+                self.course_list = courses
+                print(f"✅ 成功刷新 {len(courses)} 门课程")
+
+                # 为每门课程获取未完成的知识点
+                for idx, course in enumerate(courses, 1):
+                    course_id = course.get('courseID')
+                    if course_id:
+                        try:
+                            print(f"[{idx}/{len(courses)}] 正在获取 {course.get('courseName')} 的未完成知识点...")
+                            uncompleted = get_uncompleted_chapters(
+                                access_token,
+                                course_id,
+                                delay_ms=0,
+                                max_retries=1
+                            )
+                            course['uncompleted_knowledges'] = uncompleted if uncompleted else []
+                            print(f"  ✅ {course.get('courseName')}: {len(uncompleted) if uncompleted else 0} 个未完成知识点")
+                        except Exception as ex:
+                            print(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {ex}")
+                            course['uncompleted_knowledges'] = []
+
+                # 更新UI
+                def update_ui_success():
+                    new_courses_content = self._get_courses_content()
+                    self.current_content.content = new_courses_content
+                    self.page.update()
+
+                    self.page.snack_bar = ft.SnackBar(
+                        ft.Text(f"✅ 已刷新 {len(courses)} 门课程数据", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.GREEN,
+                        duration=2000,
+                    )
+                    self.page.snack_bar.open = True
+                    self.page.update()
+
+                async def async_update():
+                    update_ui_success()
+
+                self.page.run_task(async_update)
+
+            except Exception as ex:
+                print(f"❌ 刷新课程列表失败: {ex}")
+                import traceback
+                traceback.print_exc()
+
+                def show_error():
+                    self.page.snack_bar = ft.SnackBar(
+                        ft.Text(f"❌ 刷新失败: {str(ex)}", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.RED,
+                        duration=3000,
+                    )
+                    self.page.snack_bar.open = True
+                    self.page.update()
+
+                async def async_error():
+                    show_error()
+
+                self.page.run_task(async_error)
+
+        # 使用后台线程执行刷新
+        import threading
+        threading.Thread(target=refresh_in_background, daemon=True).start()
 
     def _on_relogin_from_navigation(self, e):
         """处理从导航失败后重新登录的按钮点击事件"""

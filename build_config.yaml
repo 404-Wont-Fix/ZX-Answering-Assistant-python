@@ -114,7 +114,7 @@ app:
   version:
     major: 2
     minor: 8
-    micro: 2
+    micro: 5
     build: 0
   # Copyright
   copyright: "Copyright (C) 2024-2026"
