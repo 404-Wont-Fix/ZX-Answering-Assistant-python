@@ -26,13 +26,14 @@ class APIAutoAnswer:
     # API基础URL
     BASE_URL = "https://ai.cqzuxia.com/evaluation/api"
 
-    def __init__(self, access_token: str, log_callback=None):
+    def __init__(self, access_token: str, log_callback=None, progress_callback=None):
         """
         初始化API自动做题器
 
         Args:
             access_token: 学生端access_token
             log_callback: 日志回调函数（可选），用于将日志输出到GUI
+            progress_callback: 进度回调函数（可选），用于更新进度条，签名为 (current, total, message)
         """
         self.access_token = access_token
         self.question_bank = None  # 题库数据
@@ -48,6 +49,8 @@ class APIAutoAnswer:
 
         # 日志回调
         self._log_callback = log_callback
+        # 进度回调
+        self._progress_callback = progress_callback
 
         # 设置日志处理器
         self._setup_log_handler()
@@ -787,6 +790,10 @@ class APIAutoAnswer:
                 'skipped': int  # 跳过题数
             }
         """
+        def _update_progress(current: int, total: int, message: str = ""):
+            """内部函数：更新进度"""
+            if self._progress_callback:
+                self._progress_callback(current, total, message)
         total_result = {
             'total_knowledges': 0,
             'completed_knowledges': 0,
@@ -897,6 +904,9 @@ class APIAutoAnswer:
             if max_knowledges:
                 logger.info(f"⏳ 目标: 成功完成 {target_count} 个知识点（跳过的知识点不计入）")
 
+            # 初始化进度条
+            _update_progress(0, target_count, "准备开始答题...")
+
             # 逐个处理知识点
             completed_count = 0  # 实际成功完成的数量
             processed_index = 0  # 已处理的索引
@@ -912,9 +922,16 @@ class APIAutoAnswer:
                 chapter = knowledge_info['chapter']
                 knowledge = knowledge_info['knowledge']
 
-                print(f"\n📍 进度: 尝试 {completed_count + 1}/{target_count} (已跳过 {total_result['skipped_knowledges']} 个)")
-                print(f"📖 章节: {chapter}")
-                print(f"📝 知识点: {knowledge}")
+                logger.info(f"\n📍 进度: 尝试 {completed_count + 1}/{target_count} (已跳过 {total_result['skipped_knowledges']} 个)")
+                logger.info(f"📖 章节: {chapter}")
+                logger.info(f"📝 知识点: {knowledge}")
+
+                # 更新进度条
+                _update_progress(
+                    completed_count,
+                    target_count,
+                    f"正在处理: {chapter} - {knowledge}"
+                )
 
                 # 处理该知识点
                 result = self.answer_knowledge(kpid)

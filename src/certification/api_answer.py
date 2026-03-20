@@ -5,20 +5,25 @@
 """
 
 import html
+import logging
 import re
 from typing import Dict, List, Optional
 from src.core.api_client import get_api_client
+
+# 创建模块 logger
+logger = logging.getLogger(__name__)
 
 
 class APICourseAnswer:
     """API模式做题器"""
 
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, log_callback=None):
         """
         初始化 API 做题器
 
         Args:
             access_token: 访问令牌
+            log_callback: 日志回调函数（可选），用于将日志输出到GUI
         """
         self.access_token = access_token
         self.api_client = get_api_client()
@@ -44,6 +49,40 @@ class APICourseAnswer:
             'sec-gpc': '1',
             'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0'
         }
+
+        # 日志回调函数
+        self._log_callback = log_callback
+
+        # 设置日志处理器
+        self._setup_log_handler()
+
+    def _setup_log_handler(self):
+        """设置日志处理器，将日志输出到GUI"""
+        if self._log_callback:
+            # 创建自定义日志处理器
+            class CallbackHandler(logging.Handler):
+                def __init__(self, callback):
+                    super().__init__()
+                    self.callback = callback
+
+                def emit(self, record):
+                    try:
+                        msg = self.format(record)
+                        # 移除时间戳等前缀，只保留消息内容
+                        msg = msg.split(' - ')[-1] if ' - ' in msg else msg
+                        self.callback(msg)
+                    except Exception:
+                        self.handleError(record)
+
+            self._log_handler = CallbackHandler(self._log_callback)
+            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logger.addHandler(self._log_handler)
+
+    def _cleanup_log_handler(self):
+        """清理日志处理器"""
+        if hasattr(self, '_log_handler') and self._log_handler:
+            logger.removeHandler(self._log_handler)
+            self._log_handler.close()
 
     def _normalize_text(self, text: str) -> str:
         """
@@ -105,23 +144,23 @@ class APICourseAnswer:
         url = f"{self.base_url}/GetTeacherCourseEvaluateCompleteTree?ECourseId={ecourse_id}"
 
         try:
-            print(f"📡 [API请求] 获取课程树...", flush=True)
+            logger.info("📡 [API请求] 获取课程树...")
             response = self.api_client.get(url, headers=self.headers)
 
             if response.status_code == 200:
                 data = response.json()
                 if data.get('code') == 0:
-                    print(f"✅ [API响应] 成功 - 章节数: {len(data.get('data', {}).get('chapterList', []))}", flush=True)
+                    logger.info(f"✅ [API响应] 成功 - 章节数: {len(data.get('data', {}).get('chapterList', []))}")
                     return data.get('data')
                 else:
-                    print(f"❌ 获取课程树失败: {data.get('msg', '未知错误')}", flush=True)
+                    logger.error(f"❌ 获取课程树失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                print(f"❌ 请求失败，状态码: {response.status_code}", flush=True)
+                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:
-            print(f"❌ 获取课程树异常: {str(e)}", flush=True)
+            logger.error(f"❌ 获取课程树异常: {str(e)}")
             return None
 
     def get_question_list(self, kp_id: str) -> Optional[List[Dict]]:
@@ -153,24 +192,24 @@ class APICourseAnswer:
         url = f"{self.base_url}/GetQuesionListByKPId?kpId={kp_id}"
 
         try:
-            print(f"📡 [API请求] 获取题目列表 (kpId: {kp_id[:8]}...)", flush=True)
+            logger.info(f"📡 [API请求] 获取题目列表 (kpId: {kp_id[:8]}...)")
             response = self.api_client.get(url, headers=self.headers)
 
             if response.status_code == 200:
                 data = response.json()
                 if data.get('code') == 0:
                     question_list = data.get('data', [])
-                    print(f"✅ [API响应] 成功 - 题目数: {len(question_list)}", flush=True)
+                    logger.info(f"✅ [API响应] 成功 - 题目数: {len(question_list)}")
                     return question_list
                 else:
-                    print(f"❌ 获取题目列表失败: {data.get('msg', '未知错误')}", flush=True)
+                    logger.error(f"❌ 获取题目列表失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                print(f"❌ 请求失败，状态码: {response.status_code}", flush=True)
+                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:
-            print(f"❌ 获取题目列表异常: {str(e)}", flush=True)
+            logger.error(f"❌ 获取题目列表异常: {str(e)}")
             return None
 
     def submit_answers(self, submit_data: List[Dict]) -> Optional[Dict]:
@@ -204,7 +243,7 @@ class APICourseAnswer:
         url = f"{self.base_url}/SaveTeacherCourseEvaluateInfo"
 
         try:
-            print(f"📡 [API请求] 提交答案 ({len(submit_data)} 题)...", flush=True)
+            logger.info(f"📡 [API请求] 提交答案 ({len(submit_data)} 题)...")
             response = self.api_client.post(
                 url,
                 headers=self.headers,
@@ -218,18 +257,18 @@ class APICourseAnswer:
                     question_count = result_data.get('questionCount', 0)
                     failed_count = result_data.get('faildCount', 0)
 
-                    print(f"✅ [API响应] 成功 - 总题数: {question_count}, 失败: {failed_count}", flush=True)
+                    logger.info(f"✅ [API响应] 成功 - 总题数: {question_count}, 失败: {failed_count}")
 
                     return result_data
                 else:
-                    print(f"❌ 提交答案失败: {data.get('msg', '未知错误')}", flush=True)
+                    logger.error(f"❌ 提交答案失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                print(f"❌ 请求失败，状态码: {response.status_code}", flush=True)
+                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:
-            print(f"❌ 提交答案异常: {str(e)}", flush=True)
+            logger.error(f"❌ 提交答案异常: {str(e)}")
             return None
 
     def match_answer_from_bank(self, api_question: Dict, question_bank: Dict, knowledge: Optional[Dict] = None, verbose: bool = False) -> Optional[List[str]]:
@@ -253,7 +292,7 @@ class APICourseAnswer:
         """
         if not question_bank:
             if verbose:
-                print("⚠️ 题库未加载")
+                logger.warning("⚠️ 题库未加载")
             return None
 
         try:
@@ -264,8 +303,8 @@ class APICourseAnswer:
             title_normalized = self._normalize_text(question_title)
 
             if verbose:
-                print(f"🔍 匹配题目: {title_normalized[:60]}...")
-                print(f"   题目ID: {question_id}")
+                logger.info(f"🔍 匹配题目: {title_normalized[:60]}...")
+                logger.info(f"   题目ID: {question_id}")
 
             # 获取题库章节列表
             chapters = []
@@ -290,13 +329,13 @@ class APICourseAnswer:
                     for bank_question in kn.get("questions", []):
                         if bank_question.get("QuestionID") == question_id:
                             if verbose:
-                                print(f"✅ ID匹配成功（知识点: {kn_name}）")
+                                logger.info(f"✅ ID匹配成功（知识点: {kn_name}）")
 
                             # 获取正确答案的选项
                             bank_options = bank_question.get("options", [])
 
                             if verbose:
-                                print(f"   📚 题库选项数: {len(bank_options)}")
+                                logger.info(f"   📚 题库选项数: {len(bank_options)}")
 
                             # 直接使用题库中的选项ID（与API的answerID一致）
                             correct_ids = []
@@ -306,22 +345,22 @@ class APICourseAnswer:
                                     if option_id:
                                         correct_ids.append(option_id)
                                         if verbose:
-                                            print(f"   ✅ 正确答案: ID={option_id[:8]}...")
+                                            logger.info(f"   ✅ 正确答案: ID={option_id[:8]}...")
 
                             if correct_ids:
                                 if verbose:
-                                    print(f"   ⚡ 直接使用题库选项ID: {len(correct_ids)} 个")
+                                    logger.info(f"   ⚡ 直接使用题库选项ID: {len(correct_ids)} 个")
                                 return correct_ids
                             else:
                                 if verbose:
-                                    print(f"   ❌ 未找到正确答案")
+                                    logger.warning(f"   ❌ 未找到正确答案")
                                 return None
 
                 if verbose:
                     if knowledge:
-                        print(f"⚠️ 在当前知识点未找到匹配的题目ID")
+                        logger.warning(f"⚠️ 在当前知识点未找到匹配的题目ID")
                     else:
-                        print("⚠️ 未找到匹配的题目ID，尝试标题匹配")
+                        logger.warning("⚠️ 未找到匹配的题目ID，尝试标题匹配")
 
             # 方式2：通过标题匹配（备用）
             candidates = []
@@ -364,7 +403,7 @@ class APICourseAnswer:
 
                 if best_match['score'] >= 80:
                     if verbose:
-                        print(f"✅ 标题匹配成功（评分: {best_match['score']}%，知识点: {best_match['knowledge']}）")
+                        logger.info(f"✅ 标题匹配成功（评分: {best_match['score']}%，知识点: {best_match['knowledge']}）")
 
                     # 直接使用题库中的选项ID
                     bank_options = best_match['question'].get("options", [])
@@ -376,20 +415,20 @@ class APICourseAnswer:
                             if option_id:
                                 correct_ids.append(option_id)
                                 if verbose:
-                                    print(f"   ✅ 正确答案: ID={option_id[:8]}...")
+                                    logger.info(f"   ✅ 正确答案: ID={option_id[:8]}...")
 
                     if correct_ids:
                         if verbose:
-                            print(f"   ⚡ 直接使用题库选项ID: {len(correct_ids)} 个")
+                            logger.info(f"   ⚡ 直接使用题库选项ID: {len(correct_ids)} 个")
                         return correct_ids
 
             if verbose:
-                print(f"❌ 未在题库中找到匹配的答案")
+                logger.warning(f"❌ 未在题库中找到匹配的答案")
             return None
 
         except Exception as e:
             if verbose:
-                print(f"❌ 匹配答案失败: {str(e)}")
+                logger.error(f"❌ 匹配答案失败: {str(e)}")
                 import traceback
                 traceback.print_exc()
             return None
@@ -463,22 +502,22 @@ class APICourseAnswer:
         }
 
         try:
-            print("\n" + "=" * 60, flush=True)
-            print("🚀 开始API模式自动做题", flush=True)
-            print("=" * 60, flush=True)
+            logger.info("\n" + "=" * 60)
+            logger.info("🚀 开始API模式自动做题")
+            logger.info("=" * 60)
 
             # 1. 获取课程树
             course_tree = self.get_course_tree(ecourse_id)
 
             if not course_tree:
-                print("❌ 获取课程树失败", flush=True)
+                logger.error("❌ 获取课程树失败")
                 return result
 
             course_name = course_tree.get('coursenName', '未知课程')
             chapter_list = course_tree.get('chapterList', [])
 
-            print(f"✅ 课程名称: {course_name}", flush=True)
-            print(f"   章节数: {len(chapter_list)}", flush=True)
+            logger.info(f"✅ 课程名称: {course_name}")
+            logger.info(f"   章节数: {len(chapter_list)}")
 
             # 2. 遍历每个章节和知识点
             for chapter_idx, chapter in enumerate(chapter_list):
@@ -492,17 +531,17 @@ class APICourseAnswer:
                     kp_name = knowledge.get('knowledge', f'知识点{kp_idx+1}')
                     is_pass = knowledge.get('isPass')
 
-                    print(f"\n正在做 {chapter_title} - {kp_name}", flush=True)
+                    logger.info(f"\n正在做 {chapter_title} - {kp_name}")
 
                     # 检查是否需要做这个知识点
                     if is_pass is True:
                         result['completed_knowledge'] += 1
                         if skip_completed:
-                            print(f"⏭️  已跳过（已完成）", flush=True)
+                            logger.info(f"⏭️  已跳过（已完成）")
                             result['skipped_knowledge'] += 1
                             continue
                         else:
-                            print(f"🔄 重新作答", flush=True)
+                            logger.info(f"🔄 重新作答")
 
                     result['processed_knowledge'] += 1
 
@@ -510,18 +549,18 @@ class APICourseAnswer:
                     question_list = self.get_question_list(kp_id)
 
                     if not question_list:
-                        print(f"⚠️  该知识点没有题目", flush=True)
+                        logger.warning(f"⚠️  该知识点没有题目")
                         continue
 
-                    print(f"已获取题目列表 ({len(question_list)} 题)", flush=True)
+                    logger.info(f"已获取题目列表 ({len(question_list)} 题)")
                     result['total_questions'] += len(question_list)
 
                     # 在题库中查找对应的知识点（用于限定搜索范围）
                     bank_knowledge = self._find_knowledge_in_bank(kp_id, kp_name, question_bank)
                     if bank_knowledge:
-                        print(f"已在题库中找到该知识点", flush=True)
+                        logger.info(f"已在题库中找到该知识点")
                     else:
-                        print(f"⚠️  未在题库中找到对应的知识点，将全局搜索", flush=True)
+                        logger.warning(f"⚠️  未在题库中找到对应的知识点，将全局搜索")
 
                     # 4. 匹配答案并构建提交数据
                     submit_data = []
@@ -562,49 +601,49 @@ class APICourseAnswer:
                     # 打印匹配结果
                     matched = len(submit_data)
                     failed = len(failed_questions)
-                    print(f"已匹配完成 (成功: {matched}, 失败: {failed})", flush=True)
+                    logger.info(f"已匹配完成 (成功: {matched}, 失败: {failed})")
 
                     # 如果有失败，打印详细日志
                     if failed_questions:
-                        print("\n❌ 以下题目未匹配到答案：", flush=True)
+                        logger.warning("\n❌ 以下题目未匹配到答案：")
                         for fq in failed_questions:
-                            print(f"   题{fq['index']}: {fq['title']}...", flush=True)
-                            print(f"      ID: {fq['id']}", flush=True)
+                            logger.warning(f"   题{fq['index']}: {fq['title']}...")
+                            logger.warning(f"      ID: {fq['id']}")
 
                     # 5. 提交答案
                     if submit_data:
-                        print("正在构建API请求...", flush=True)
-                        print("发送请求...", flush=True)
+                        logger.info("正在构建API请求...")
+                        logger.info("发送请求...")
                         submit_result = self.submit_answers(submit_data)
 
                         if submit_result:
                             failed_count = submit_result.get('faildCount', 0)
 
                             if failed_count == 0:
-                                print(f"状态：✅ 知识点全部正确！", flush=True)
+                                logger.info(f"状态：✅ 知识点全部正确！")
                                 result['success_knowledge'] += 1
                             else:
-                                print(f"状态：⚠️  有 {failed_count} 题错误", flush=True)
+                                logger.warning(f"状态：⚠️  有 {failed_count} 题错误")
                                 result['failed_knowledge'] += 1
                         else:
-                            print(f"状态：❌ 提交失败", flush=True)
+                            logger.error(f"状态：❌ 提交失败")
                             result['failed_knowledge'] += 1
                     else:
-                        print(f"状态：⚠️  没有可提交的答案（{len(failed_questions)} 题未匹配）", flush=True)
+                        logger.warning(f"状态：⚠️  没有可提交的答案（{len(failed_questions)} 题未匹配）")
                         result['failed_knowledge'] += 1
 
             # 6. 输出统计结果
-            print("\n" + "=" * 60, flush=True)
-            print("📊 做题统计", flush=True)
-            print("=" * 60, flush=True)
-            print(f"知识点: 成功 {result['success_knowledge']} | 失败 {result['failed_knowledge']} | 跳过 {result['skipped_knowledge']}", flush=True)
-            print(f"题目: 总数 {result['total_questions']} | 匹配 {result['matched_questions']} | 未匹配 {result['unmatched_questions']}", flush=True)
-            print("=" * 60, flush=True)
+            logger.info("\n" + "=" * 60)
+            logger.info("📊 做题统计")
+            logger.info("=" * 60)
+            logger.info(f"知识点: 成功 {result['success_knowledge']} | 失败 {result['failed_knowledge']} | 跳过 {result['skipped_knowledge']}")
+            logger.info(f"题目: 总数 {result['total_questions']} | 匹配 {result['matched_questions']} | 未匹配 {result['unmatched_questions']}")
+            logger.info("=" * 60)
 
             return result
 
         except Exception as e:
-            print(f"❌ 自动做题失败: {str(e)}")
+            logger.error(f"❌ 自动做题失败: {str(e)}")
             import traceback
             traceback.print_exc()
             return result
