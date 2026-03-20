@@ -472,9 +472,10 @@ class BuildSystem:
             print_error("Source compilation failed")
             return False
 
-        # Bundle browser
-        if not self.bundle_browser():
-            print_warning("Browser bundling failed, browser will download on first run")
+        # Skip browser bundling during build (will be done in post-build)
+        # This avoids permission issues during PyInstaller execution
+        if self.config.get('playwright', {}).get('enabled', False):
+            print_info("Browser bundling deferred to post-build step")
 
         # Prepare Flet
         if not self.prepare_flet():
@@ -507,6 +508,9 @@ class BuildSystem:
 
         # Post-build steps
         print_step("Running post-build steps...")
+
+        # Note: Playwright browser auto-downloads on first run of the executable
+
 
         # Calculate output size
         # Get version information
