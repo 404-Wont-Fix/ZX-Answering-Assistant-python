@@ -49,32 +49,42 @@ class WeBanView:
             message: 日志消息
             level: 日志级别
         """
-        if self.log_text:
-            # 在主线程中更新 UI
-            def update_log():
-                color_map = {
-                    "info": ft.Colors.BLUE,
-                    "success": ft.Colors.GREEN,
-                    "warning": ft.Colors.ORANGE,
-                    "error": ft.Colors.RED,
-                }
-                self.log_text.controls.append(
-                    ft.Text(message, color=color_map.get(level, ft.Colors.BLACK))
-                )
-                # 自动滚动到底部
-                if len(self.log_text.controls) > 100:
-                    self.log_text.controls.pop(0)
-                self.page.update()
+        # 如果 log_text 还未初始化，打印到控制台
+        if self.log_text is None:
+            print(f"[WeBan] {message}")
+            return
 
-            # 如果在后台线程，需要通过主线程更新
-            if threading.current_thread() is threading.main_thread():
-                update_log()
-            else:
-                # 使用线程安全的方式更新 UI
+        # 在主线程中更新 UI
+        def update_log():
+            color_map = {
+                "info": ft.Colors.BLUE,
+                "success": ft.Colors.GREEN,
+                "warning": ft.Colors.ORANGE,
+                "error": ft.Colors.RED,
+            }
+            self.log_text.controls.append(
+                ft.Text(message, color=color_map.get(level, ft.Colors.BLACK))
+            )
+            # 自动滚动到底部
+            if len(self.log_text.controls) > 100:
+                self.log_text.controls.pop(0)
+            try:
+                self.page.update()
+            except Exception:
+                pass
+
+        # 如果在后台线程，需要通过主线程更新
+        if threading.current_thread() is threading.main_thread():
+            update_log()
+        else:
+            # 线程安全更新：使用同步方式
+            try:
+                self.page.update_threadsafe(update_log)
+            except AttributeError:
+                # update_threadsafe 不可用，直接更新
                 try:
-                    self.page.update_threadsafe(update_log)
-                except:
-                    # 如果 update_threadsafe 不可用，直接更新（可能在新版本 Flet 中）
+                    update_log()
+                except Exception:
                     pass
 
     def _check_dependencies(self) -> bool:
@@ -288,6 +298,12 @@ class WeBanView:
             self._update_account_list()
             self._log(f"已删除账号: {account.get('tenant_name', 'Unknown')}", "info")
 
+    def _refresh_config(self, e=None):
+        """刷新配置"""
+        self._load_config()
+        self._update_account_list()
+        self._log("已刷新配置列表", "info")
+
     def _start_task(self, e=None):
         """开始任务"""
         if not self._check_dependencies():
@@ -464,7 +480,7 @@ class WeBanView:
                             ft.ElevatedButton(
                                 "刷新列表",
                                 icon=ft.Icons.REFRESH,
-                                on_click=lambda e: self._load_config() or self._update_account_list(),
+                                on_click=self._refresh_config,
                             ),
                         ],
                     ),
@@ -526,9 +542,14 @@ class WeBanView:
             expand=True,
         )
 
-        # 初始化时加载配置
-        if self.config_path.exists():
-            self._load_config()
-            self._update_account_list()
+        # 初始化时加载配置（不使用 _log，因为 log_text 可能未初始化）
+        try:
+            if self.config_path.exists():
+                with open(self.config_path, "r", encoding="utf-8") as f:
+                    self.accounts = json.load(f)
+                if isinstance(self.accounts, list):
+                    self._update_account_list()
+        except Exception as e:
+            print(f"加载配置失败: {e}")
 
         return content
