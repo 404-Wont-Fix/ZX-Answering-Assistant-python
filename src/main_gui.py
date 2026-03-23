@@ -121,6 +121,15 @@ class MainApp:
         atexit 处理器会负责清理
         """
         print("🔄 正在关闭窗口...")
+
+        # 清理 WeBan 终端进程
+        try:
+            if hasattr(self.weban_view, 'adapter') and self.weban_view.adapter.is_running:
+                print("⚠️ 检测到 WeBan 正在运行，正在关闭...")
+                self.weban_view.adapter.stop()
+        except Exception as e:
+            print(f"⚠️ 关闭 WeBan 失败: {e}")
+
         print("💡 浏览器资源将在程序退出时自动清理")
         # 不在这里关闭浏览器，避免 greenlet 线程切换错误
         # atexit 处理器会在 Python 退出时自动清理
