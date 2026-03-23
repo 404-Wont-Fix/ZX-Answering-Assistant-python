@@ -464,9 +464,21 @@ class WeBanAdapter:
                         while not answers_ids:
                             # 使用回调获取答案输入（支持 GUI）
                             if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
-                                answer = self._adapter.input_callback(
-                                    f"[{i}/{len(no_answer)}] {question['typeLabel']}\n{question['title']}\n\n请输入答案序号（多个选项用英文逗号分隔，如 1,2,3,4）："
-                                ).replace(" ", "").replace("，", ",")
+                                # 构建完整的题目信息（包括选项）以便用户复制
+                                prompt_lines = [
+                                    f"[{i}/{len(no_answer)}]题目不在题库中或选项不同，请手动选择答案",
+                                    f"题目类型：{question['typeLabel']}，题目标题：{question['title']}",
+                                ]
+                                # 添加选项列表
+                                for j, opt in enumerate(question["optionList"]):
+                                    prompt_lines.append(f"{j + 1}. {opt['content']}")
+                                # 添加输入提示
+                                prompt_lines.append("\n请输入答案序号（多个选项用英文逗号分隔，如 1,2,3,4）：")
+
+                                # 合并为完整的提示文本
+                                full_prompt = "\n".join(prompt_lines)
+
+                                answer = self._adapter.input_callback(full_prompt).replace(" ", "").replace("，", ",")
                             else:
                                 with self._stdin_lock:
                                     answer = input(f"[{self.api.user.get('realName', '未知')}] 请输入答案序号（多个选项用英文逗号分隔，如 1,2,3,4）：").replace(" ", "").replace("，", ",")

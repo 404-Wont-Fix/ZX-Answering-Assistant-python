@@ -8,6 +8,14 @@ import flet as ft
 import threading
 from typing import Optional, List
 
+# 尝试导入 pyperclip，如果不可用则禁用复制按钮
+try:
+    import pyperclip
+    PYPERCLIP_AVAILABLE = True
+except ImportError:
+    PYPERCLIP_AVAILABLE = False
+    pyperclip = None
+
 
 class WeBanInputDialog:
     """WeBan 输入对话框管理器"""
@@ -102,39 +110,127 @@ class WeBanInputDialog:
 
         else:
             # 无选项：使用 TextField
-            input_field = ft.TextField(
-                label=prompt,
-                value=default_value,
-                width=400,
-                autofocus=True,
-                on_submit=on_confirm,  # 回车确认
-            )
+            # 判断是否为手动答题（包含"题目"、"答案序号"等关键词）
+            is_manual_answer = any(keyword in prompt for keyword in ["题目", "答案序号", "题目标题", "题目类型"])
 
-            # 创建对话框
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Text(title, size=20, weight=ft.FontWeight.BOLD),
-                content=ft.Container(
-                    content=ft.Column(
-                        [
-                            input_field,
-                            ft.Text(
-                                "💡 提示：按 Enter 键确认",
-                                size=12,
-                                color=ft.Colors.GREY_600,
-                            ),
-                        ],
-                        tight=True,
-                    ),
+            if is_manual_answer:
+                # 手动答题：显示可复制的题目文本框 + 答案输入框
+                # 题目显示区域（只读，可复制）
+                question_text_field = ft.TextField(
+                    label="题目信息（可选择复制）",
+                    value=prompt,
+                    multiline=True,
+                    max_lines=15,
                     width=500,
-                    padding=20,
-                ),
-                actions=[
-                    ft.TextButton("取消", on_click=on_cancel),
-                    ft.ElevatedButton("确认", on_click=on_confirm),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
+                    read_only=True,  # 只读，但可以选择和复制
+                    text_style=ft.TextStyle(size=12),
+                )
+
+                # 答案输入框
+                input_field = ft.TextField(
+                    label="请输入答案序号",
+                    hint_text="多个选项用英文逗号分隔，如：1,2,3,4",
+                    value=default_value,
+                    width=500,
+                    autofocus=True,
+                    on_submit=on_confirm,  # 回车确认
+                )
+
+                # 创建对话框内容
+                dialog_content = [
+                    question_text_field,
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                ]
+
+                # 如果 pyperclip 可用，添加复制按钮
+                if PYPERCLIP_AVAILABLE:
+                    def copy_question(e):
+                        pyperclip.copy(prompt)
+                        self.page.snack_bar = ft.SnackBar(
+                            content=ft.Text("✓ 题目已复制到剪贴板"),
+                            duration=2000,
+                        )
+                        self.page.snack_bar.open = True
+                        self.page.update()
+
+                    copy_button = ft.ElevatedButton(
+                        "📋 复制题目",
+                        icon=ft.Icons.COPY,
+                        bgcolor=ft.Colors.BLUE_100,
+                        color=ft.Colors.BLUE_800,
+                        on_click=copy_question,
+                    )
+                    dialog_content.append(
+                        ft.Row(
+                            [copy_button],
+                            alignment=ft.MainAxisAlignment.END,
+                        )
+                    )
+                    dialog_content.append(ft.Divider(height=10, color=ft.Colors.TRANSPARENT))
+
+                # 继续添加答案输入框和提示
+                dialog_content.extend([
+                    input_field,
+                    ft.Text(
+                        f"💡 提示：上方文本框可选择{'或点击按钮一键' if PYPERCLIP_AVAILABLE else ''}复制，按 Enter 键确认",
+                        size=12,
+                        color=ft.Colors.GREY_600,
+                    ),
+                ])
+
+                # 创建对话框
+                dialog = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text(title, size=20, weight=ft.FontWeight.BOLD),
+                    content=ft.Container(
+                        content=ft.Column(
+                            dialog_content,
+                            tight=True,
+                        ),
+                        width=550,
+                        padding=20,
+                    ),
+                    actions=[
+                        ft.TextButton("取消", on_click=on_cancel),
+                        ft.ElevatedButton("确认", on_click=on_confirm),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
+            else:
+                # 普通输入：使用原来的方式
+                input_field = ft.TextField(
+                    label=prompt,
+                    value=default_value,
+                    width=400,
+                    autofocus=True,
+                    on_submit=on_confirm,  # 回车确认
+                )
+
+                # 创建对话框
+                dialog = ft.AlertDialog(
+                    modal=True,
+                    title=ft.Text(title, size=20, weight=ft.FontWeight.BOLD),
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                input_field,
+                                ft.Text(
+                                    "💡 提示：按 Enter 键确认",
+                                    size=12,
+                                    color=ft.Colors.GREY_600,
+                                ),
+                            ],
+                            tight=True,
+                        ),
+                        width=500,
+                        padding=20,
+                    ),
+                    actions=[
+                        ft.TextButton("取消", on_click=on_cancel),
+                        ft.ElevatedButton("确认", on_click=on_confirm),
+                    ],
+                    actions_alignment=ft.MainAxisAlignment.END,
+                )
 
         # 显示对话框 - 使用 run_task 在主线程中执行
         async def show_dialog_async():
