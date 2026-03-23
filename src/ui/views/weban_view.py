@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 from src.modules.weban_adapter import get_weban_adapter
+from src.ui.dialogs.input_dialog import WeBanInputDialog
 
 
 class WeBanView:
@@ -25,7 +26,11 @@ class WeBanView:
             page: Flet 页面对象
         """
         self.page = page
-        self.adapter = get_weban_adapter(progress_callback=self._log)
+        self.input_dialog = WeBanInputDialog(page)  # 创建输入对话框实例
+        self.adapter = get_weban_adapter(
+            progress_callback=self._log,
+            input_callback=self._handle_input  # 传入输入回调
+        )
 
         # UI 控件
         self.current_content = None
@@ -366,24 +371,27 @@ class WeBanView:
                         # 提示信息
                         ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                         ft.Text(
-                            "💡 提示：如果题库中没有答案，会弹出窗口让您手动作答！",
-                            size=12,
-                            color=ft.Colors.ORANGE,
+                            "💡 所有交互（验证码、手动答题）将通过弹窗完成",
+                            size=11,
+                            color=ft.Colors.BLUE,
                         ),
-                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-
-                        # 控制按钮
-                        ft.Row(
-                            [self.start_button, self.stop_button, back_button],
-                            alignment=ft.MainAxisAlignment.CENTER,
-                            spacing=20,
+                        ft.Text(
+                            "⚠️ OCR 验证码识别已启用，失败 3 次后需要手动输入",
+                            size=11,
+                            color=ft.Colors.ORANGE,
                         ),
                     ],
                     spacing=0,
                 ),
                 width=700,
             ),
-            actions=[],
+            # 将按钮放在 actions 中，而不是 content 中
+            actions=[
+                self.start_button,
+                self.stop_button,
+                back_button,
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
         )
 
         return dialog
@@ -402,7 +410,7 @@ class WeBanView:
         self.current_content.content = intro_content
         self.page.update()
 
-    def _on_validate_school(self, e):
+    async def _on_validate_school(self, e):
         """验证学校名称"""
         school = self.school_field.value.strip()
         if not school:
@@ -411,28 +419,20 @@ class WeBanView:
 
         self._show_snackbar("正在验证学校...", ft.Colors.BLUE)
 
-        def validate():
-            result = self.adapter.validate_tenant(school)
-            # 在主线程中更新UI
-            def show_result():
-                if result["success"]:
-                    self._show_snackbar(f"✓ {result['message']}", ft.Colors.GREEN)
-                else:
-                    self._show_snackbar(f"✗ {result['message']}", ft.Colors.RED)
+        # 在后台线程中运行验证（避免阻塞UI）
+        def do_validate():
+            return self.adapter.validate_tenant(school)
 
-            # 确保在主线程中更新
-            if threading.current_thread() is threading.main_thread():
-                show_result()
-            else:
-                try:
-                    if hasattr(self.page, 'update_threadsafe'):
-                        self.page.update_threadsafe(show_result)
-                    else:
-                        show_result()
-                except:
-                    show_result()
+        # 使用 asyncio 在线程池中执行验证
+        import asyncio
+        loop = asyncio.get_event_loop()
+        result = await loop.run_in_executor(None, do_validate)
 
-        threading.Thread(target=validate, daemon=True).start()
+        # 显示结果（现在已经在主事件循环中）
+        if result["success"]:
+            self._show_snackbar(f"✓ {result['message']}", ft.Colors.GREEN)
+        else:
+            self._show_snackbar(f"✗ {result['message']}", ft.Colors.RED)
 
     def _on_login_click(self, e):
         """处理登录按钮点击"""
@@ -464,9 +464,7 @@ class WeBanView:
             self.console_dialog = self._create_console_dialog()
             print("[DEBUG] 对话框创建完成")  # 调试信息
 
-            self.page.dialog = self.console_dialog
-            self.console_dialog.open = True
-            self.page.update()
+            self.page.show_dialog(self.console_dialog)
             print("[DEBUG] 对话框已打开")  # 调试信息
 
             # 记录登录信息
@@ -480,6 +478,8 @@ class WeBanView:
 
     def _on_start_task(self, e):
         """开始执行任务"""
+        print(f"[DEBUG] _on_start_task 被调用")  # 调试信息
+
         if not self.adapter.check_available():
             self._log("❌ WeBan 模块依赖未安装，请运行：pip install -r requirements.txt", "error")
             return
@@ -489,7 +489,10 @@ class WeBanView:
         self.stop_button.disabled = False
         self.status_text.value = "正在执行..."
         self.status_text.color = ft.Colors.BLUE
-        self.page.update()
+        # 更新对话框内的控件
+        self.start_button.update()
+        self.stop_button.update()
+        self.status_text.update()
 
         # 构建配置
         config = {
@@ -503,6 +506,9 @@ class WeBanView:
             "exam": True,
             "exam_use_time": 250,
         }
+
+        self._log("🚀 开始执行 WeBan 任务...", "info")
+        self._log("💡 所有交互（验证码、答题）将通过弹窗完成", "info")
 
         # 在后台线程中执行
         def run_task():
@@ -530,21 +536,85 @@ class WeBanView:
                 self.is_running = False
                 self.start_button.disabled = False
                 self.stop_button.disabled = True
-                self.page.update()
+                # 更新对话框内的控件
+                self.start_button.update()
+                self.stop_button.update()
+                self.status_text.update()
 
         self.task_thread = threading.Thread(target=run_task, daemon=True)
         self.task_thread.start()
 
     def _on_stop_task(self, e):
         """停止执行任务"""
+        print(f"[DEBUG] _on_stop_task 被调用")  # 调试信息
+
+        if not self.is_running:
+            self._log("⚠️ 任务未在运行", "warning")
+            return
+
+        self._log("⚠️ 正在发送停止信号...", "warning")
+
+        # 先尝试优雅停止
         self.adapter.stop()
-        self._log("⚠️ 正在停止执行...", "warning")
         self.status_text.value = "正在停止..."
         self.status_text.color = ft.Colors.ORANGE
-        self.page.update()
+        self.status_text.update()
+
+        # 等待一小段时间
+        import time
+        stopped = False
+        for i in range(6):  # 最多等待3秒
+            if not self.is_running:
+                stopped = True
+                break
+            time.sleep(0.5)
+
+        if stopped:
+            self._log("✅ 任务已停止", "success")
+            self.status_text.value = "已停止"
+            self.status_text.color = ft.Colors.GREY
+            self.start_button.disabled = False
+            self.stop_button.disabled = True
+            self.start_button.update()
+            self.stop_button.update()
+            return
+
+        # 如果优雅停止失败，强制停止
+        self._log("⚠️ 优雅停止失败，正在强行停止...", "warning")
+        self._log("💡 这可能会丢失部分进度", "info")
+
+        # 强制停止 adapter
+        if hasattr(self.adapter, 'force_stop'):
+            self.adapter.force_stop()
+
+        # 设置停止标志
+        self.adapter._stop_event.set()
+        self.adapter.is_running = False
+
+        # 等待线程结束
+        if self.task_thread and self.task_thread.is_alive():
+            self._log("⚠️ 正在等待后台线程结束...", "warning")
+            # 给线程 2 秒时间来优雅退出
+            self.task_thread.join(timeout=2)
+
+            # 如果线程还在运行，这就是 daemon 线程，会在主线程退出时自动清理
+            if self.task_thread.is_alive():
+                self._log("⚠️ 后台线程仍在运行，将在程序关闭时自动清理", "warning")
+            else:
+                self._log("✅ 后台线程已结束", "success")
+
+        self.is_running = False
+        self._log("✅ 已发送强行停止信号", "success")
+        self.status_text.value = "已强行停止"
+        self.status_text.color = ft.Colors.RED
+        self.start_button.disabled = False
+        self.stop_button.disabled = True
+        self.start_button.update()
+        self.stop_button.update()
 
     def _on_close_console(self, e):
         """关闭控制台"""
+        print(f"[DEBUG] _on_close_console 被调用")  # 调试信息
         if self.is_running:
             self._show_snackbar("任务正在执行中，请先停止任务", ft.Colors.ORANGE)
             return
@@ -605,23 +675,88 @@ class WeBanView:
 
     def _show_snackbar(self, message: str, color: ft.Colors):
         """显示提示信息"""
-        def show_snack():
-            self.page.snack_bar = ft.SnackBar(
-                ft.Text(message, color=ft.Colors.WHITE),
+        print(f"[SnackBar] 显示消息: {message}")
+
+        # 使用 Flet 0.82.2 官方推荐的方式：page.show_dialog()
+        self.page.show_dialog(
+            ft.SnackBar(
+                content=ft.Text(message, color=ft.Colors.WHITE),
                 bgcolor=color,
                 duration=3000,
             )
-            self.page.snack_bar.open = True
-            self.page.update()
+        )
 
-        # 确保在主线程中执行
-        if threading.current_thread() is threading.main_thread():
-            show_snack()
-        else:
-            try:
-                if hasattr(self.page, 'update_threadsafe'):
-                    self.page.update_threadsafe(show_snack)
+    def _handle_input(self, prompt: str) -> str:
+        """
+        处理用户输入请求（在后台线程中被调用）
+
+        Args:
+            prompt: 提示信息
+
+        Returns:
+            用户输入的字符串
+        """
+        print(f"[WeBan Input] 收到输入请求: {prompt}")
+
+        # 判断输入类型
+        if "验证码" in prompt or "captcha" in prompt.lower():
+            # 验证码输入：显示图片对话框
+            import re
+            match = re.search(r'请查看 (.+?) 输入验证码', prompt)
+            if match:
+                image_filename = match.group(1)
+                # 验证码图片应该已经在项目目录中
+                image_path = str(Path.cwd() / image_filename)
+
+                if Path(image_path).exists():
+                    # 使用回调在主线程中显示对话框
+                    result = self.input_dialog.show_image_prompt_dialog(
+                        title="请输入验证码",
+                        image_path=image_path,
+                        prompt="请输入验证码："
+                    )
+                    return result if result else ""
                 else:
-                    show_snack()
-            except Exception:
-                show_snack()
+                    self._log(f"⚠️ 验证码图片不存在: {image_path}", "warning")
+                    # 回退到 CLI 输入
+                    return input(prompt)
+
+        elif "重考" in prompt or "需要重考吗" in prompt:
+            # 重考选择：显示确认对话框
+            import re
+            match = re.search(r'(.+?) 最高成绩 (\d+)', prompt)
+            if match:
+                info_text = match.group(0)
+                result = self.input_dialog.show_input_dialog(
+                    title="重考确认",
+                    prompt=info_text + "\n\n是否重考？",
+                    options=["是", "否"],
+                    default_value="否"
+                )
+                return "y" if result == "是" else "n"
+            else:
+                result = self.input_dialog.show_input_dialog(
+                    title="重考确认",
+                    prompt=prompt,
+                    options=["是", "否"],
+                    default_value="否"
+                )
+                return "y" if result == "是" else "n"
+
+        elif "答案序号" in prompt or "请输入答案" in prompt:
+            # 手动答题：显示题目对话框
+            result = self.input_dialog.show_input_dialog(
+                title="手动答题",
+                prompt=prompt,
+                default_value=""
+            )
+            return result if result else ""
+
+        else:
+            # 通用输入：显示简单输入对话框
+            result = self.input_dialog.show_input_dialog(
+                title="请输入",
+                prompt=prompt,
+                default_value=""
+            )
+            return result if result else ""
