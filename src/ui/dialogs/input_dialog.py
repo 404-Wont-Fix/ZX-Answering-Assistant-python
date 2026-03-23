@@ -44,16 +44,22 @@ class WeBanInputDialog:
         """
         self.input_result = None
         self.dialog_event.clear()
+        dialog = None  # 初始化对话框变量
 
         def on_confirm(e):
-            self.input_result = input_field.value
+            if options:
+                self.input_result = dropdown.value
+            else:
+                self.input_result = input_field.value
             self.dialog_event.set()  # 设置事件，表示输入完成
-            self.page.close_dialog()
+            dialog.open = False
+            self.page.update()
 
         def on_cancel(e):
             self.input_result = None
             self.dialog_event.set()  # 设置事件，表示输入完成（但值为 None）
-            self.page.close_dialog()
+            dialog.open = False
+            self.page.update()
 
         # 创建输入控件
         if options:
@@ -130,8 +136,33 @@ class WeBanInputDialog:
                 actions_alignment=ft.MainAxisAlignment.END,
             )
 
-        # 显示对话框
-        self.page.show_dialog(dialog)
+        # 显示对话框 - 使用 run_task 在主线程中执行
+        async def show_dialog_async():
+            self.page.show_dialog(dialog)
+
+        try:
+            # 检查是否在主线程
+            import threading
+            current_thread = threading.current_thread()
+            main_thread = threading.main_thread()
+
+            print(f"[WeBan Input] 当前线程: {current_thread.name}, 主线程: {main_thread.name}")
+
+            if current_thread is main_thread:
+                # 在主线程中，直接显示对话框
+                print("[WeBan Input] 在主线程中显示对话框")
+                self.page.show_dialog(dialog)
+            else:
+                # 在后台线程中，使用 run_task
+                print("[WeBan Input] 在后台线程中，使用 run_task 显示对话框")
+                self.page.run_task(show_dialog_async)
+
+        except Exception as ex:
+            print(f"[WeBan Input] ❌ 显示对话框失败: {ex}")
+            import traceback
+            traceback.print_exc()
+            # 返回空字符串，而不是阻塞
+            return ""
 
         # 等待用户输入或取消
         self.dialog_event.wait(timeout=300)  # 5分钟超时
@@ -139,7 +170,9 @@ class WeBanInputDialog:
         # 如果超时，关闭对话框
         if not self.dialog_event.is_set():
             try:
-                self.page.close_dialog()
+                if dialog:
+                    dialog.open = False
+                    self.page.update()
             except:
                 pass
 
@@ -154,9 +187,12 @@ class WeBanInputDialog:
         """
         显示图片提示对话框（用于验证码输入）
 
+        注意：WeBan模块已经使用系统默认程序打开了图片
+         这个对话框只用于收集用户输入
+
         Args:
             title: 对话框标题
-            image_path: 图片路径
+            image_path: 图片路径（已由WeBan打开，此参数保留用于提示信息）
             prompt: 提示信息
 
         Returns:
@@ -165,15 +201,21 @@ class WeBanInputDialog:
         self.input_result = None
         self.dialog_event.clear()
 
+        # 提取图片文件名用于提示
+        import os
+        image_filename = os.path.basename(image_path) if image_path else "验证码图片"
+
         def on_confirm(e):
             self.input_result = input_field.value
             self.dialog_event.set()
-            self.page.close_dialog()
+            dialog.open = False
+            self.page.update()
 
         def on_cancel(e):
             self.input_result = None
             self.dialog_event.set()
-            self.page.close_dialog()
+            dialog.open = False
+            self.page.update()
 
         # 创建输入控件
         input_field = ft.TextField(
@@ -183,26 +225,24 @@ class WeBanInputDialog:
             on_submit=on_confirm,
         )
 
-        # 创建对话框
+        # 创建对话框（简化版，假设图片已被WeBan打开）
         dialog = ft.AlertDialog(
             modal=True,
             title=ft.Text(title, size=20, weight=ft.FontWeight.BOLD),
             content=ft.Container(
                 content=ft.Column(
                     [
-                        # 显示图片
-                        ft.Image(
-                            src=image_path,
-                            width=300,
-                            height=150,
-                            fit=ft.ImageFit.CONTAIN,
-                            error_content=ft.Text("无法加载验证码图片", color=ft.Colors.RED),
+                        ft.Text(
+                            f"📸 WeBan 已打开验证码图片 ({image_filename})",
+                            size=14,
+                            color=ft.Colors.BLUE,
+                            weight=ft.FontWeight.BOLD,
                         ),
-                        ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                         # 输入框
                         input_field,
                         ft.Text(
-                            "💡 请查看上方验证码图片并输入",
+                            "💡 请查看已打开的图片窗口，然后在此输入验证码",
                             size=12,
                             color=ft.Colors.GREY_600,
                         ),
@@ -219,8 +259,32 @@ class WeBanInputDialog:
             actions_alignment=ft.MainAxisAlignment.END,
         )
 
-        # 显示对话框
-        self.page.show_dialog(dialog)
+        # 显示对话框 - 使用 run_task 在主线程中执行
+        async def show_dialog_async():
+            self.page.show_dialog(dialog)
+
+        try:
+            # 检查是否在主线程
+            import threading
+            current_thread = threading.current_thread()
+            main_thread = threading.main_thread()
+
+            print(f"[WeBan Input] 当前线程: {current_thread.name}, 主线程: {main_thread.name}")
+
+            if current_thread is main_thread:
+                # 在主线程中，直接显示对话框
+                print("[WeBan Input] 在主线程中显示对话框")
+                self.page.show_dialog(dialog)
+            else:
+                # 在后台线程中，使用 run_task
+                print("[WeBan Input] 在后台线程中，使用 run_task 显示对话框")
+                self.page.run_task(show_dialog_async)
+
+        except Exception as ex:
+            print(f"[WeBan Input] ❌ 显示对话框失败: {ex}")
+            import traceback
+            traceback.print_exc()
+            return ""
 
         # 等待用户输入
         self.dialog_event.wait(timeout=300)  # 5分钟超时
@@ -228,7 +292,9 @@ class WeBanInputDialog:
         # 如果超时，关闭对话框
         if not self.dialog_event.is_set():
             try:
-                self.page.close_dialog()
+                if dialog:
+                    dialog.open = False
+                    self.page.update()
             except:
                 pass
 
