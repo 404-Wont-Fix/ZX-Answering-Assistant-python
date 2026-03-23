@@ -172,6 +172,34 @@ ZX Answering Assistant 应运而生，旨在：
 - **文本智能匹配**: 基于文本相似度匹配答案
 - **实时日志**: 显示答题进度和统计信息
 
+### 安全微伴功能 (WeBan) ✨
+
+#### 自动学习系统
+
+- **自动登录**: 支持账户密码自动登录，可选 OCR 验证码识别
+- **智能学习**: 自动完成必修课、推送课、自选课的学习任务
+- **可配置时长**: 支持自定义每门课程的学习时长（秒）
+- **重新学习模式**: 支持强制重新学习已完成的课程
+- **实验室课程**: 自动加载并处理实验室课程项目
+- **实时进度**: 显示必修课、推送课、自选课、考试的完成进度
+
+#### 智能考试系统
+
+- **题库同步**: 自动从考试历史中同步最新题库
+- **智能答题**: 基于题库自动匹配正确答案
+- **手动答题**: 题库中不存在的题目支持手动输入
+- **可复制题目**: GUI 模式下题目文本可选择复制，方便 AI 辅助答题
+- **重考确认**: 支持选择是否重考已完成的考试
+- **多项目支持**: 自动处理多个考试项目
+- **实时统计**: 显示题库覆盖率、答题成功率
+
+#### 核心特性
+
+- **OCR 验证码识别**: 集成 ddddocr 库，自动识别验证码（失败 3 次后手动输入）
+- **腾讯云验证码兼容**: 支持腾讯云验证码的手动处理流程
+- **学校代码验证**: 支持学校全称模糊搜索和验证
+- **GUI 友好**: 完整的图形界面支持，包括验证码输入、重考确认、手动答题等交互场景
+
 ### 教师端功能
 
 #### 答案提取系统
@@ -197,6 +225,7 @@ ZX Answering Assistant 应运而生，旨在：
 | **统一浏览器管理** | 单浏览器实例 + 多上下文隔离             | v2.6.0 |
 | **源码自动清理**   | 打包后自动删除 .py 源码，只保留 .pyc    | v2.6.6 |
 | **构建系统优化**   | 配置文件化、增量构建、构建速度提升      | v2.7.0 |
+| **WeBan 模块集成** | 安全微伴课程自动化，支持 OCR 验证码识别 | v2.9.0 |
 
 #### 答题模式对比
 
@@ -323,6 +352,15 @@ graph TB
 | **playwright** | ≥1.57.0 | 浏览器自动化 | 用于登录、token 提取、浏览器模式答题   |
 | **requests**   | ≥2.31.0 | HTTP 客户端  | API 调用、网络请求                     |
 | **keyboard**   | ≥0.13.5 | 键盘监听     | 优雅退出功能（Q 键监听）               |
+
+### WeBan 模块依赖
+
+| 依赖                   | 版本     | 用途           | 说明                   |
+| ---------------------- | -------- | -------------- | ---------------------- |
+| **ddddocr**      | 1.6.1    | OCR 验证码识别 | 自动识别验证码（可选） |
+| **loguru**       | 0.7.3    | 日志处理       | 优雅的日志输出         |
+| **pycryptodome** | 3.23.0   | 加密解密       | 数据加密处理           |
+| **Pillow**       | ≥10.0.0 | 图像处理       | 图像操作和处理         |
 
 ### 开发依赖
 
@@ -458,6 +496,15 @@ ZX-Answering-Assistant-python/
 │   │
 │   ├── caching/                      # 缓存模块
 │   │   └── __init__.py
+│   │
+│   ├── modules/                      # 扩展模块
+│   │   ├── __init__.py
+│   │   ├── weban_adapter.py          # WeBan 适配器
+│   │   ├── weban_runner.py           # WeBan 运行器
+│   │   └── WeBan/                    # WeBan 核心模块
+│   │       ├── __init__.py
+│   │       ├── api.py                # WeBan API 封装
+│   │       └── client.py             # WeBan 客户端
 │   │
 │   └── extract_answers.py            # 独立提取脚本（遗留）
 │
@@ -661,9 +708,40 @@ graph LR
 - **answering_view.py**: 学生端答题界面
 - **extraction_view.py**: 教师端提取界面
 - **course_certification_view.py**: 课程认证界面
+- **weban_view.py**: 安全微伴（WeBan）界面
 - **cloud_exam_view.py**: 云考试界面（占位符）
 - **evaluation_view.py**: 评估出题界面（占位符）
 - **settings_view.py**: 设置管理界面
+
+#### 8. WeBan 模块
+
+**适配器** (`src/modules/weban_adapter.py`):
+
+- WeBan 模块的 GUI 适配层
+- 多任务配置管理
+- 进度回调支持
+- 输入回调处理（验证码、重考确认、手动答题）
+
+**客户端** (`src/modules/WeBan/client.py`):
+
+- 自动学习流程（必修课、推送课、自选课）
+- 智能考试系统
+- OCR 验证码识别
+- 题库同步
+
+**视图组件** (`src/ui/views/weban_view.py`):
+
+- 三页面设计：简介 → 登录 → 控制台
+- 验证码输入对话框
+- 手动答题对话框（支持复制题目）
+- 测试输入功能
+
+**输入对话框** (`src/ui/dialogs/input_dialog.py`):
+
+- 通用输入对话框
+- 验证码图片对话框
+- 手动答题对话框（可复制题目）
+- 支持一键复制题目（需安装 pyperclip）
 
 ---
 
@@ -1751,7 +1829,58 @@ python main.py --cli    # CLI 模式
 
 ## 版本历史
 
-### v2.8.8 (最新) - 构建系统优化
+### v2.9.0 (最新) - WeBan 模块集成 ✨
+
+**新增功能**:
+
+- ✅ 集成安全微伴（WeBan）课程自动化模块
+- ✅ 支持自动学习（必修课、推送课、自选课、实验室课程）
+- ✅ 支持智能考试（题库同步、自动答题、手动答题）
+- ✅ OCR 验证码识别（集成 ddddocr）
+- ✅ GUI 完整支持（三页面设计：简介 → 登录 → 控制台）
+- ✅ 题目文本可复制功能（方便 AI 辅助答题）
+- ✅ 测试输入功能（验证所有输入对话框）
+
+**WeBan 模块特性**:
+
+- 🎓 自动学习系统
+
+  - 可配置课程学习时长
+  - 重新学习模式支持
+  - 实时进度显示
+  - 自动处理必修课、推送课、自选课
+- 📝 智能考试系统
+
+  - 题库自动同步
+  - 智能答案匹配
+  - 手动答题支持
+  - 重考确认功能
+- 🔐 验证码处理
+
+  - OCR 自动识别
+  - 失败自动降级为手动输入
+  - 腾讯云验证码兼容
+- 🖥️ GUI 增强
+
+  - 学校名称验证
+  - 实时日志输出
+  - 验证码输入对话框
+  - 手动答题对话框（可复制题目）
+  - 测试输入按钮
+
+**依赖更新**:
+
+- ✅ 添加 ddddocr 1.6.1（OCR 验证码识别）
+- ✅ 添加 loguru 0.7.3（日志处理）
+- ✅ 添加 pycryptodome 3.23.0（加密解密）
+- ✅ 添加 Pillow ≥10.0.0（图像处理）
+
+**鸣谢**:
+
+- 🙏 特别感谢 [WeBan 项目](https://github.com/ylansoft/WeBan) 的原作者
+- WeBan 模块基于 [ylansoft/WeBan](https://github.com/ylansoft/WeBan) 项目适配集成
+
+### v2.8.8 - 构建系统优化
 
 **构建系统优化**:
 
@@ -1882,6 +2011,49 @@ python main.py --cli    # CLI 模式
 
 ---
 
+## 致谢
+
+本项目在开发过程中参考或集成了以下开源项目，特此致谢：
+
+### 核心依赖
+
+- [Flet](https://github.com/flet-dev/flet) - 现代化 Flutter GUI 框架
+- [Playwright](https://github.com/microsoft/playwright-python) - 微软开源的浏览器自动化工具
+- [Requests](https://github.com/psf/requests) - 优雅的 HTTP 库
+
+### WeBan 模块
+
+特别感谢 **[ylansoft/WeBan](https://github.com/ylansoft/WeBan)** 项目：
+
+- WeBan 是一个优秀的自动化工具
+- 本项目中的 WeBan 模块基于该项目的核心代码进行适配和集成
+- 保留了原有的 OCR 验证码识别、自动学习、智能考试等核心功能
+- 在此基础上添加了 GUI 支持、线程安全适配、输入回调机制等增强功能
+
+**原始项目链接**:
+
+- GitHub: https://github.com/ylansoft/WeBan
+- 作者: ylansoft
+
+**本项目改进**:
+
+- ✅ GUI 集成（Flet 框架）
+- ✅ 线程安全的输入回调机制
+- ✅ 验证码输入对话框优化
+- ✅ 手动答题对话框（支持复制题目）
+- ✅ 进度回调支持
+- ✅ 多任务配置管理
+- ✅ 停止信号处理
+- ✅ 测试输入功能
+
+### 其他工具
+
+- [ddddocr](https://github.com/sml2h3/ddddocr) - 通用验证码识别库
+- [loguru](https://github.com/Delgan/loguru) - 让 Python 日志简单无比
+- [Pillow](https://github.com/python-pillow/Pillow) - Python 图像处理库
+
+---
+
 ## 免责声明
 
 本项目仅供学习和研究使用，请勿用于商业用途或任何违反服务条款的行为。使用本软件所产生的一切后果由使用者自行承担，作者不承担任何责任。
@@ -1902,6 +2074,7 @@ python main.py --cli    # CLI 模式
 Made with ❤️ by ZX Project Team
 
 **问题反馈与功能建议**:
+
 - 📝 提交 [GitHub Issues](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/issues) 报告问题
 - 💬 参与 [GitHub Discussions](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/discussions) 讨论功能建议
 - 📧 发送邮件至：[blog@mali.tianjiaji.top](mailto:blog@mali.tianjiaji.top)
