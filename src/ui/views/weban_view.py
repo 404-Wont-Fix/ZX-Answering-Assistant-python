@@ -2,14 +2,13 @@
 WeBan View - 安全微伴课程自动化
 
 WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
+采用简洁的三页面设计：简介 → 登录 → 控制台
 """
 
 import flet as ft
-import json
-import os
 import threading
 from pathlib import Path
-from typing import Optional, List, Dict, Any
+from typing import Optional
 
 from src.modules.weban_adapter import get_weban_adapter
 
@@ -28,33 +27,512 @@ class WeBanView:
         self.adapter = get_weban_adapter(progress_callback=self._log)
 
         # UI 控件
-        self.status_text = None
+        self.current_content = None
+        self.school_field = None
+        self.account_field = None
+        self.password_field = None
+
+        # 任务状态
+        self.is_running = False
+        self.task_thread = None
+
+        # 登录信息
+        self.school_name = ""
+        self.account = ""
+        self.password = ""
+
+        # 控制台UI控件
+        self.console_dialog = None
         self.log_text = None
         self.start_button = None
         self.stop_button = None
-        self.config_dropdown = None
-        self.account_list = None
-        self.multithread_switch = None
-        self.config_file_path = None
+        self.status_text = None
 
-        # 账号配置
-        self.accounts: List[Dict[str, Any]] = []
-        self.config_path = Path(__file__).parent.parent.parent.parent / "weban_config.json"
+    def get_content(self) -> ft.Column:
+        """
+        获取视图内容
+
+        Returns:
+            Flet Column 对象
+        """
+        # 创建主界面内容（简介页面）
+        main_content = self._get_intro_content()
+
+        # 使用 AnimatedSwitcher 实现动画切换
+        self.current_content = ft.AnimatedSwitcher(
+            content=main_content,
+            transition=ft.AnimatedSwitcherTransition.FADE,
+            duration=300,
+            switch_in_curve=ft.AnimationCurve.EASE_OUT,
+            switch_out_curve=ft.AnimationCurve.EASE_IN,
+            expand=True,
+        )
+
+        return ft.Column(
+            [self.current_content],
+            scroll=ft.ScrollMode.AUTO,
+            expand=True,
+            spacing=0,
+        )
+
+    def _get_intro_content(self) -> ft.Column:
+        """获取简介页面内容"""
+        return ft.Column(
+            [
+                ft.Row(
+                    [
+                        ft.Icon(ft.Icons.SECURITY, size=40, color=ft.Colors.BLUE),
+                        ft.Text(
+                            "安全微伴 (WeBan)",
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.BLUE_800,
+                        ),
+                    ],
+                    spacing=15,
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+                # 功能说明卡片
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
+                                    title=ft.Text("自动学习", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text("自动完成安全微伴课程的学习任务"),
+                                ),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.QUIZ, color=ft.Colors.GREEN),
+                                    title=ft.Text("智能答题", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text("根据题库自动完成课程考试"),
+                                ),
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.SYNC, color=ft.Colors.ORANGE),
+                                    title=ft.Text("题库同步", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text("自动同步最新题库数据"),
+                                ),
+                            ],
+                            spacing=10,
+                        ),
+                        padding=20,
+                        width=600,
+                    ),
+                    elevation=2,
+                ),
+                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+                # 重要提示
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.ListTile(
+                                    leading=ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                                    title=ft.Text("重要提示", weight=ft.FontWeight.BOLD),
+                                    subtitle=ft.Text(
+                                        "⚠️ 如果题库中没有答案，需要您手动作答！\n"
+                                        "⚠️ 部分学校使用腾讯云验证码，可能无法自动完成！"
+                                    ),
+                                ),
+                            ],
+                        ),
+                        padding=15,
+                        width=600,
+                        bgcolor=ft.Colors.ORANGE_50,
+                    ),
+                    elevation=2,
+                ),
+                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+                # 开始按钮
+                ft.ElevatedButton(
+                    "开始使用",
+                    icon=ft.Icons.PLAY_ARROW,
+                    bgcolor=ft.Colors.BLUE,
+                    color=ft.Colors.WHITE,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=10),
+                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                    ),
+                    on_click=lambda e: self._on_start_click(e),
+                    animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _get_login_content(self) -> ft.Column:
+        """获取登录页面内容"""
+        # 初始化输入框
+        self.school_field = ft.TextField(
+            label="学校名称",
+            hint_text="请输入完整的学校名称（如：重庆大学）",
+            width=400,
+            prefix_icon=ft.Icons.SCHOOL,
+            autofocus=True,
+        )
+
+        self.account_field = ft.TextField(
+            label="账号",
+            hint_text="请输入您的账号",
+            width=400,
+            prefix_icon=ft.Icons.PERSON,
+        )
+
+        self.password_field = ft.TextField(
+            label="密码",
+            hint_text="请输入您的密码",
+            width=400,
+            password=True,
+            can_reveal_password=True,
+            prefix_icon=ft.Icons.LOCK,
+        )
+
+        return ft.Column(
+            [
+                # 标题栏
+                ft.Row(
+                    [
+                        ft.IconButton(
+                            icon=ft.Icons.ARROW_BACK,
+                            icon_color=ft.Colors.BLUE,
+                            on_click=lambda e: self._on_back_click(e),
+                        ),
+                        ft.Text(
+                            "账号登录",
+                            size=32,
+                            weight=ft.FontWeight.BOLD,
+                            color=ft.Colors.BLUE_800,
+                            expand=True,
+                        ),
+                    ],
+                ),
+
+                ft.Divider(height=40, color=ft.Colors.TRANSPARENT),
+
+                # 输入表单
+                ft.Card(
+                    content=ft.Container(
+                        content=ft.Column(
+                            [
+                                ft.Text(
+                                    "请输入您的登录信息",
+                                    size=18,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=ft.Colors.BLUE_800,
+                                ),
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+
+                                self.school_field,
+                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+
+                                self.account_field,
+                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+
+                                self.password_field,
+                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+                                ft.Row(
+                                    [
+                                        ft.ElevatedButton(
+                                            "验证学校",
+                                            icon=ft.Icons.CHECK,
+                                            on_click=lambda e: self._on_validate_school(e),
+                                        ),
+                                        ft.Container(width=20),
+                                        ft.Text(
+                                            "💡 建议先验证学校名称是否正确",
+                                            size=12,
+                                            color=ft.Colors.GREY_600,
+                                        ),
+                                    ],
+                                ),
+                            ],
+                            spacing=0,
+                        ),
+                        padding=30,
+                        width=500,
+                    ),
+                    elevation=3,
+                ),
+                ft.Divider(height=40, color=ft.Colors.TRANSPARENT),
+
+                # 登录按钮
+                ft.ElevatedButton(
+                    "登录并开始",
+                    icon=ft.Icons.LOGIN,
+                    bgcolor=ft.Colors.GREEN,
+                    color=ft.Colors.WHITE,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=10),
+                        padding=ft.padding.symmetric(horizontal=40, vertical=15),
+                    ),
+                    on_click=lambda e: self._on_login_click(e),
+                ),
+            ],
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+        )
+
+    def _create_console_dialog(self) -> ft.AlertDialog:
+        """创建控制台对话框"""
+        # 日志显示区域
+        self.log_text = ft.Column(
+            [],
+            scroll=ft.ScrollMode.AUTO,
+            height=400,
+            spacing=5,
+        )
+
+        # 状态文本
+        self.status_text = ft.Text(
+            "就绪",
+            size=16,
+            weight=ft.FontWeight.BOLD,
+            color=ft.Colors.GREY_700,
+        )
+
+        # 开始按钮
+        self.start_button = ft.ElevatedButton(
+            "开始执行",
+            icon=ft.Icons.PLAY_ARROW,
+            bgcolor=ft.Colors.GREEN,
+            color=ft.Colors.WHITE,
+            on_click=lambda e: self._on_start_task(e),
+            disabled=False,
+        )
+
+        # 停止按钮
+        self.stop_button = ft.ElevatedButton(
+            "停止执行",
+            icon=ft.Icons.STOP,
+            bgcolor=ft.Colors.RED,
+            color=ft.Colors.WHITE,
+            on_click=lambda e: self._on_stop_task(e),
+            disabled=True,
+        )
+
+        # 返回按钮
+        back_button = ft.ElevatedButton(
+            "返回",
+            icon=ft.Icons.ARROW_BACK,
+            on_click=lambda e: self._on_close_console(e),
+        )
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.SECURITY, color=ft.Colors.BLUE, size=30),
+                    ft.Text(
+                        f"WeBan 控制台 - {self.school_name}",
+                        size=20,
+                        weight=ft.FontWeight.BOLD,
+                    ),
+                ],
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    [
+                        # 状态栏
+                        ft.Container(
+                            content=ft.Row(
+                                [
+                                    ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
+                                    ft.Text("状态：", weight=ft.FontWeight.BOLD),
+                                    self.status_text,
+                                ],
+                            ),
+                            padding=10,
+                            bgcolor=ft.Colors.BLUE_50,
+                        ),
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+
+                        # 日志区域
+                        ft.Container(
+                            content=self.log_text,
+                            padding=10,
+                            bgcolor=ft.Colors.GREY_100,
+                            border=ft.border.all(1, ft.Colors.GREY_300),
+                        ),
+
+                        # 提示信息
+                        ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                        ft.Text(
+                            "💡 提示：如果题库中没有答案，请手动作答后再继续！",
+                            size=12,
+                            color=ft.Colors.ORANGE,
+                        ),
+                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+
+                        # 控制按钮
+                        ft.Row(
+                            [self.start_button, self.stop_button, back_button],
+                            alignment=ft.MainAxisAlignment.CENTER,
+                            spacing=20,
+                        ),
+                    ],
+                    spacing=0,
+                ),
+                width=700,
+            ),
+            actions=[],
+        )
+
+        return dialog
+
+    # ========== 事件处理 ==========
+
+    def _on_start_click(self, e):
+        """处理简介页面的开始按钮点击"""
+        login_content = self._get_login_content()
+        self.current_content.content = login_content
+        self.page.update()
+
+    def _on_back_click(self, e):
+        """处理返回按钮点击"""
+        intro_content = self._get_intro_content()
+        self.current_content.content = intro_content
+        self.page.update()
+
+    def _on_validate_school(self, e):
+        """验证学校名称"""
+        school = self.school_field.value.strip()
+        if not school:
+            self._show_snackbar("请输入学校名称", ft.Colors.RED)
+            return
+
+        self._show_snackbar("正在验证学校...", ft.Colors.BLUE)
+
+        def validate():
+            result = self.adapter.validate_tenant(school)
+            if result["success"]:
+                self._show_snackbar(result["message"], ft.Colors.GREEN)
+            else:
+                self._show_snackbar(result["message"], ft.Colors.RED)
+
+        threading.Thread(target=validate, daemon=True).start()
+
+    def _on_login_click(self, e):
+        """处理登录按钮点击"""
+        # 获取输入
+        self.school_name = self.school_field.value.strip()
+        self.account = self.account_field.value.strip()
+        self.password = self.password_field.value.strip()
+
+        # 验证输入
+        if not self.school_name:
+            self._show_snackbar("请输入学校名称", ft.Colors.RED)
+            return
+
+        if not self.account:
+            self._show_snackbar("请输入账号", ft.Colors.RED)
+            return
+
+        if not self.password:
+            self._show_snackbar("请输入密码", ft.Colors.RED)
+            return
+
+        # 打开控制台
+        self.console_dialog = self._create_console_dialog()
+        self.page.show_dialog(self.console_dialog)
+
+        # 记录登录信息
+        self._log(f"学校：{self.school_name}", "info")
+        self._log(f"账号：{self.account}", "info")
+        self._log("准备就绪，请点击「开始执行」按钮开始任务", "success")
+
+    def _on_start_task(self, e):
+        """开始执行任务"""
+        if not self.adapter.check_available():
+            self._log("❌ WeBan 模块依赖未安装，请运行：pip install -r requirements.txt", "error")
+            return
+
+        # 更新UI状态
+        self.start_button.disabled = True
+        self.stop_button.disabled = False
+        self.status_text.value = "正在执行..."
+        self.status_text.color = ft.Colors.BLUE
+        self.page.update()
+
+        # 构建配置
+        config = {
+            "tenant_name": self.school_name,
+            "account": self.account,
+            "password": self.password,
+            "user": {"userId": "", "token": ""},
+            "study": True,
+            "study_time": 20,
+            "restudy_time": 0,
+            "exam": True,
+            "exam_use_time": 250,
+        }
+
+        # 在后台线程中执行
+        def run_task():
+            try:
+                self.is_running = True
+                self.adapter.load_config([config])
+                result = self.adapter.start(use_multithread=False)
+
+                # 更新结果
+                if result["failed"] == 0:
+                    self._log(f"✅ 任务完成！成功: {result['success']}", "success")
+                    self.status_text.value = "执行完成"
+                    self.status_text.color = ft.Colors.GREEN
+                else:
+                    self._log(f"⚠️ 任务完成！成功: {result['success']}, 失败: {result['failed']}", "warning")
+                    self.status_text.value = "部分失败"
+                    self.status_text.color = ft.Colors.ORANGE
+
+            except Exception as e:
+                self._log(f"❌ 执行出错: {str(e)}", "error")
+                self.status_text.value = "执行出错"
+                self.status_text.color = ft.Colors.RED
+
+            finally:
+                self.is_running = False
+                self.start_button.disabled = False
+                self.stop_button.disabled = True
+                self.page.update()
+
+        self.task_thread = threading.Thread(target=run_task, daemon=True)
+        self.task_thread.start()
+
+    def _on_stop_task(self, e):
+        """停止执行任务"""
+        self.adapter.stop()
+        self._log("⚠️ 正在停止执行...", "warning")
+        self.status_text.value = "正在停止..."
+        self.status_text.color = ft.Colors.ORANGE
+        self.page.update()
+
+    def _on_close_console(self, e):
+        """关闭控制台"""
+        if self.is_running:
+            self._show_snackbar("任务正在执行中，请先停止任务", ft.Colors.ORANGE)
+            return
+
+        if self.console_dialog:
+            self.console_dialog.open = False
+            self.page.update()
+
+    # ========== 辅助方法 ==========
 
     def _log(self, message: str, level: str = "info"):
         """
-        添加日志到 UI
+        添加日志到控制台
 
         Args:
             message: 日志消息
             level: 日志级别
         """
-        # 如果 log_text 还未初始化，打印到控制台
         if self.log_text is None:
             print(f"[WeBan] {message}")
             return
 
-        # 在主线程中更新 UI
         def update_log():
             color_map = {
                 "info": ft.Colors.BLUE,
@@ -62,494 +540,33 @@ class WeBanView:
                 "warning": ft.Colors.ORANGE,
                 "error": ft.Colors.RED,
             }
-            self.log_text.controls.append(
-                ft.Text(message, color=color_map.get(level, ft.Colors.BLACK))
-            )
-            # 自动滚动到底部
-            if len(self.log_text.controls) > 100:
-                self.log_text.controls.pop(0)
-            try:
-                self.page.update()
-            except Exception:
-                pass
 
-        # 如果在后台线程，需要通过主线程更新
+            self.log_text.controls.append(
+                ft.Text(message, color=color_map.get(level, ft.Colors.BLACK), size=12)
+            )
+
+            # 限制日志数量
+            if len(self.log_text.controls) > 200:
+                self.log_text.controls.pop(0)
+
+            # 自动滚动到底部
+            self.log_text.scroll_to(offset=-1, duration=100)
+            self.log_text.update()
+
+        # 线程安全更新
         if threading.current_thread() is threading.main_thread():
             update_log()
         else:
-            # 线程安全更新：使用同步方式
             try:
-                self.page.update_threadsafe(update_log)
+                self.log_text.page.update_threadsafe(update_log)
             except AttributeError:
-                # update_threadsafe 不可用，直接更新
-                try:
-                    update_log()
-                except Exception:
-                    pass
+                update_log()
 
-    def _check_dependencies(self) -> bool:
-        """检查依赖是否安装"""
-        if not self.adapter.check_available():
-            self._log("⚠️ WeBan 模块依赖未安装", "warning")
-            self._log("依赖列表:", "info")
-            for dep in self.adapter.get_dependencies():
-                self._log(f"  - {dep}", "info")
-            self._log("", "info")
-            self._log("请在终端中运行以下命令安装依赖:", "warning")
-            self._log("pip install -r requirements.txt", "info")
-            return False
-        return True
-
-    def _load_config(self):
-        """加载配置文件"""
-        if not self.config_path.exists():
-            self._log(f"配置文件不存在: {self.config_path}", "warning")
-            self._log("请先创建配置文件或添加账号配置", "info")
-            return False
-
-        try:
-            with open(self.config_path, "r", encoding="utf-8") as f:
-                self.accounts = json.load(f)
-
-            if not isinstance(self.accounts, list):
-                self._log("配置文件格式错误: 应该是数组", "error")
-                return False
-
-            self._log(f"已加载 {len(self.accounts)} 个账号配置", "success")
-            return True
-
-        except json.JSONDecodeError as e:
-            self._log(f"配置文件格式错误: {e}", "error")
-            return False
-        except Exception as e:
-            self._log(f"加载配置文件失败: {e}", "error")
-            return False
-
-    def _save_config(self):
-        """保存配置文件"""
-        try:
-            with open(self.config_path, "w", encoding="utf-8") as f:
-                json.dump(self.accounts, f, indent=2, ensure_ascii=False)
-            self._log(f"配置已保存到: {self.config_path}", "success")
-            return True
-        except Exception as e:
-            self._log(f"保存配置失败: {e}", "error")
-            return False
-
-    def _update_account_list(self):
-        """更新账号列表显示"""
-        if self.account_list:
-            self.account_list.controls.clear()
-
-            for i, account in enumerate(self.accounts):
-                # 获取显示信息
-                tenant_name = account.get("tenant_name", "未设置")
-                account_id = account.get("account") or account.get("user", {}).get("userId") or "未设置"
-                login_type = "Token" if account.get("user", {}).get("token") else "密码"
-
-                self.account_list.controls.append(
-                    ft.ListTile(
-                        leading=ft.CircleAvatar(content=ft.Text(str(i + 1)), radius=16),
-                        title=ft.Text(f"{tenant_name} - {login_type}登录"),
-                        subtitle=ft.Text(f"账号: {account_id}"),
-                        trailing=ft.IconButton(
-                            icon=ft.Icons.DELETE,
-                            icon_color=ft.Colors.RED,
-                            tooltip="删除账号",
-                            on_click=lambda e, idx=i: self._delete_account(idx),
-                        ),
-                    )
-                )
-
-            self.page.update()
-
-    def _add_account_dialog(self, e=None):
-        """显示添加账号对话框"""
-        tenant_name_field = ft.TextField(label="学校名称", hint_text="例如: 重庆大学")
-        account_field = ft.TextField(label="账号（可选）", hint_text="密码登录时必填")
-        password_field = ft.TextField(label="密码（可选）", password=True, can_reveal_password=True)
-        user_id_field = ft.TextField(label="User ID（可选）", hint_text="Token 登录时必填")
-        token_field = ft.TextField(label="Token（可选）", hint_text="Token 登录时必填")
-
-        study_switch = ft.Switch(label="学习课程", value=True)
-        study_time_field = ft.TextField(
-            label="学习时长（秒）",
-            value="20",
-            input_filter=ft.NumbersOnlyInputFilter(),
+    def _show_snackbar(self, message: str, color: ft.Colors):
+        """显示提示信息"""
+        snackbar = ft.SnackBar(
+            content=ft.Text(message, color=ft.Colors.WHITE),
+            bgcolor=color,
+            duration=3000,
         )
-        exam_switch = ft.Switch(label="参加考试", value=True)
-        exam_time_field = ft.TextField(
-            label="考试时长（秒）",
-            value="250",
-            input_filter=ft.NumbersOnlyInputFilter(),
-        )
-
-        def validate_tenant(e=None):
-            """验证学校名称"""
-            tenant = tenant_name_field.value.strip()
-            if not tenant:
-                tenant_name_field.error_text = "请输入学校名称"
-                self.page.update()
-                return
-
-            result = self.adapter.validate_tenant(tenant)
-            if result["success"]:
-                tenant_name_field.error_text = None
-                tenant_name_field.helper_text = result["message"]
-                self.page.update()
-            else:
-                tenant_name_field.error_text = result["message"]
-                self.page.update()
-
-        validate_btn = ft.ElevatedButton(
-            "验证学校",
-            on_click=validate_tenant,
-            icon=ft.Icons.CHECK,
-        )
-
-        def save_account(e=None):
-            """保存账号"""
-            tenant = tenant_name_field.value.strip()
-            if not tenant:
-                self._log("请输入学校名称", "warning")
-                return
-
-            # 构建账号配置
-            account_config = {
-                "tenant_name": tenant,
-                "study": study_switch.value,
-                "study_time": int(study_time_field.value or "20"),
-                "restudy_time": 0,
-                "exam": exam_switch.value,
-                "exam_use_time": int(exam_time_field.value or "250"),
-                "account": account_field.value or "",
-                "password": password_field.value or "",
-                "user": {
-                    "userId": user_id_field.value or "",
-                    "token": token_field.value or "",
-                },
-            }
-
-            # 验证至少有一种登录方式
-            has_password = bool(account_config["account"] and account_config["password"])
-            has_token = bool(account_config["user"]["userId"] and account_config["user"]["token"])
-
-            if not (has_password or has_token):
-                self._log("请至少配置一种登录方式（密码或 Token）", "warning")
-                return
-
-            self.accounts.append(account_config)
-            self._save_config()
-            self._update_account_list()
-            self._log(f"已添加账号: {tenant}", "success")
-            dialog.open = False
-            self.page.update()
-
-        save_btn = ft.ElevatedButton(
-            "保存",
-            on_click=save_account,
-            icon=ft.Icons.SAVE,
-        )
-
-        cancel_btn = ft.ElevatedButton(
-            "取消",
-            on_click=lambda e: setattr(dialog, "open", False) or self.page.update(),
-        )
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Text("添加账号配置"),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        tenant_name_field,
-                        ft.Row([validate_btn], alignment=ft.MainAxisAlignment.END),
-                        ft.Divider(),
-                        ft.Text("密码登录", weight=ft.FontWeight.BOLD),
-                        account_field,
-                        password_field,
-                        ft.Divider(),
-                        ft.Text("Token 登录（推荐）", weight=ft.FontWeight.BOLD),
-                        user_id_field,
-                        token_field,
-                        ft.Divider(),
-                        ft.Text("任务设置", weight=ft.FontWeight.BOLD),
-                        ft.Row([study_switch, study_time_field]),
-                        ft.Row([exam_switch, exam_time_field]),
-                    ],
-                    scroll=ft.ScrollMode.AUTO,
-                    height=500,
-                ),
-                width=500,
-            ),
-            actions=[cancel_btn, save_btn],
-            actions_alignment=ft.MainAxisAlignment.END,
-        )
-
-        self.page.dialog = dialog
-        dialog.open = True
-        self.page.update()
-
-    def _delete_account(self, index: int):
-        """删除账号"""
-        if 0 <= index < len(self.accounts):
-            account = self.accounts.pop(index)
-            self._save_config()
-            self._update_account_list()
-            self._log(f"已删除账号: {account.get('tenant_name', 'Unknown')}", "info")
-
-    def _refresh_config(self, e=None):
-        """刷新配置"""
-        self._load_config()
-        self._update_account_list()
-        self._log("已刷新配置列表", "info")
-
-    def _start_task(self, e=None):
-        """开始任务"""
-        if not self._check_dependencies():
-            return
-
-        if not self.accounts:
-            self._log("请先添加账号配置", "warning")
-            return
-
-        # 更新 UI 状态
-        self.start_button.disabled = True
-        self.stop_button.disabled = False
-        self.status_text.value = "正在执行..."
-        self.page.update()
-
-        # 在后台线程中执行任务
-        def run_task():
-            try:
-                # 加载配置到适配器
-                if self.adapter.load_config(self.accounts):
-                    # 执行任务
-                    use_multithread = self.multithread_switch.value if self.multithread_switch else False
-                    result = self.adapter.start(use_multithread=use_multithread)
-
-                    # 更新结果
-                    self._log(
-                        f"任务完成！成功: {result['success']}, 失败: {result['failed']}",
-                        "success" if result["failed"] == 0 else "warning"
-                    )
-                else:
-                    self._log("配置加载失败", "error")
-
-            finally:
-                # 恢复 UI 状态
-                def update_ui():
-                    self.start_button.disabled = False
-                    self.stop_button.disabled = True
-                    self.status_text.value = "就绪"
-                    self.page.update()
-
-                if threading.current_thread() is threading.main_thread():
-                    update_ui()
-                else:
-                    try:
-                        self.page.update_threadsafe(update_ui)
-                    except:
-                        pass
-
-        thread = threading.Thread(target=run_task, daemon=True)
-        thread.start()
-
-    def _stop_task(self, e=None):
-        """停止任务"""
-        self.adapter.stop()
-        self._log("正在停止任务...", "warning")
-        self.status_text.value = "正在停止..."
-        self.page.update()
-
-    def get_content(self) -> ft.Container:
-        """
-        获取视图内容
-
-        Returns:
-            Flet Container 对象
-        """
-        # 状态栏
-        self.status_text = ft.Text(
-            "就绪",
-            size=14,
-            color=ft.Colors.GREY_600,
-        )
-
-        # 账号列表
-        self.account_list = ft.Column(
-            [],
-            scroll=ft.ScrollMode.AUTO,
-            height=200,
-        )
-
-        # 多线程开关
-        self.multithread_switch = ft.Switch(
-            label="多线程执行（多个账号时）",
-            value=True,
-            tooltip="启用后多个账号将同时执行",
-        )
-
-        # 按钮
-        self.start_button = ft.ElevatedButton(
-            "开始执行",
-            icon=ft.Icons.PLAY_ARROW,
-            bgcolor=ft.Colors.GREEN,
-            color=ft.Colors.WHITE,
-            on_click=self._start_task,
-            disabled=False,
-        )
-
-        self.stop_button = ft.ElevatedButton(
-            "停止执行",
-            icon=ft.Icons.STOP,
-            bgcolor=ft.Colors.RED,
-            color=ft.Colors.WHITE,
-            on_click=self._stop_task,
-            disabled=True,
-        )
-
-        # 日志区域
-        self.log_text = ft.Column(
-            [],
-            scroll=ft.ScrollMode.AUTO,
-            height=300,
-        )
-
-        # 主内容
-        content = ft.Container(
-            content=ft.Column(
-                [
-                    # 标题
-                    ft.Row(
-                        [
-                            ft.Icon(ft.Icons.SECURITY, size=32, color=ft.Colors.BLUE),
-                            ft.Text(
-                                "安全微伴 (WeBan)",
-                                size=28,
-                                weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.BLUE_800,
-                            ),
-                        ],
-                        spacing=10,
-                    ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                    # 说明卡片
-                    ft.Card(
-                        content=ft.Container(
-                            content=ft.Column(
-                                [
-                                    ft.ListTile(
-                                        leading=ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
-                                        title=ft.Text("功能说明", weight=ft.FontWeight.BOLD),
-                                        subtitle=ft.Text(
-                                            "自动化完成安全微伴课程的学习和考试。"
-                                            "支持多账号并发执行，自动同步题库。"
-                                        ),
-                                    ),
-                                    ft.ListTile(
-                                        leading=ft.Icon(ft.Icons.LINK, color=ft.Colors.GREEN),
-                                        title=ft.Text("项目地址", weight=ft.FontWeight.BOLD),
-                                        subtitle=ft.Text("https://github.com/hangone/WeBan"),
-                                    ),
-                                ],
-                            ),
-                            padding=10,
-                        ),
-                        elevation=1,
-                    ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                    # 账号管理区域
-                    ft.Text(
-                        "账号配置",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
-                    ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                    ft.Row(
-                        [
-                            ft.ElevatedButton(
-                                "添加账号",
-                                icon=ft.Icons.ADD,
-                                on_click=self._add_account_dialog,
-                            ),
-                            ft.ElevatedButton(
-                                "刷新列表",
-                                icon=ft.Icons.REFRESH,
-                                on_click=self._refresh_config,
-                            ),
-                        ],
-                    ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                    ft.Card(
-                        content=ft.Container(
-                            content=self.account_list,
-                            padding=10,
-                        ),
-                        elevation=1,
-                    ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                    # 任务控制区域
-                    ft.Text(
-                        "任务控制",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
-                    ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                    self.multithread_switch,
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                    ft.Row(
-                        [
-                            self.start_button,
-                            self.stop_button,
-                            ft.Container(width=20),  # 间距
-                            self.status_text,
-                        ],
-                    ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                    # 日志区域
-                    ft.Text(
-                        "执行日志",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
-                    ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                    ft.Card(
-                        content=ft.Container(
-                            content=self.log_text,
-                            padding=10,
-                            bgcolor=ft.Colors.GREY_100,
-                        ),
-                        elevation=1,
-                    ),
-                ],
-                scroll=ft.ScrollMode.AUTO,
-                horizontal_alignment=ft.CrossAxisAlignment.START,
-            ),
-            padding=30,
-            expand=True,
-        )
-
-        # 初始化时加载配置（不使用 _log，因为 log_text 可能未初始化）
-        try:
-            if self.config_path.exists():
-                with open(self.config_path, "r", encoding="utf-8") as f:
-                    self.accounts = json.load(f)
-                if isinstance(self.accounts, list):
-                    self._update_account_list()
-        except Exception as e:
-            print(f"加载配置失败: {e}")
-
-        return content
+        self.page.show_snackbar(snackbar)
