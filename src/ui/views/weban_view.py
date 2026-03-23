@@ -564,9 +564,10 @@ class WeBanView:
 
     def _show_snackbar(self, message: str, color: ft.Colors):
         """显示提示信息"""
-        snackbar = ft.SnackBar(
-            content=ft.Text(message, color=ft.Colors.WHITE),
+        self.page.snack_bar = ft.SnackBar(
+            ft.Text(message, color=ft.Colors.WHITE),
             bgcolor=color,
             duration=3000,
         )
-        self.page.show_snackbar(snackbar)
+        self.page.snack_bar.open = True
+        self.page.update()
