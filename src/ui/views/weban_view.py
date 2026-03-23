@@ -314,6 +314,16 @@ class WeBanView:
             disabled=False,
         )
 
+        # 测试输入按钮
+        self.test_input_button = ft.ElevatedButton(
+            "测试输入",
+            icon=ft.Icons.HELP_OUTLINE,  # 使用存在的图标
+            bgcolor=ft.Colors.PURPLE,
+            color=ft.Colors.WHITE,
+            on_click=self._on_test_input,
+            disabled=False,
+        )
+
         # 停止按钮
         self.stop_button = ft.ElevatedButton(
             "停止执行",
@@ -389,6 +399,7 @@ class WeBanView:
             actions=[
                 self.start_button,
                 self.stop_button,
+                self.test_input_button,  # 测试输入按钮
                 back_button,
             ],
             actions_alignment=ft.MainAxisAlignment.CENTER,
@@ -623,6 +634,196 @@ class WeBanView:
             self.console_dialog.open = False
             self.page.update()
 
+    def _on_test_input(self, e):
+        """测试输入对话框"""
+        print(f"[DEBUG] _on_test_input 被调用")  # 调试信息
+
+        # 测试不同类型的输入
+        import threading
+        from pathlib import Path
+        import webbrowser
+
+        def test_in_background():
+            self._log("🧪 开始测试输入对话框...", "info")
+
+            # 测试 1: 验证码输入
+            self._log("测试 1/3: 验证码输入对话框", "info")
+
+            # 创建测试用的验证码图片
+            test_image_filename = "verify_code_123456.png"
+            test_image_path = Path.cwd() / test_image_filename
+
+            try:
+                # 优先尝试使用真实的 WeBan API 获取验证码
+                try:
+                    # 导入 WeBan API
+                    from src.modules.weban_adapter import WEBAN_AVAILABLE, WeBanAPI
+
+                    if WEBAN_AVAILABLE and self.school_name and self.account:
+                        # 使用配置的学校和账号信息创建 API 实例
+                        api = WeBanAPI(self.school_name)
+
+                        # 获取时间戳
+                        verify_time = api.get_timestamp(13, 0)
+
+                        # 从服务器获取真实验证码图片
+                        verify_image = api.rand_letter_image(verify_time)
+
+                        # 保存验证码图片
+                        test_image_path.write_bytes(verify_image)
+
+                        self._log(f"✓ 已从 WeBan 服务器获取真实验证码: {test_image_filename}", "success")
+                        self._log(f"💡 学校: {self.school_name}, 账号: {self.account}", "info")
+                        self._log("💡 这是真实的验证码图片，请手动识别并输入", "info")
+
+                    else:
+                        # 未配置 WeBan 账号，使用本地生成的测试图片
+                        self._log("⚠️ 未配置 WeBan 账号，使用本地测试图片", "warning")
+                        self._log("💡 提示：配置 WeBan 账号后可获取真实验证码", "info")
+
+                        # 使用 Pillow 创建本地测试图片
+                        from PIL import Image, ImageDraw, ImageFont
+                        import random
+
+                        # 创建验证码图片（150x50像素）
+                        width, height = 150, 50
+                        image = Image.new('RGB', (width, height), color=(255, 255, 255))
+                        draw = ImageDraw.Draw(image)
+
+                        # 添加背景噪点
+                        for _ in range(100):
+                            x = random.randint(0, width)
+                            y = random.randint(0, height)
+                            draw.point((x, y), fill=(random.randint(200, 255), random.randint(200, 255), random.randint(200, 255)))
+
+                        # 生成4位测试验证码
+                        test_code = "A7B2"
+
+                        # 绘制验证码文字
+                        try:
+                            font = ImageFont.truetype("arial.ttf", 32)
+                        except:
+                            font = ImageFont.load_default()
+
+                        # 绘制每个字符
+                        for i, char in enumerate(test_code):
+                            x_offset = 20 + i * 30
+                            y_offset = random.randint(5, 15)
+                            color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+                            draw.text((x_offset, y_offset), char, fill=color, font=font)
+
+                        # 添加干扰线
+                        for _ in range(5):
+                            x1 = random.randint(0, width)
+                            y1 = random.randint(0, height)
+                            x2 = random.randint(0, width)
+                            y2 = random.randint(0, height)
+                            draw.line([(x1, y1), (x2, y2)], fill=(random.randint(150, 200), random.randint(150, 200), random.randint(150, 200)), width=1)
+
+                        # 保存图片
+                        image.save(test_image_path, 'PNG')
+                        self._log(f"✓ 本地测试图片已创建: {test_image_filename} (测试验证码: {test_code})", "success")
+
+                except Exception as e:
+                    # 获取真实验证码失败，回退到本地生成
+                    self._log(f"⚠️ 获取真实验证码失败 ({e})，使用本地测试图片", "warning")
+
+                    # 使用 Pillow 创建本地测试图片
+                    try:
+                        from PIL import Image, ImageDraw, ImageFont
+                        import random
+
+                        # 创建验证码图片（150x50像素）
+                        width, height = 150, 50
+                        image = Image.new('RGB', (width, height), color=(255, 255, 255))
+                        draw = ImageDraw.Draw(image)
+
+                        # 添加背景噪点
+                        for _ in range(100):
+                            x = random.randint(0, width)
+                            y = random.randint(0, height)
+                            draw.point((x, y), fill=(random.randint(200, 255), random.randint(200, 255), random.randint(200, 255)))
+
+                        # 生成4位测试验证码
+                        test_code = "A7B2"
+
+                        # 绘制验证码文字
+                        try:
+                            font = ImageFont.truetype("arial.ttf", 32)
+                        except:
+                            font = ImageFont.load_default()
+
+                        # 绘制每个字符
+                        for i, char in enumerate(test_code):
+                            x_offset = 20 + i * 30
+                            y_offset = random.randint(5, 15)
+                            color = (random.randint(0, 100), random.randint(0, 100), random.randint(0, 100))
+                            draw.text((x_offset, y_offset), char, fill=color, font=font)
+
+                        # 添加干扰线
+                        for _ in range(5):
+                            x1 = random.randint(0, width)
+                            y1 = random.randint(0, height)
+                            x2 = random.randint(0, width)
+                            y2 = random.randint(0, height)
+                            draw.line([(x1, y1), (x2, y2)], fill=(random.randint(150, 200), random.randint(150, 200), random.randint(150, 200)), width=1)
+
+                        # 保存图片
+                        image.save(test_image_path, 'PNG')
+                        self._log(f"✓ 本地测试图片已创建: {test_image_filename} (测试验证码: {test_code})", "success")
+
+                    except ImportError:
+                        # Pillow 不可用，使用最小 PNG
+                        minimal_png = b'\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01\x08\x06\x00\x00\x00\x1f\x15\xc4\x89\x00\x00\x00\nIDATx\x9cc\x00\x01\x00\x00\x05\x00\x01\r\n-\xb4\x00\x00\x00\x00IEND\xaeB`\x82'
+                        test_image_path.write_bytes(minimal_png)
+                        self._log(f"✓ 简单测试图片已创建: {test_image_filename}", "success")
+
+                # 打开测试图片（模拟 WeBan 行为）
+                webbrowser.open(f"file://{test_image_path.absolute()}")
+                self._log("💡 测试图片已在系统默认程序中打开", "info")
+            except Exception as e:
+                self._log(f"⚠️ 创建测试图片失败: {e}", "warning")
+
+            result1 = self._handle_input("请查看 verify_code_123456.png 输入验证码：")
+            if result1:
+                self._log(f"✓ 验证码输入测试成功: {result1}", "success")
+            else:
+                self._log("✗ 验证码输入测试取消", "warning")
+
+            import time
+            time.sleep(1)
+
+            # 测试 2: 重考选择
+            self._log("测试 2/3: 重考选择对话框", "info")
+            result2 = self._handle_input("考试项目 XXX 最高成绩 80 分。已考试次数 1 次，还剩 2 次。需要重考吗(y/N)？")
+            if result2:
+                self._log(f"✓ 重考选择测试成功: {result2}", "success")
+            else:
+                self._log("✗ 重考选择测试取消", "warning")
+
+            time.sleep(1)
+
+            # 测试 3: 手动答题
+            self._log("测试 3/3: 手动答题对话框", "info")
+            result3 = self._handle_input("[1/5]题目类型：单选题\n题目标题：这是一个测试题目\n\n请输入答案序号（多个选项用英文逗号分隔，如 1,2,3,4）：")
+            if result3:
+                self._log(f"✓ 手动答题测试成功: {result3}", "success")
+            else:
+                self._log("✗ 手动答题测试取消", "warning")
+
+            self._log("🎉 所有输入对话框测试完成！", "success")
+
+            # 清理测试图片
+            try:
+                if test_image_path.exists():
+                    test_image_path.unlink()
+                    self._log(f"✓ 测试图片已清理: {test_image_filename}", "info")
+            except Exception as e:
+                self._log(f"⚠️ 清理测试图片失败: {e}", "warning")
+
+        # 在后台线程中运行测试，模拟真实场景
+        threading.Thread(target=test_in_background, daemon=True).start()
+
     # ========== 辅助方法 ==========
 
     def _log(self, message: str, level: str = "info"):
@@ -633,45 +834,51 @@ class WeBanView:
             message: 日志消息
             level: 日志级别
         """
+        # 同时输出到控制台和 GUI
+        print(f"[WeBan] {message}")
+
         if self.log_text is None:
-            print(f"[WeBan] {message}")
             return
 
-        def update_log():
-            color_map = {
-                "info": ft.Colors.BLUE,
-                "success": ft.Colors.GREEN,
-                "warning": ft.Colors.ORANGE,
-                "error": ft.Colors.RED,
-            }
+        color_map = {
+            "info": ft.Colors.BLUE,
+            "success": ft.Colors.GREEN,
+            "warning": ft.Colors.ORANGE,
+            "error": ft.Colors.RED,
+        }
 
-            self.log_text.controls.append(
-                ft.Text(message, color=color_map.get(level, ft.Colors.BLACK), size=12)
-            )
-
-            # 限制日志数量
-            if len(self.log_text.controls) > 200:
-                self.log_text.controls.pop(0)
-
-            # 自动滚动到底部
-            try:
-                # scroll_to 是协程，需要在异步环境中调用
-                # 在同步环境中直接更新即可
-                self.log_text.update()
-            except Exception:
-                pass
+        # 创建新的文本控件
+        new_log = ft.Text(message, color=color_map.get(level, ft.Colors.BLACK), size=12)
 
         # 线程安全更新
         if threading.current_thread() is threading.main_thread():
-            update_log()
+            # 在主线程中，直接添加和更新
+            self.log_text.controls.append(new_log)
+            # 限制日志数量
+            if len(self.log_text.controls) > 200:
+                self.log_text.controls.pop(0)
+            self.log_text.update()
         else:
+            # 在后台线程中，使用 run_task 在主线程更新
+            def update_in_main_thread():
+                self.log_text.controls.append(new_log)
+                if len(self.log_text.controls) > 200:
+                    self.log_text.controls.pop(0)
+                self.log_text.update()
+
             try:
-                if hasattr(self.page, 'update_threadsafe'):
-                    self.page.update_threadsafe(update_log)
+                # 尝试使用 run_task
+                if hasattr(self.page, 'run_task'):
+                    # 创建一个协程来执行更新
+                    async def async_update():
+                        update_in_main_thread()
+                    self.page.run_task(async_update)
                 else:
-                    update_log()
+                    # 回退到直接调用
+                    update_in_main_thread()
             except Exception:
-                update_log()
+                # 最后的尝试：直接调用
+                update_in_main_thread()
 
     def _show_snackbar(self, message: str, color: ft.Colors):
         """显示提示信息"""
@@ -705,21 +912,26 @@ class WeBanView:
             match = re.search(r'请查看 (.+?) 输入验证码', prompt)
             if match:
                 image_filename = match.group(1)
+                print(f"[DEBUG] 提取的图片文件名: {image_filename}")  # 调试日志
                 # 验证码图片应该已经在项目目录中
                 image_path = str(Path.cwd() / image_filename)
+                print(f"[DEBUG] 完整图片路径: {image_path}")  # 调试日志
 
+                # 检查图片是否存在
                 if Path(image_path).exists():
-                    # 使用回调在主线程中显示对话框
-                    result = self.input_dialog.show_image_prompt_dialog(
-                        title="请输入验证码",
-                        image_path=image_path,
-                        prompt="请输入验证码："
-                    )
-                    return result if result else ""
+                    self._log(f"✓ 验证码图片已找到: {image_filename}", "success")
                 else:
                     self._log(f"⚠️ 验证码图片不存在: {image_path}", "warning")
-                    # 回退到 CLI 输入
-                    return input(prompt)
+                    self._log("💡 WeBan 可能会在后台打开图片，请稍候...", "info")
+
+                # 无论图片是否存在，都显示对话框
+                # WeBan 模块会负责打开图片
+                result = self.input_dialog.show_image_prompt_dialog(
+                    title="请输入验证码",
+                    image_path=image_path,
+                    prompt="请输入验证码："
+                )
+                return result if result else ""
 
         elif "重考" in prompt or "需要重考吗" in prompt:
             # 重考选择：显示确认对话框
