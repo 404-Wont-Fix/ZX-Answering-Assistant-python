@@ -69,6 +69,11 @@ REFACTOR_PLAN.md
 AGENTS.md
 cli_config.json
 
+# WeBan 配置文件
+weban_config.json
+src/modules/WeBan/config.json
+src/modules/WeBan/weban.log
+
 # Playwright 和 Flet 缓存
 playwright_browsers/
 flet_browsers/

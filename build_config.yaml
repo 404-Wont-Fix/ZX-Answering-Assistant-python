@@ -127,6 +127,11 @@ hidden_imports:
   - pyee
   - websocket
   - websockets
+  # WeBan module dependencies
+  - ddddocr
+  - loguru
+  - Crypto.Cipher
+  - Crypto.Util.Padding
 
 # Build Hooks
 hooks:

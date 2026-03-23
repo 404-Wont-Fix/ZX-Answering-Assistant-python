@@ -1,0 +1,3 @@
+[submodule "src/modules/WeBan"]
+	path = src/modules/WeBan
+	url = https://github.com/hangone/WeBan.git

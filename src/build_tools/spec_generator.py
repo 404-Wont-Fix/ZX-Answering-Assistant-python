@@ -127,6 +127,12 @@ class SpecGenerator:
         if config_file.exists():
             data_files.append((str(config_file), "."))
 
+        # Add WeBan submodule
+        weban_module = project_root / "src" / "modules" / "WeBan"
+        if weban_module.exists():
+            # Add entire WeBan module as data
+            data_files.append((str(weban_module), "src/modules/WeBan"))
+
         # Add compiled sources if enabled
         # Note: We don't add compiled files here because PyInstaller needs .py files for analysis
         # The compiled .pyc files will be used at runtime if properly structured
