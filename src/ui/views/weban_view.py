@@ -414,19 +414,36 @@ class WeBanView:
         def validate():
             result = self.adapter.validate_tenant(school)
             # 在主线程中更新UI
-            if result["success"]:
-                self._show_snackbar(f"✓ {result['message']}", ft.Colors.GREEN)
+            def show_result():
+                if result["success"]:
+                    self._show_snackbar(f"✓ {result['message']}", ft.Colors.GREEN)
+                else:
+                    self._show_snackbar(f"✗ {result['message']}", ft.Colors.RED)
+
+            # 确保在主线程中更新
+            if threading.current_thread() is threading.main_thread():
+                show_result()
             else:
-                self._show_snackbar(f"✗ {result['message']}", ft.Colors.RED)
+                try:
+                    if hasattr(self.page, 'update_threadsafe'):
+                        self.page.update_threadsafe(show_result)
+                    else:
+                        show_result()
+                except:
+                    show_result()
 
         threading.Thread(target=validate, daemon=True).start()
 
     def _on_login_click(self, e):
         """处理登录按钮点击"""
+        print("[DEBUG] _on_login_click 被调用")  # 调试信息
+
         # 获取输入
         self.school_name = self.school_field.value.strip()
         self.account = self.account_field.value.strip()
         self.password = self.password_field.value.strip()
+
+        print(f"[DEBUG] 学校: {self.school_name}, 账号: {self.account}")  # 调试信息
 
         # 验证输入
         if not self.school_name:
@@ -442,15 +459,24 @@ class WeBanView:
             return
 
         # 打开控制台
-        self.console_dialog = self._create_console_dialog()
-        self.page.dialog = self.console_dialog
-        self.console_dialog.open = True
-        self.page.update()
+        try:
+            print("[DEBUG] 正在创建控制台对话框...")  # 调试信息
+            self.console_dialog = self._create_console_dialog()
+            print("[DEBUG] 对话框创建完成")  # 调试信息
 
-        # 记录登录信息
-        self._log(f"学校：{self.school_name}", "info")
-        self._log(f"账号：{self.account}", "info")
-        self._log("准备就绪，请点击「开始执行」按钮开始任务", "success")
+            self.page.dialog = self.console_dialog
+            self.console_dialog.open = True
+            self.page.update()
+            print("[DEBUG] 对话框已打开")  # 调试信息
+
+            # 记录登录信息
+            self._log(f"学校：{self.school_name}", "info")
+            self._log(f"账号：{self.account}", "info")
+            self._log("准备就绪，请点击「开始执行」按钮开始任务", "success")
+        except Exception as ex:
+            print(f"[ERROR] 打开控制台失败: {ex}")  # 错误信息
+            import traceback
+            traceback.print_exc()
 
     def _on_start_task(self, e):
         """开始执行任务"""
