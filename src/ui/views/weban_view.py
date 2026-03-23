@@ -936,17 +936,25 @@ class WeBanView:
         elif "重考" in prompt or "需要重考吗" in prompt:
             # 重考选择：显示确认对话框
             import re
-            match = re.search(r'(.+?) 最高成绩 (\d+)', prompt)
+            # 提取考试信息
+            match = re.search(r'考试项目 (.+?) 最高成绩 (\d+) 分。已考试次数 (\d+) 次，还剩 (\d+) 次', prompt)
             if match:
-                info_text = match.group(0)
-                result = self.input_dialog.show_input_dialog(
+                project_name = match.group(1)
+                score = match.group(2)
+                finished_times = match.group(3)
+                remaining_times = match.group(4)
+
+                # 创建美观的重考确认对话框
+                result = self.input_dialog.show_retake_dialog(
                     title="重考确认",
-                    prompt=info_text + "\n\n是否重考？",
-                    options=["是", "否"],
-                    default_value="否"
+                    project_name=project_name,
+                    score=int(score),
+                    finished_times=int(finished_times),
+                    remaining_times=int(remaining_times)
                 )
                 return "y" if result == "是" else "n"
             else:
+                # 正则匹配失败，使用原始提示
                 result = self.input_dialog.show_input_dialog(
                     title="重考确认",
                     prompt=prompt,
