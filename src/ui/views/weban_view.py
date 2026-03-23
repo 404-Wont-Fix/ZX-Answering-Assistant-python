@@ -7,6 +7,7 @@ WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
 
 import flet as ft
 import threading
+import asyncio
 from pathlib import Path
 from typing import Optional
 
@@ -47,6 +48,10 @@ class WeBanView:
         self.start_button = None
         self.stop_button = None
         self.status_text = None
+
+        # 待输入的答案（用于手动作答）
+        self.pending_answer = None
+        self.answer_input_dialog = None
 
     def get_content(self) -> ft.Column:
         """
@@ -133,7 +138,7 @@ class WeBanView:
                                     leading=ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
                                     title=ft.Text("重要提示", weight=ft.FontWeight.BOLD),
                                     subtitle=ft.Text(
-                                        "⚠️ 如果题库中没有答案，需要您手动作答！\n"
+                                        "⚠️ 如果题库中没有答案，会弹出窗口让您手动作答！\n"
                                         "⚠️ 部分学校使用腾讯云验证码，可能无法自动完成！"
                                     ),
                                 ),
@@ -157,7 +162,7 @@ class WeBanView:
                         shape=ft.RoundedRectangleBorder(radius=10),
                         padding=ft.padding.symmetric(horizontal=30, vertical=15),
                     ),
-                    on_click=lambda e: self._on_start_click(e),
+                    on_click=self._on_start_click,
                     animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
                 ),
             ],
@@ -199,7 +204,7 @@ class WeBanView:
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
                             icon_color=ft.Colors.BLUE,
-                            on_click=lambda e: self._on_back_click(e),
+                            on_click=self._on_back_click,
                         ),
                         ft.Text(
                             "账号登录",
@@ -240,7 +245,7 @@ class WeBanView:
                                         ft.ElevatedButton(
                                             "验证学校",
                                             icon=ft.Icons.CHECK,
-                                            on_click=lambda e: self._on_validate_school(e),
+                                            on_click=self._on_validate_school,
                                         ),
                                         ft.Container(width=20),
                                         ft.Text(
@@ -270,7 +275,7 @@ class WeBanView:
                         shape=ft.RoundedRectangleBorder(radius=10),
                         padding=ft.padding.symmetric(horizontal=40, vertical=15),
                     ),
-                    on_click=lambda e: self._on_login_click(e),
+                    on_click=self._on_login_click,
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
@@ -300,7 +305,7 @@ class WeBanView:
             icon=ft.Icons.PLAY_ARROW,
             bgcolor=ft.Colors.GREEN,
             color=ft.Colors.WHITE,
-            on_click=lambda e: self._on_start_task(e),
+            on_click=self._on_start_task,
             disabled=False,
         )
 
@@ -310,7 +315,7 @@ class WeBanView:
             icon=ft.Icons.STOP,
             bgcolor=ft.Colors.RED,
             color=ft.Colors.WHITE,
-            on_click=lambda e: self._on_stop_task(e),
+            on_click=self._on_stop_task,
             disabled=True,
         )
 
@@ -318,7 +323,7 @@ class WeBanView:
         back_button = ft.ElevatedButton(
             "返回",
             icon=ft.Icons.ARROW_BACK,
-            on_click=lambda e: self._on_close_console(e),
+            on_click=self._on_close_console,
         )
 
         dialog = ft.AlertDialog(
@@ -361,7 +366,7 @@ class WeBanView:
                         # 提示信息
                         ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                         ft.Text(
-                            "💡 提示：如果题库中没有答案，请手动作答后再继续！",
+                            "💡 提示：如果题库中没有答案，会弹出窗口让您手动作答！",
                             size=12,
                             color=ft.Colors.ORANGE,
                         ),
@@ -408,10 +413,11 @@ class WeBanView:
 
         def validate():
             result = self.adapter.validate_tenant(school)
+            # 在主线程中更新UI
             if result["success"]:
-                self._show_snackbar(result["message"], ft.Colors.GREEN)
+                self._show_snackbar(f"✓ {result['message']}", ft.Colors.GREEN)
             else:
-                self._show_snackbar(result["message"], ft.Colors.RED)
+                self._show_snackbar(f"✗ {result['message']}", ft.Colors.RED)
 
         threading.Thread(target=validate, daemon=True).start()
 
@@ -437,7 +443,9 @@ class WeBanView:
 
         # 打开控制台
         self.console_dialog = self._create_console_dialog()
-        self.page.show_dialog(self.console_dialog)
+        self.page.dialog = self.console_dialog
+        self.console_dialog.open = True
+        self.page.update()
 
         # 记录登录信息
         self._log(f"学校：{self.school_name}", "info")
@@ -550,24 +558,44 @@ class WeBanView:
                 self.log_text.controls.pop(0)
 
             # 自动滚动到底部
-            self.log_text.scroll_to(offset=-1, duration=100)
-            self.log_text.update()
+            try:
+                # scroll_to 是协程，需要在异步环境中调用
+                # 在同步环境中直接更新即可
+                self.log_text.update()
+            except Exception:
+                pass
 
         # 线程安全更新
         if threading.current_thread() is threading.main_thread():
             update_log()
         else:
             try:
-                self.log_text.page.update_threadsafe(update_log)
-            except AttributeError:
+                if hasattr(self.page, 'update_threadsafe'):
+                    self.page.update_threadsafe(update_log)
+                else:
+                    update_log()
+            except Exception:
                 update_log()
 
     def _show_snackbar(self, message: str, color: ft.Colors):
         """显示提示信息"""
-        self.page.snack_bar = ft.SnackBar(
-            ft.Text(message, color=ft.Colors.WHITE),
-            bgcolor=color,
-            duration=3000,
-        )
-        self.page.snack_bar.open = True
-        self.page.update()
+        def show_snack():
+            self.page.snack_bar = ft.SnackBar(
+                ft.Text(message, color=ft.Colors.WHITE),
+                bgcolor=color,
+                duration=3000,
+            )
+            self.page.snack_bar.open = True
+            self.page.update()
+
+        # 确保在主线程中执行
+        if threading.current_thread() is threading.main_thread():
+            show_snack()
+        else:
+            try:
+                if hasattr(self.page, 'update_threadsafe'):
+                    self.page.update_threadsafe(show_snack)
+                else:
+                    show_snack()
+            except Exception:
+                show_snack()
