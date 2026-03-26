@@ -104,10 +104,179 @@ class WeBanAdapter:
         if not WEBAN_AVAILABLE:
             return
 
-        # 保存原始方法（只保存一次）
-        if not hasattr(WeBanClient, '_original_run_study'):
+        # 使用类级别标志确保 Monkey Patch 只应用一次
+        if not hasattr(WeBanClient, '_weban_patch_applied'):
+            # 保存原始方法（只保存一次）
             WeBanClient._original_run_study = WeBanClient.run_study
             WeBanClient._original_run_exam = WeBanClient.run_exam
+
+            # 创建带停止检查的包装方法
+            def run_study_with_stop(self, study_time: int = 20, restudy_time: int = 0):
+                """带停止检查的 run_study 方法"""
+                # 检查是否设置了停止标志
+                if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                    if self._adapter._stop_event.is_set():
+                        self._adapter._log("用户中断：学习阶段", "warning")
+                        return
+
+                # 调用原始方法的大部分逻辑，但在关键循环点检查停止
+                if study_time:
+                    self.study_time = study_time
+
+                if restudy_time:
+                    self.study_time = restudy_time
+                    self.log.info(f"重新学习模式已开启，所有课程将重新学习，每门课程学习 {self.study_time} 秒")
+
+                my_project = self.api.list_my_project()
+                if my_project.get("code", -1) != "0":
+                    self.log.error(f"获取任务列表失败：{my_project}")
+                    return
+
+                my_project = my_project.get("data", [])
+                if not my_project:
+                    self.log.error(f"获取任务列表失败")
+
+                completion = self.api.list_completion()
+                if completion.get("code", -1) != "0":
+                    self.log.error(f"获取模块完成情况失败：{completion}")
+
+                showable_modules = [d["module"] for d in completion.get("data", []) if d["showable"] == 1]
+                if "labProject" in showable_modules:
+                    self.log.info(f"加载实验室课程")
+                    lab_project = self.api.lab_index()
+                    if lab_project.get("code", -1) != "0":
+                        self.log.error(f"获取实验室课程失败：{lab_project}")
+                    my_project.append(lab_project.get("data", {}).get("current", {}))
+
+                # 在任务循环中检查停止
+                for task in my_project:
+                    # 检查停止
+                    if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                        if self._adapter._stop_event.is_set():
+                            self._adapter._log("用户中断：停止学习任务", "warning")
+                            return
+
+                    project_prefix = task["projectName"]
+                    self.log.info(f"开始处理任务：{project_prefix}")
+                    need_capt = []
+
+                    self.get_progress(task["userProjectId"], project_prefix)
+
+                    for choose_type in [(3, "必修课", "requiredNum", "requiredFinishedNum"), (1, "推送课", "pushNum", "pushFinishedNum"), (2, "自选课", "optionalNum", "optionalFinishedNum")]:
+                        categories = self.api.list_category(task["userProjectId"], choose_type[0])
+                        if categories.get("code") != "0":
+                            self.log.error(f"获取 {choose_type[1]} 分类失败：{categories}")
+                            continue
+                        for category in categories.get("data", []):
+                            # 检查停止
+                            if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                                if self._adapter._stop_event.is_set():
+                                    self._adapter._log("用户中断：停止分类处理", "warning")
+                                    return
+
+                            category_prefix = f"{choose_type[1]} {project_prefix}/{category['categoryName']}"
+                            self.log.info(f"开始处理 {category_prefix}")
+                            if not restudy_time and category["finishedNum"] >= category["totalNum"]:
+                                self.log.success(f"{category_prefix} 已完成")
+                                continue
+
+                            progress = self.get_progress(task["userProjectId"], project_prefix, False)
+                            if not restudy_time and progress[choose_type[3]] >= progress[choose_type[2]]:
+                                self.log.info(f"{category_prefix} 已达到要求，跳过")
+                                break
+
+                            courses = self.api.list_course(task["userProjectId"], category["categoryCode"], choose_type[0])
+                            for course in courses.get("data", []):
+                                # 检查停止
+                                if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                                    if self._adapter._stop_event.is_set():
+                                        self._adapter._log("用户中断：停止课程学习", "warning")
+                                        return
+
+                                course_prefix = f"{category_prefix}/{course['resourceName']}"
+                                progress = self.get_progress(task["userProjectId"], category_prefix)
+                                if not restudy_time and progress[choose_type[3]] >= progress[choose_type[2]]:
+                                    self.log.info(f"{category_prefix} 已达到要求，跳过")
+                                    break
+
+                                self.log.info(f"开始处理课程：{course_prefix}")
+                                if not restudy_time and course["finished"] == 1:
+                                    self.log.success(f"{course_prefix} 已完成")
+                                    continue
+
+                                self.api.study(course["resourceId"], task["userProjectId"])
+                                if self.api.get_simple_config().get("data", {}).get("isControlSource") == 1:
+                                    self.log.warning(f"检测到课程需网页端处理（isControlSource=1），建议前往网页版登录处理一下")
+
+                                if "userCourseId" not in course:
+                                    self.log.success(f"{course_prefix} 完成")
+                                    continue
+
+                                course_url = self.api.get_course_url(course["resourceId"], task["userProjectId"])["data"] + "&weiban=weiban"
+                                from urllib.parse import parse_qs, urlparse
+                                query = parse_qs(urlparse(course_url).query)
+                                if query.get("csCapt", [None])[0] == "true":
+                                    self.log.warning(f"课程需要验证码，暂时无法处理...")
+                                    need_capt.append(course_prefix)
+                                    continue
+
+                                # 在学习等待循环中检查停止
+                                sleep = 0
+                                import time
+                                while sleep < self.study_time:
+                                    # 检查停止
+                                    if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                                        if self._adapter._stop_event.is_set():
+                                            self._adapter._log("用户中断：停止课程等待", "warning")
+                                            return
+
+                                    if sleep % 60 == 0:
+                                        self.log.info(f"{course_prefix} 等待 {self.study_time - sleep} 秒，模拟学习中...")
+                                    time.sleep(1)
+                                    sleep += 1
+
+                                if query.get("lyra", [None])[0] == "lyra":
+                                    res = self.api.finish_lyra(query.get("userActivityId", [None])[0])
+                                elif query.get("weiban", [None])[0] != "weiban":
+                                    res = self.api.finish_by_token(course["userCourseId"], course_type="open")
+                                elif query.get("source", [None])[0] == "moon":
+                                    res = self.api.finish_by_token(course["userCourseId"], course_type="moon")
+                                else:
+                                    token = None
+                                    if query.get("csCapt", [None])[0] == "true":
+                                        self.log.warning(f"课程需要验证码，暂时无法处理...")
+                                        need_capt.append(course_prefix)
+                                        continue
+                                        res = self.api.invoke_captcha(course["userCourseId"], task["userProjectId"])
+                                        if res.get("code", -1) != "0":
+                                            self.log.error(f"获取验证码失败：{res}")
+                                        token = res.get("data", {}).get("methodToken", None)
+
+                                    res = self.api.finish_by_token(course["userCourseId"], token)
+                                    if "ok" not in res:
+                                        self.log.error(f"{course_prefix} 完成失败：{res}")
+
+                                self.log.success(f"{course_prefix} 完成")
+
+                    if need_capt:
+                        self.log.warning(f"以下课程需要验证码，请手动完成：")
+                        for c in need_capt:
+                            self.log.warning(f" - {c}")
+
+                    self.log.success(f"{project_prefix} 课程学习完成")
+
+            def run_exam_with_stop(self, use_time: int = 250):
+                """带停止检查的 run_exam 方法"""
+                # 完整的实现已经在前面定义，这里不需要重复
+                # 只是为了确保方法替换正确
+                pass
+
+            # 替换方法
+            WeBanClient.run_study = run_study_with_stop
+            WeBanClient.run_exam = run_exam_with_stop
+
+            # 标记已应用
+            WeBanClient._weban_patch_applied = True
 
         # 创建带停止检查的包装方法
         def run_study_with_stop(self, study_time: int = 20, restudy_time: int = 0):
@@ -265,84 +434,21 @@ class WeBanAdapter:
                 self.log.success(f"{project_prefix} 课程学习完成")
 
         def run_exam_with_stop(self, use_time: int = 250):
-            """带停止检查的 run_exam 方法 - 暂不修改，因为考试逻辑复杂"""
-            # 直接调用原始方法
-            WeBanClient._original_run_exam(self, use_time)
-
-        # 替换方法
-        WeBanClient.run_study = run_study_with_stop
-        WeBanClient.run_exam = run_exam_with_stop
-
-    def _apply_input_patch(self):
-        """
-        应用 Monkey Patch 添加 GUI 输入支持
-
-        将 WeBan 模块中的 input() 调用替换为回调函数
-        """
-        if not WEBAN_AVAILABLE:
-            return
-
-        def login_with_gui_input(self) -> Dict | None:
-            """支持 GUI 输入的登录方法"""
-            if self.api.user.get("userId"):
-                return self.api.user
-            retry_limit = 3
-            for i in range(retry_limit + 2):
-                if i > 0:
-                    self.log.warning(f"登录失败，正在重试 {i}/{retry_limit+2} 次")
-                verify_time = self.api.get_timestamp(13, 0)
-                verify_image = self.api.rand_letter_image(verify_time)
-                if i < retry_limit and self.ocr:
-                    try:
-                        verify_code = self.ocr.classification(verify_image)
-                        self.log.info(f"自动验证码识别结果: {verify_code}")
-                        if len(verify_code) != 4:
-                            self.log.warning(f"验证码识别失败，正在重试")
-                            continue
-                    except Exception as e:
-                        self.log.error(f"验证码识别异常: {e}")
-                        continue
-                else:
-                    account_id = self.api.account or self.api.user.get("userId") or "unknown"
-                    captcha_filename = f"verify_code_{account_id}.png"
-                    captcha_path = os.path.abspath(captcha_filename)
-                    with self._stdin_lock:
-                        open(captcha_path, "wb").write(verify_image)
-                        webbrowser.open(f"file://{captcha_path}")
-
-                        # 使用回调函数获取输入（支持 GUI）
-                        if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
-                            verify_code = self._adapter.input_callback(
-                                f"请查看 {captcha_filename} 输入验证码："
-                            )
-                        else:
-                            verify_code = input(f"[{account_id}] 请查看 {captcha_filename} 输入验证码：")
-
-                    # 尝试删除临时验证码图片
-                    try:
-                        os.remove(captcha_path)
-                    except Exception:
-                        pass
-
-                res = self.api.login(verify_code, int(verify_time))
-                if res.get("detailCode") == "67":
-                    self.log.warning(f"验证码识别失败，正在重试")
-                    continue
-                if self.api.user.get("userId"):
-                    return self.api.user
-                self.log.error(f"登录出错，请检查 config.json 内账号密码，或删除文件后重试: {res}")
-                break
-            return None
-
-        def run_exam_with_gui_input(self, use_time: int = 250):
-            """支持 GUI 输入的考试方法"""
+            """带停止检查的 run_exam 方法"""
             import json
             import time
-            from urllib.parse import parse_qs, urlparse
+
+            # 检查停止标志
+            if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                if self._adapter._stop_event.is_set():
+                    self._adapter._log("用户中断：考试阶段", "warning")
+                    return
 
             # 加载题库
             answers_json = {}
-            answer_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "WeBan/answer/answer.json")
+            from pathlib import Path
+            answer_dir = Path(__file__).parent / "WeBan" / "answer"
+            answer_path = answer_dir / "answer.json"
 
             with open(answer_path, encoding="utf-8") as f:
                 for title, options in json.load(f).items():
@@ -375,17 +481,19 @@ class WeBanAdapter:
                 # 检查停止
                 if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
                     if self._adapter._stop_event.is_set():
-                        self._adapter._log("用户中断：停止考试", "warning")
+                        self._adapter._log("用户中断：停止考试项目", "warning")
                         return
 
                 self.log.info(f"开始考试项目 {project['projectName']}")
                 user_project_id = project["userProjectId"]
+
                 # 获取考试计划
                 exam_plans = self.api.exam_list_plan(user_project_id)
                 if exam_plans.get("code", -1) != "0":
                     self.log.error(f"获取考试计划失败：{exam_plans}")
                     return
                 exam_plans = exam_plans["data"]
+
                 for plan in exam_plans:
                     # 检查停止
                     if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
@@ -407,12 +515,9 @@ class WeBanAdapter:
                         if choice != "y":
                             self.log.info(f"不重考项目 {project['projectName']}")
                             continue
+
                     user_exam_plan_id = plan["id"]
                     exam_plan_id = plan["examPlanId"]
-                    # 是否存在完成的考试记录
-                    before_paper = self.api.exam_before_paper(plan["id"])
-                    if before_paper.get("code", -1) != "0":
-                        self.log.error(f"考试项目 {project['projectName']}/{plan['examPlanName']} 获取考试记录失败：{before_paper}")
 
                     # 预请求
                     prepare_paper = self.api.exam_prepare_paper(user_exam_plan_id)
@@ -505,12 +610,107 @@ class WeBanAdapter:
                                 return
 
                         self.log.info(f"[{i}/{len(have_answer)}]题目在题库中，开始答题")
-                        # ... 原始的自动答题逻辑 ...
-                        # 这里简化处理，实际应该继续完成剩余的答题逻辑
+                        self.log.info(f"题目类型：{question['typeLabel']}，题目标题：{question['title']}")
+                        answers = answers_json[WeBanClient.clean_text(question["title"])]
+                        answers_ids = [option["id"] for option in question["optionList"] if WeBanClient.clean_text(option["content"]) in answers]
+                        self.log.info(f"等待 {per_time} 秒，模拟答题中...")
+
+                        # 在等待期间也检查停止
+                        sleep_count = 0
+                        while sleep_count < per_time:
+                            if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
+                                if self._adapter._stop_event.is_set():
+                                    self._adapter._log("用户中断：停止答题等待", "warning")
+                                    return
+                            time.sleep(1)
+                            sleep_count += 1
+
+                        if not self.record_answer(user_exam_plan_id, question["id"], per_time + 1, answers_ids, exam_plan_id):
+                            raise RuntimeError(f"答题失败，请重新考试：{question}")
+
+                    self.log.info(f"完成考试，正在提交试卷...")
+                    submit_res = self.api.exam_submit_paper(user_exam_plan_id)
+                    if submit_res.get("code", -1) != "0":
+                        raise RuntimeError(f"提交试卷失败，请重新考试：{submit_res}")
+                    self.log.success(f"试卷提交成功，考试完成，成绩：{submit_res['data']['score']} 分")
 
         # 替换方法
-        WeBanClient.login = login_with_gui_input
-        # run_exam 已经在前面的 patch 中处理了，这里不需要再替换
+        WeBanClient.run_study = run_study_with_stop
+        WeBanClient.run_exam = run_exam_with_stop
+
+    def _apply_input_patch(self):
+        """
+        应用 Monkey Patch 添加 GUI 输入支持
+
+        将 WeBan 模块中的 input() 调用替换为回调函数
+        """
+        if not WEBAN_AVAILABLE:
+            return
+
+        # 使用类级别标志确保 Monkey Patch 只应用一次
+        if not hasattr(WeBanClient, '_weban_input_patch_applied'):
+            def login_with_gui_input(self) -> Dict | None:
+                """支持 GUI 输入的登录方法"""
+                if self.api.user.get("userId"):
+                    return self.api.user
+                retry_limit = 3
+                for i in range(retry_limit + 2):
+                    if i > 0:
+                        self.log.warning(f"登录失败，正在重试 {i}/{retry_limit+2} 次")
+                    verify_time = self.api.get_timestamp(13, 0)
+                    verify_image = self.api.rand_letter_image(verify_time)
+                    if i < retry_limit and self.ocr:
+                        try:
+                            verify_code = self.ocr.classification(verify_image)
+                            self.log.info(f"自动验证码识别结果: {verify_code}")
+                            if len(verify_code) != 4:
+                                self.log.warning(f"验证码识别失败，正在重试")
+                                continue
+                        except Exception as e:
+                            self.log.error(f"验证码识别异常: {e}")
+                            continue
+                    else:
+                        import time
+                        import threading
+                        account_id = self.api.account or self.api.user.get("userId") or "unknown"
+                        # 添加时间戳和线程ID，避免多账号同时运行时的文件覆盖
+                        timestamp = int(time.time() * 1000)
+                        thread_id = threading.get_ident()
+                        captcha_filename = f"verify_code_{account_id}_{timestamp}_{thread_id}.png"
+                        captcha_path = os.path.abspath(captcha_filename)
+                        with self._stdin_lock:
+                            open(captcha_path, "wb").write(verify_image)
+                            webbrowser.open(f"file://{captcha_path}")
+
+                            # 使用回调函数获取输入（支持 GUI）
+                            if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
+                                verify_code = self._adapter.input_callback(
+                                    f"请查看 {captcha_filename} 输入验证码："
+                                )
+                            else:
+                                verify_code = input(f"[{account_id}] 请查看 {captcha_filename} 输入验证码：")
+
+                        # 尝试删除临时验证码图片
+                        try:
+                            os.remove(captcha_path)
+                        except Exception:
+                            pass
+
+                    res = self.api.login(verify_code, int(verify_time))
+                    if res.get("detailCode") == "67":
+                        self.log.warning(f"验证码识别失败，正在重试")
+                        continue
+                    if self.api.user.get("userId"):
+                        return self.api.user
+                    self.log.error(f"登录出错，请检查 config.json 内账号密码，或删除文件后重试: {res}")
+                    break
+                return None
+
+            # 替换方法
+            WeBanClient.login = login_with_gui_input
+
+            # 标记已应用
+            WeBanClient._weban_input_patch_applied = True
 
     def load_config(self, config: List[Dict[str, Any]]) -> bool:
         """
@@ -685,15 +885,33 @@ class WeBanAdapter:
 
         except PermissionError as e:
             self._log(f"[账号 {account_index+1}] 权限错误: {e}", "error")
+            self._log(f"💡 提示：请检查文件权限，或以管理员身份运行", "info")
             return False
         except RuntimeError as e:
             self._log(f"[账号 {account_index+1}] 运行时错误: {e}", "error")
+            # 判断是否是用户主动停止
+            if "用户中断" in str(e) or self._stop_event.is_set():
+                self._log(f"[账号 {account_index+1}] 用户主动停止任务", "warning")
             return False
         except ValueError as e:
             self._log(f"[账号 {account_index+1}] 参数错误: {e}", "error")
+            self._log(f"💡 提示：请检查配置参数是否正确", "info")
             return False
+        except ConnectionError as e:
+            self._log(f"[账号 {account_index+1}] 网络连接错误: {e}", "error")
+            self._log(f"💡 提示：请检查网络连接", "info")
+            return False
+        except TimeoutError as e:
+            self._log(f"[账号 {account_index+1}] 请求超时: {e}", "error")
+            self._log(f"💡 提示：网络响应过慢，请稍后重试", "info")
+            return False
+        except KeyboardInterrupt:
+            self._log(f"[账号 {account_index+1}] 用户中断执行", "warning")
+            raise
         except Exception as e:
-            self._log(f"[账号 {account_index+1}] 运行失败: {e}", "error")
+            self._log(f"[账号 {account_index+1}] 未知错误: {type(e).__name__}: {e}", "error")
+            import traceback
+            self._log(f"错误详情: {traceback.format_exc()}", "error")
             return False
 
     def start(self, use_multithread: bool = True) -> Dict[str, int]:
