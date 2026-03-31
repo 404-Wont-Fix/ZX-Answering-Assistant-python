@@ -1173,9 +1173,35 @@ browser = playwright.chromium.launch(
 
 ### 1. 克隆项目
 
+**⚠️ 重要：本项目包含 Git 子模块，需要使用特殊的克隆命令**
+
+本项目集成了 [WeBan](https://github.com/hangone/WeBan) 模块作为子模块，因此克隆时需要加上 `--recursive` 参数：
+
 ```bash
-git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
+# 方法 1: 使用 --recursive 参数（推荐）
+git clone --recursive https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
+```
+
+**如果已经使用普通方式克隆了项目**，需要额外拉取子模块：
+
+```bash
+cd ZX-Answering-Assistant-python
+git submodule update --init --recursive
+```
+
+**子模块信息**：
+- 子模块路径：`src/modules/WeBan`
+- 子模块仓库：https://github.com/hangone/WeBan.git
+- 用途：安全微伴课程自动化（OCR 验证码识别、自动学习、智能考试）
+
+**验证子模块是否拉取成功**：
+
+```bash
+git submodule status
+# 应该显示：0d8f1f35f10a59dfe413071efd9d5da5c4fb8033 src/modules/WeBan (v3.6.1-3-g0d8f1f3)
+ls src/modules/WeBan
+# 应该显示 WeBan 模块的文件列表
 ```
 
 ### 2. 创建虚拟环境
@@ -1438,9 +1464,13 @@ python main.py
 ### 开发环境搭建
 
 ```bash
-# 1. 克隆项目
-git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
+# 1. 克隆项目（包含子模块）
+# ⚠️ 本项目包含 Git 子模块，必须使用 --recursive 参数
+git clone --recursive https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
+
+# 如果忘记使用 --recursive，执行以下命令拉取子模块：
+# git submodule update --init --recursive
 
 # 2. 创建虚拟环境
 python -m venv venv
