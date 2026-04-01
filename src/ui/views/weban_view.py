@@ -13,6 +13,7 @@ from typing import Optional
 
 from src.modules.weban_adapter import get_weban_adapter
 from src.ui.dialogs.input_dialog import WeBanInputDialog
+from src.core.config import get_settings_manager
 
 
 class WeBanView:
@@ -32,11 +33,15 @@ class WeBanView:
             input_callback=self._handle_input  # 传入输入回调
         )
 
+        # 设置管理器
+        self.settings_manager = get_settings_manager()
+
         # UI 控件
         self.current_content = None
         self.school_field = None
         self.account_field = None
         self.password_field = None
+        self.remember_checkbox = None  # 记住我复选框
 
         # 任务状态
         self.is_running = False
@@ -176,10 +181,14 @@ class WeBanView:
 
     def _get_login_content(self) -> ft.Column:
         """获取登录页面内容"""
-        # 初始化输入框
+        # 加载已保存的凭据
+        saved_school, saved_account, saved_password = self.settings_manager.get_weban_credentials()
+
+        # 初始化输入框（自动填充已保存的凭据）
         self.school_field = ft.TextField(
             label="学校名称",
             hint_text="请输入完整的学校名称（如：重庆大学）",
+            value=saved_school or "",
             width=400,
             prefix_icon=ft.Icons.SCHOOL,
             autofocus=True,
@@ -188,6 +197,7 @@ class WeBanView:
         self.account_field = ft.TextField(
             label="账号",
             hint_text="请输入您的账号",
+            value=saved_account or "",
             width=400,
             prefix_icon=ft.Icons.PERSON,
         )
@@ -195,10 +205,18 @@ class WeBanView:
         self.password_field = ft.TextField(
             label="密码",
             hint_text="请输入您的密码",
+            value=saved_password or "",
             width=400,
             password=True,
             can_reveal_password=True,
             prefix_icon=ft.Icons.LOCK,
+        )
+
+        # 创建"记住我"复选框
+        self.remember_checkbox = ft.Checkbox(
+            label="记住我（自动保存账号和密码）",
+            value=bool(saved_school and saved_account and saved_password),  # 如果已保存凭据，默认勾选
+            fill_color=ft.Colors.BLUE,
         )
 
         return ft.Column(
@@ -243,7 +261,9 @@ class WeBanView:
                                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
 
                                 self.password_field,
-                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                                self.remember_checkbox,
+                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
                                 ft.Row(
                                     [
@@ -468,6 +488,19 @@ class WeBanView:
         if not self.password:
             self._show_snackbar("请输入密码", ft.Colors.RED)
             return
+
+        # 保存凭据（如果勾选了"记住我"）
+        if self.remember_checkbox.value:
+            self.settings_manager.set_weban_credentials(
+                self.school_name,
+                self.account,
+                self.password
+            )
+            print("[WeBan] 凭据已保存")
+        else:
+            # 如果取消勾选，清除已保存的凭据
+            self.settings_manager.clear_weban_credentials()
+            print("[WeBan] 凭据已清除")
 
         # 打开控制台
         try:
