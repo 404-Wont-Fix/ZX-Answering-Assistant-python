@@ -102,6 +102,11 @@ class SettingsManager:
                 "teacher": {
                     "username": "",
                     "password": ""
+                },
+                "weban": {
+                    "school_name": "",
+                    "account": "",
+                    "password": ""
                 }
             },
             "api_settings": {
@@ -208,6 +213,59 @@ class SettingsManager:
 
         self.config["credentials"]["teacher"]["username"] = ""
         self.config["credentials"]["teacher"]["password"] = ""
+
+        return self._save_config(self.config)
+
+    def get_weban_credentials(self) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        获取WeBan凭据
+
+        Returns:
+            tuple: (school_name, account, password)，如果未设置则返回 (None, None, None)
+        """
+        school_name = self.config.get("credentials", {}).get("weban", {}).get("school_name", "")
+        account = self.config.get("credentials", {}).get("weban", {}).get("account", "")
+        password = self.config.get("credentials", {}).get("weban", {}).get("password", "")
+        return (school_name if school_name else None, account if account else None, password if password else None)
+
+    def set_weban_credentials(self, school_name: str, account: str, password: str) -> bool:
+        """
+        设置WeBan凭据
+
+        Args:
+            school_name: 学校名称
+            account: 账号
+            password: 密码
+
+        Returns:
+            bool: 是否保存成功
+        """
+        if "credentials" not in self.config:
+            self.config["credentials"] = {}
+        if "weban" not in self.config["credentials"]:
+            self.config["credentials"]["weban"] = {}
+
+        self.config["credentials"]["weban"]["school_name"] = school_name
+        self.config["credentials"]["weban"]["account"] = account
+        self.config["credentials"]["weban"]["password"] = password
+
+        return self._save_config(self.config)
+
+    def clear_weban_credentials(self) -> bool:
+        """
+        清除WeBan凭据
+
+        Returns:
+            bool: 是否清除成功
+        """
+        if "credentials" not in self.config:
+            self.config["credentials"] = {}
+        if "weban" not in self.config["credentials"]:
+            self.config["credentials"]["weban"] = {}
+
+        self.config["credentials"]["weban"]["school_name"] = ""
+        self.config["credentials"]["weban"]["account"] = ""
+        self.config["credentials"]["weban"]["password"] = ""
 
         return self._save_config(self.config)
 
@@ -343,6 +401,20 @@ class SettingsManager:
             masked_user = teacher_username[:3] + "****" if len(teacher_username) > 3 else "****"
             masked_pass = "****" if teacher_password else "(空)"
             print(f"   用户名: {masked_user}")
+            print(f"   密码: {masked_pass}")
+            print(f"   状态: ✅ 已设置")
+        else:
+            print(f"   状态: ❌ 未设置")
+
+        # WeBan凭据
+        weban_school, weban_account, weban_password = self.get_weban_credentials()
+        print(f"\n🛡️ WeBan账号:")
+        if weban_account:
+            masked_school = weban_school[:4] + "****" if len(weban_school) > 4 else "****"
+            masked_user = weban_account[:3] + "****" if len(weban_account) > 3 else "****"
+            masked_pass = "****" if weban_password else "(空)"
+            print(f"   学校名称: {masked_school}")
+            print(f"   账号: {masked_user}")
             print(f"   密码: {masked_pass}")
             print(f"   状态: ✅ 已设置")
         else:
