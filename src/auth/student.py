@@ -740,11 +740,36 @@ def _get_course_progress_from_page_impl() -> Optional[Dict]:
             logger.error("❌ 页面未初始化")
             return None
 
-        # 等待页面加载完成
-        page.wait_for_selector(".el-menu-item", timeout=10000)
+        # 等待页面加载完成 - 使用 networkidle 而不是等待特定元素
+        try:
+            page.wait_for_load_state("networkidle", timeout=8000)
+        except Exception:
+            # 如果等待 networkidle 失败，继续尝试解析
+            logger.debug("等待 networkidle 超时，继续解析页面")
+
+        # 额外等待一下，确保 DOM 完全渲染
+        import time
+        time.sleep(0.5)
+
+        # 等待元素存在于 DOM 中（不要求可见）
+        try:
+            page.wait_for_selector(".el-menu-item", state="attached", timeout=8000)
+        except Exception:
+            logger.debug("等待 .el-menu-item 超时，尝试直接解析")
 
         # 获取所有的知识点菜单项
         knowledge_items = page.query_selector_all(".el-menu-item")
+
+        # 如果没有找到元素，返回默认值
+        if not knowledge_items or len(knowledge_items) == 0:
+            logger.warning("⚠️ 未找到 .el-menu-item 元素，页面可能未完全加载")
+            return {
+                'total': 0,
+                'completed': 0,
+                'failed': 0,
+                'not_started': 0,
+                'progress_percentage': 0.0
+            }
 
         total = len(knowledge_items)
         completed = 0
