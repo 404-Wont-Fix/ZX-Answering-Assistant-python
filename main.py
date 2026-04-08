@@ -1400,9 +1400,16 @@ def main():
                                                     relogin = input("是否重新登录？(yes/no): ").strip().lower()
                                                     if relogin in ['yes', 'y', '是']:
                                                         print("\n🔄 正在重新登录...")
-                                                        # 清除旧的 token
-                                                        from src.auth.student import clear_access_token
-                                                        clear_access_token()
+                                                        print("🧹 正在清理旧用户状态...")
+
+                                                        # 完全清理旧用户状态
+                                                        from src.auth.student import clear_access_token, cleanup_browser
+                                                        try:
+                                                            clear_access_token()
+                                                            cleanup_browser()
+                                                            print("✅ 用户状态清理完成")
+                                                        except Exception as e:
+                                                            print(f"⚠️ 清理用户状态时出错: {e}")
 
                                                         # 重新获取 token（会启动新的浏览器）
                                                         new_token = get_student_access_token()
