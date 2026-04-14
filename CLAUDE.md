@@ -103,7 +103,7 @@ The application features a modern GUI built with **Flet** (`flet>=0.80.0`):
 - **[extraction_view.py](src/ui/views/extraction_view.py)** - Teacher-side answer extraction interface
 - **[settings_view.py](src/ui/views/settings_view.py)** - Configuration management
 - **[course_certification_view.py](src/ui/views/course_certification_view.py)** - Course certification workflow (v2.6.0)
-- **[cloud_exam_view.py](src/ui/views/cloud_exam_view.py)** - Cloud exam page (⚠️ **Placeholder only** - not yet implemented)
+- **[cloud_exam_view.py](src/ui/views/cloud_exam_view.py)** - Cloud exam page (⚠️ **Partial implementation** - login, get paper, load bank implemented, answer injection blocked by missing ExamMemberID parameter)
 
 ### CLI Mode
 Traditional command-line interface accessed via [main.py](main.py) with hierarchical menu system:
@@ -240,6 +240,73 @@ result = browser_manager._execute_in_thread(
   - Text similarity matching for answer selection
   - Uses different API base: `https://zxsz.cqzuxia.com/teacherCertifiApi/api/TeacherCourseEvaluate`
   - Much faster than browser-based answering
+
+### Cloud Exam Modules (云考试) - Beta
+- **[src/cloud_exam/workflow.py](src/cloud_exam/workflow.py)** - Cloud exam workflow module
+  - `CloudExamWorkflow` class - Main workflow orchestration
+  - `get_student_access_token()` - Student authentication for cloud exam
+  - `capture_exam_paper(exp_id)` - Get exam paper by expID (direct API call)
+  - `load_question_bank(file_path)` - Load JSON question bank
+  - `validate_question_bank(exam_paper)` - Validate question bank match rate
+  - `inject_answers(exam_member_id)` - Inject answers (⚠️ **Blocked by missing ExamMemberID**)
+
+- **[src/cloud_exam/api_client.py](src/cloud_exam/api_client.py)** - Cloud exam API client
+  - `CloudExamAPIClient` class - API wrapper for cloud exam endpoints
+  - `get_exam_paper(exp_id)` - Get exam questions from API
+  - `get_student_answer_list(exp_id)` - Get already submitted answers
+  - `submit_answer(question_id, answer_id, exp_id, exam_member_id)` - Submit single answer
+  - `submit_all_answers(exam_paper, answer_map, exam_member_id)` - Batch submit answers
+
+- **[src/cloud_exam/models.py](src/cloud_exam/models.py)** - Cloud exam data models
+  - `ExamPaper` - Complete exam with expID, questions list, answered tracking
+  - `ExamQuestion` - Individual question with ID, title, type, options
+  - `QuestionOption` - Answer option with ID, content, correctness flag
+
+**⚠️ IMPORTANT TODO - ExamMemberID Parameter**:
+The answer injection functionality is **80% complete but blocked** by a missing parameter:
+
+```python
+# Required for answer submission but cannot obtain
+{
+    "QuestionID": "...",
+    "AnswerID": "...",
+    "ExamPapersID": "expID",
+    "ExamMemberID": "???"  # Unknown how to obtain
+}
+```
+
+**What's needed to complete**:
+1. Wait for website to become available
+2. Use browser DevTools to analyze network requests
+3. Find which API response contains ExamMemberID
+4. Possible sources:
+   - GetQuestionsByExpId API response
+   - Another API endpoint when entering exam
+   - Browser localStorage/sessionStorage
+   - Page DOM element
+   - Cookie value
+5. Update the following files once determined:
+   - `src/cloud_exam/workflow.py` - Extract ExamMemberID in `capture_exam_paper()`
+   - `src/cloud_exam/api_client.py` - Update parameter descriptions
+   - `src/cloud_exam/models.py` - Add to ExamPaper model
+
+**Current API endpoints**:
+- **Base URL**: `https://ai.cqzuxia.com/exam/api/StudentExam`
+- **Get Questions**: `/GetQuestionsByExpId?expID={exp_id}`
+- **Get Student Answers**: `/GetStudentAnswerList?expID={exp_id}`
+- **Submit Answer**: `/StudentAnswer` (POST)
+
+**Response format note**: API returns `questiionList` with **3 i's** (not a typo), this is intentional in the backend.
+
+**Workflow**:
+1. User logs in via student portal (same as answering module)
+2. System captures access_token automatically
+3. User manually enters expID (copied from browser URL)
+4. System fetches exam paper via API
+5. User loads JSON question bank
+6. System validates match rate (≥30% required)
+7. System matches question IDs with bank answers
+8. **Blocked**: Cannot inject answers without ExamMemberID
 
 ### Data Management
 - **[src/extraction/exporter.py](src/extraction/exporter.py)** - `DataExporter` class exports extracted data to JSON
@@ -532,6 +599,31 @@ def check_browser_alive():
 - Endpoints include question submission and answer retrieval
 - Requires Bearer token authentication
 
+### Cloud Exam Portal (`https://ai.cqzuxia.com/exam/api/StudentExam`)
+- **Note**: Uses student portal access_token for authentication
+- **Important**: API response contains `questiionList` with **3 i's** (intentional backend typo)
+- **Implemented Endpoints**:
+  - `GetQuestionsByExpId?expID={exp_id}` - Get exam questions
+    - Returns: `{code: 0, data: {questiionList: [...], examMemberID: "..."}}`
+    - ⚠️ **TODO**: examMemberID extraction method unknown
+  - `GetStudentAnswerList?expID={exp_id}` - Get submitted answers
+    - Returns: `[{questionID: "...", answerID: "..."}]`
+  - `StudentAnswer` (POST) - Submit single answer
+    - Body: `{QuestionID, AnswerID, ExamPapersID, ExamMemberID}`
+    - ⚠️ **TODO**: ExamMemberID parameter cannot be obtained
+- **Required Headers**:
+  ```python
+  {
+      "authorization": f"Bearer {access_token}",
+      "content-type": "application/json;charset=UTF-8",
+      "origin": "https://ai.cqzuxia.com",
+      "referer": "https://ai.cqzuxia.com/"
+  }
+  ```
+- **Response Error Handling**:
+  - `{"code": -1, "msg": "已交卷!"}` - Exam already submitted
+  - Need to check for this error and inform user
+
 ## Common Issues
 - **Login button click failure**: The student portal uses a generic `<div class="loginbtn">` instead of a button element. The multi-strategy click approach (class selector → text selector → JS fallback) handles this.
 - **Token not captured**: Ensure network listeners are attached before page navigation
@@ -542,6 +634,31 @@ def check_browser_alive():
 - **Browser installation**: Playwright downloads Chromium on first run; requires network connection
 - **Playwright instance conflicts (pre-v2.6.0)**: Cannot run multiple Playwright browsers in same process. Use `BrowserManager` (v2.6.0+) instead which handles multiple isolated contexts in a single browser instance.
 - **API rate limit not working**: Ensure you're using `get_api_client()` instead of direct `requests` calls. The rate limit is applied in `APIClient.request()` before every request.
+
+### Cloud Exam Module Specific Issues
+
+**⚠️ CRITICAL: ExamMemberID Parameter Unknown**
+- **Status**: Answer injection feature is **80% complete but blocked**
+- **Problem**: The `ExamMemberID` parameter is required for submitting answers but cannot be obtained
+- **Impact**: Users can log in, get exam paper, load question bank, but **cannot inject answers**
+- **Required Action**:
+  1. Wait for website to become accessible
+  2. Open browser DevTools (F12) → Network tab
+  3. Navigate to cloud exam page
+  4. Find API response containing `ExamMemberID`
+  5. Update extraction logic in `src/cloud_exam/workflow.py`
+- **Files to Update** (once parameter source is known):
+  - `src/cloud_exam/workflow.py:capture_exam_paper()` - Extract ExamMemberID
+  - `src/cloud_exam/api_client.py:submit_answer()` - Update parameter description
+  - `src/cloud_exam/models.py:ExamPaper` - Add to model documentation
+
+**Already Submitted Exam Error**
+- When trying to get exam paper for already submitted exam:
+  ```json
+  {"code": -1, "msg": "已交卷!", "success": false}
+  ```
+- UI shows friendly error message suggesting to select another exam
+- API client handles this case specially with user-friendly message
 - **Playwright error in GUI mode**: "Playwright Sync API inside the asyncio loop" - Use the AsyncIO Compatibility Pattern (see Architectural Patterns) to run Playwright code in a separate thread with its own event loop.
 - **Browser crashes in GUI**: The v2.2.0 recovery system automatically detects and recovers from browser crashes. Users will see a re-login prompt. Implement health checks before browser operations using `check_browser_alive()` pattern.
 - **Chinese characters garbled on Windows**: The `UTF8StreamHandler` in student_login.py handles console encoding. Ensure all log files use UTF-8 encoding.
@@ -684,7 +801,7 @@ Understanding the version history helps when working with older code or debuggin
 - If you see direct `playwright.sync_api().start()` calls without BrowserManager, it's pre-v2.6.0 code
 - Always prefer BrowserManager for new code unless working on legacy compatibility
 
-## Project Structure (Current as of v2.8.0)
+## Project Structure (Current as of v2.9.0)
 
 ```
 src/
@@ -701,6 +818,10 @@ src/
 ├── certification/      # Course certification workflow
 │   ├── workflow.py     # Main certification workflow
 │   └── api_answer.py   # API-based answering for certification
+├── cloud_exam/         # Cloud exam workflow (Beta - partial implementation)
+│   ├── workflow.py     # Main cloud exam workflow
+│   ├── api_client.py   # Cloud exam API client
+│   └── models.py       # Cloud exam data models (ExamPaper, ExamQuestion, QuestionOption)
 ├── extraction/         # Data extraction pipeline
 │   ├── extractor.py    # Answer extraction logic
 │   ├── exporter.py     # JSON export functionality
@@ -715,8 +836,12 @@ src/
 │       ├── answering_view.py
 │       ├── extraction_view.py
 │       ├── course_certification_view.py
+│       ├── cloud_exam_view.py (partial - login/get paper/load bank done, inject blocked)
 │       ├── settings_view.py
-│       └── cloud_exam_view.py (placeholder)
+│       └── weban_view.py
+├── modules/            # Extended modules
+│   ├── weban_adapter.py
+│   └── WeBan/          # WeBan integration (submodule)
 ├── build_tools/        # Build system utilities
 ├── utils/              # General utilities
 ├── caching/            # Caching utilities
