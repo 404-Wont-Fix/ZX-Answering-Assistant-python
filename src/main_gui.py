@@ -38,6 +38,9 @@ from src.ui.views.plugin_center_view import PluginCenterView
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
+from src.core.plugin_manager import get_plugin_manager
+from src.core.api_client import get_api_client
+from pathlib import Path
 
 
 class MainApp:
@@ -59,10 +62,14 @@ class MainApp:
         self.rail_expanded = True
         self.rail_width = 200
 
+        # 初始化插件管理器（在创建视图之前）
+        self.plugin_manager = get_plugin_manager()
+        self._initialize_plugins()
+
         # 初始化视图模块（传递MainApp引用以便视图可以切换导航）
         self.answering_view = AnsweringView(page, main_app=self)
         self.extraction_view = ExtractionView(page)
-        self.plugin_center_view = PluginCenterView(page)
+        self.plugin_center_view = PluginCenterView(page, main_app=self)
         self.settings_view = SettingsView(page)
 
         # 缓存每个视图的内容（保持状态）
@@ -90,14 +97,34 @@ class MainApp:
         # 注册窗口关闭时的清理函数
         self.page.on_close = self._on_window_close
 
+    def _initialize_plugins(self):
+        """初始化插件系统"""
+        print("[MainApp] Initializing plugin system...")
+
+        # 扫描插件目录
+        # __file__ 是 src/main_gui.py，所以 parent.parent 就是项目根目录
+        project_root = Path(__file__).parent.parent
+        plugins_dir = project_root / "plugins"
+
+        print(f"[MainApp] Project root: {project_root}")
+        print(f"[MainApp] Plugins directory: {plugins_dir}")
+        print(f"[MainApp] Plugins directory exists: {plugins_dir.exists()}")
+
+        plugin_count = self.plugin_manager.scan_plugins(plugins_dir)
+
+        if plugin_count > 0:
+            print(f"[MainApp] Plugin system initialized, found {plugin_count} plugins")
+        else:
+            print("[MainApp] No plugins found")
+
     def _cache_all_contents(self):
         """首次加载时缓存所有视图内容"""
-        print("🔄 正在初始化所有视图...")
+        print("[MainApp] Initializing all views...")
         self.cached_contents[0] = self.answering_view.get_content()  # 评估答题
         self.cached_contents[1] = self.extraction_view.get_content()  # 答案提取
         self.cached_contents[2] = self.plugin_center_view.get_content()  # 插件中心
         self.cached_contents[3] = self.settings_view.get_content()  # 系统设置
-        print("✅ 所有视图已初始化")
+        print("[MainApp] All views initialized")
 
     def _on_window_close(self):
         """
@@ -106,8 +133,8 @@ class MainApp:
         注意：不在此时直接关闭浏览器，避免 greenlet 线程切换问题
         atexit 处理器会负责清理
         """
-        print("🔄 正在关闭窗口...")
-        print("💡 浏览器资源将在程序退出时自动清理")
+        print("[MainApp] Closing window...")
+        print("[MainApp] Browser resources will be cleaned up on exit")
         # 不在这里关闭浏览器，避免 greenlet 线程切换错误
         # atexit 处理器会在 Python 退出时自动清理
 
@@ -162,10 +189,10 @@ class MainApp:
         )
 
         # 初始化第一个视图（评估答题）并缓存
-        print("🔄 正在初始化评估答题视图...")
+        print("[MainApp] Initializing answering view...")
         initial_content = self.answering_view.get_content()
         self.cached_contents[0] = initial_content
-        print("✅ 评估答题视图已初始化")
+        print("[MainApp] Answering view initialized")
 
         # 创建内容区域（添加滚动支持）- 使用初始化的内容
         self.content_area = ft.Column(
@@ -206,7 +233,7 @@ class MainApp:
 
         if cached_content is None:
             # 如果缓存不存在（不应该发生），则创建并缓存
-            print(f"⚠️ 视图 {self.current_destination} 未缓存，正在创建...")
+            print(f"[MainApp] View {self.current_destination} not cached, creating...")
             if self.current_destination == 0:
                 cached_content = self.answering_view.get_content()
             elif self.current_destination == 1:

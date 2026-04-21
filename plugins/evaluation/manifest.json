@@ -1,0 +1,13 @@
+{
+  "id": "evaluation",
+  "name": "评估出题助手",
+  "version": "1.0.0",
+  "description": "自动化处理评估出题任务，支持试题生成和编辑",
+  "icon": "quiz",
+  "author": "TianJiaJi",
+  "entry_ui": "ui.create_view",
+  "entry_core": "core.Workflow",
+  "min_app_version": "2.9.0",
+  "dependencies": [],
+  "enabled": true
+}

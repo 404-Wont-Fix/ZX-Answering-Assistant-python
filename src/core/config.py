@@ -434,6 +434,112 @@ class SettingsManager:
 
         print("\n" + "=" * 50)
 
+    # ========================================================================
+    # 插件配置相关方法
+    # ========================================================================
+
+    def get_plugin_config(self, plugin_id: str, key: str, default: Any = None) -> Any:
+        """
+        获取插件特定配置
+
+        Args:
+            plugin_id: 插件ID
+            key: 配置键
+            default: 默认值
+
+        Returns:
+            配置值，如果不存在则返回默认值
+        """
+        plugin_configs = self.config.get("plugins", {}).get("plugin_specific_configs", {})
+        plugin_config = plugin_configs.get(plugin_id, {})
+        return plugin_config.get(key, default)
+
+    def set_plugin_config(self, plugin_id: str, key: str, value: Any) -> bool:
+        """
+        设置插件特定配置
+
+        Args:
+            plugin_id: 插件ID
+            key: 配置键
+            value: 配置值
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "plugins" not in self.config:
+            self.config["plugins"] = {}
+        if "plugin_specific_configs" not in self.config["plugins"]:
+            self.config["plugins"]["plugin_specific_configs"] = {}
+        if plugin_id not in self.config["plugins"]["plugin_specific_configs"]:
+            self.config["plugins"]["plugin_specific_configs"][plugin_id] = {}
+
+        self.config["plugins"]["plugin_specific_configs"][plugin_id][key] = value
+
+        return self._save_config(self.config)
+
+    def get_disabled_plugins(self) -> list:
+        """
+        获取已禁用的插件列表
+
+        Returns:
+            list: 已禁用的插件ID列表
+        """
+        return self.config.get("plugins", {}).get("disabled_plugins", [])
+
+    def set_disabled_plugins(self, plugin_ids: list) -> bool:
+        """
+        设置已禁用的插件列表
+
+        Args:
+            plugin_ids: 插件ID列表
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "plugins" not in self.config:
+            self.config["plugins"] = {}
+
+        self.config["plugins"]["disabled_plugins"] = plugin_ids
+
+        return self._save_config(self.config)
+
+    def is_plugin_enabled(self, plugin_id: str) -> bool:
+        """
+        检查插件是否启用
+
+        Args:
+            plugin_id: 插件ID
+
+        Returns:
+            bool: True 表示启用，False 表示禁用
+        """
+        disabled_plugins = self.get_disabled_plugins()
+        return plugin_id not in disabled_plugins
+
+    def set_plugin_enabled(self, plugin_id: str, enabled: bool) -> bool:
+        """
+        设置插件启用状态
+
+        Args:
+            plugin_id: 插件ID
+            enabled: True 启用，False 禁用
+
+        Returns:
+            bool: 是否设置成功
+        """
+        disabled_plugins = self.get_disabled_plugins()
+
+        if enabled:
+            # 启用插件：从禁用列表中移除
+            if plugin_id in disabled_plugins:
+                disabled_plugins.remove(plugin_id)
+        else:
+            # 禁用插件：添加到禁用列表
+            if plugin_id not in disabled_plugins:
+                disabled_plugins.append(plugin_id)
+
+        return self.set_disabled_plugins(disabled_plugins)
+
 
 # 创建全局设置管理器实例
 _settings_manager: Optional[SettingsManager] = None
