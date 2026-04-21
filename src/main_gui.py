@@ -34,10 +34,7 @@ except ImportError:
 from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
-from src.ui.views.course_certification_view import CourseCertificationView
-from src.ui.views.cloud_exam_view import CloudExamView
-from src.ui.views.evaluation_view import EvaluationView
-from src.ui.views.weban_view import WeBanView
+from src.ui.views.plugin_center_view import PluginCenterView
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
@@ -65,22 +62,15 @@ class MainApp:
         # 初始化视图模块（传递MainApp引用以便视图可以切换导航）
         self.answering_view = AnsweringView(page, main_app=self)
         self.extraction_view = ExtractionView(page)
+        self.plugin_center_view = PluginCenterView(page)
         self.settings_view = SettingsView(page)
-        self.course_certification_view = CourseCertificationView(page)
-        self.cloud_exam_view = CloudExamView(page)
-        self.evaluation_view = EvaluationView(page)
-        self.weban_view = WeBanView(page)
 
         # 缓存每个视图的内容（保持状态）
         self.cached_contents = {
             0: None,  # 评估答题
             1: None,  # 答案提取
-            2: None,  # 课程认证
-            3: None,  # 云考试
-            4: None,  # 评估出题
-            5: None,  # 安全微伴
-            6: None,  # 设置
-            7: None,  # 关于
+            2: None,  # 插件中心
+            3: None,  # 系统设置
         }
 
         # 初始化UI
@@ -105,12 +95,8 @@ class MainApp:
         print("🔄 正在初始化所有视图...")
         self.cached_contents[0] = self.answering_view.get_content()  # 评估答题
         self.cached_contents[1] = self.extraction_view.get_content()  # 答案提取
-        self.cached_contents[2] = self.course_certification_view.get_content()  # 课程认证
-        self.cached_contents[3] = self.cloud_exam_view.get_content()  # 云考试
-        self.cached_contents[4] = self.evaluation_view.get_content()  # 评估出题
-        self.cached_contents[5] = self.weban_view.get_content()  # 安全微伴
-        self.cached_contents[6] = self.settings_view.get_content()  # 设置
-        self.cached_contents[7] = self._get_about_content()  # 关于
+        self.cached_contents[2] = self.plugin_center_view.get_content()  # 插件中心
+        self.cached_contents[3] = self.settings_view.get_content()  # 系统设置
         print("✅ 所有视图已初始化")
 
     def _on_window_close(self):
@@ -121,15 +107,6 @@ class MainApp:
         atexit 处理器会负责清理
         """
         print("🔄 正在关闭窗口...")
-
-        # 清理 WeBan 终端进程
-        try:
-            if hasattr(self.weban_view, 'adapter') and self.weban_view.adapter.is_running:
-                print("⚠️ 检测到 WeBan 正在运行，正在关闭...")
-                self.weban_view.adapter.stop()
-        except Exception as e:
-            print(f"⚠️ 关闭 WeBan 失败: {e}")
-
         print("💡 浏览器资源将在程序退出时自动清理")
         # 不在这里关闭浏览器，避免 greenlet 线程切换错误
         # atexit 处理器会在 Python 退出时自动清理
@@ -160,44 +137,24 @@ class MainApp:
             ),
             destinations=[
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.EDIT_NOTE,
-                    selected_icon=ft.Icons.EDIT_NOTE,
+                    icon=ft.Icons.CHECK_CIRCLE,
+                    selected_icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
                     label="评估答题",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.DOWNLOAD,
-                    selected_icon=ft.Icons.DOWNLOAD,
+                    selected_icon=ft.Icons.DOWNLOAD_DONE,
                     label="答案提取",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.SCHOOL,
-                    selected_icon=ft.Icons.SCHOOL,
-                    label="课程认证",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.CLOUD_QUEUE,
-                    selected_icon=ft.Icons.CLOUD,
-                    label="云考试",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.QUIZ,
-                    selected_icon=ft.Icons.QUIZ_OUTLINED,
-                    label="评估出题",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.SECURITY,
-                    selected_icon=ft.Icons.SECURITY,
-                    label="安全微伴",
+                    icon=ft.Icons.EXTENSION,
+                    selected_icon=ft.Icons.WIDGETS,
+                    label="插件中心",
                 ),
                 ft.NavigationRailDestination(
                     icon=ft.Icons.SETTINGS,
                     selected_icon=ft.Icons.SETTINGS,
-                    label="设置",
-                ),
-                ft.NavigationRailDestination(
-                    icon=ft.Icons.INFO_OUTLINE,
-                    selected_icon=ft.Icons.INFO,
-                    label="关于",
+                    label="系统设置",
                 ),
             ],
             on_change=self._on_destination_changed,
@@ -255,17 +212,9 @@ class MainApp:
             elif self.current_destination == 1:
                 cached_content = self.extraction_view.get_content()
             elif self.current_destination == 2:
-                cached_content = self.course_certification_view.get_content()
+                cached_content = self.plugin_center_view.get_content()
             elif self.current_destination == 3:
-                cached_content = self.cloud_exam_view.get_content()
-            elif self.current_destination == 4:
-                cached_content = self.evaluation_view.get_content()
-            elif self.current_destination == 5:
-                cached_content = self.weban_view.get_content()
-            elif self.current_destination == 6:
                 cached_content = self.settings_view.get_content()
-            elif self.current_destination == 7:
-                cached_content = self._get_about_content()
             else:
                 return
 
@@ -292,85 +241,6 @@ class MainApp:
             self.collapse_button.icon = ft.Icons.MENU
 
         self.page.update()
-
-    def _get_answering_content(self):
-        """获取评估答题页面内容（使用视图模块）"""
-        return self.answering_view.get_content()
-
-    def _get_extraction_content(self):
-        """获取答案提取页面内容（使用视图模块）"""
-        return self.extraction_view.get_content()
-
-    def _get_settings_content(self):
-        """获取设置页面内容（使用视图模块）"""
-        return self.settings_view.get_content()
-
-    def _get_about_content(self):
-        """获取关于页面内容"""
-        return ft.Column(
-            [
-                ft.Text(
-                    "关于",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(ft.Icons.SCHOOL, size=80, color=ft.Colors.BLUE),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                ft.Text(
-                                    "ZX Answering Assistant",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                ft.Text(
-                                    "智能答题助手系统",
-                                    size=16,
-                                    color=ft.Colors.GREY_600,
-                                ),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
-                                    title=ft.Text("版本", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text(f"v{version.VERSION}"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.CODE, color=ft.Colors.GREEN),
-                                    title=ft.Text("开发语言", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("Python + Flet"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.WEB, color=ft.Colors.PURPLE),
-                                    title=ft.Text("自动化框架", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("Playwright"),
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            spacing=5,
-                        ),
-                        padding=30,
-                        width=500,
-                    ),
-                    elevation=2,
-                ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.GestureDetector(
-                    content=ft.Text(
-                        "© 2025 TianJiaJi. All rights reserved.",
-                        size=12,
-                        color=ft.Colors.BLUE,
-                    ),
-                    mouse_cursor=ft.MouseCursor.CLICK,
-                    on_tap=lambda e: webbrowser.open("https://github.com/TianJiaJi/ZX-Answering-Assistant-python"),
-                ),
-            ],
-            scroll=ft.ScrollMode.AUTO,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-        )
 
 
 def main(page: ft.Page):
@@ -412,7 +282,6 @@ def run_app():
                 print("\n💡 可能的解决方案:")
                 print("   1. 确保已安装 Flet: pip install flet")
                 print("   2. 检查网络连接（首次运行需要下载组件）")
-                print("   3. 尝试使用 CLI 模式: python main.py --cli")
                 raise
         else:
             print(f"❌ 启动 Flet 失败: {e}")
