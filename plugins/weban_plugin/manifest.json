@@ -1,0 +1,18 @@
+{
+  "id": "weban_plugin",
+  "name": "安全微伴",
+  "version": "1.0.0",
+  "description": "安全微伴自动学习答题插件，支持多账号自动化学习、考试和答题",
+  "icon": "school",
+  "author": "TianJiaJi",
+  "entry_ui": "ui.create_view",
+  "entry_core": "core.WeBanPluginCore",
+  "min_app_version": "3.0.0",
+  "dependencies": [
+    "ddddocr==1.6.1",
+    "loguru==0.7.3",
+    "pycryptodome==3.23.0",
+    "requests==2.32.5"
+  ],
+  "enabled": true
+}
