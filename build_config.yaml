@@ -102,8 +102,8 @@ app:
   icon: null
   # Version information
   version:
-    major: 2
-    minor: 9
+    major: 3
+    minor: 0
     micro: 0
     build: 0
   # Copyright
