@@ -8,6 +8,7 @@ import json
 import sys
 import importlib
 import threading
+import subprocess
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -92,7 +93,116 @@ class PluginManager:
         self.settings_manager = get_settings_manager()
         self._initialized = True
 
+        # 存储已安装依赖的插件集合，避免重复安装
+        self._installed_plugins: set = set()
+
         print("[PluginManager] Plugin manager initialized")
+
+    def _check_package_installed(self, package_name: str) -> bool:
+        """
+        检查包是否已安装
+
+        Args:
+            package_name: 包名（可以是带版本的格式，如 package>=1.0.0）
+
+        Returns:
+            bool: 是否已安装
+        """
+        # 提取纯净的包名（去除版本说明符）
+        clean_name = package_name.split('>=')[0].split('==')[0].split('<=')[0].split('~=')[0].strip()
+
+        try:
+            import importlib.metadata as importlib_metadata
+            importlib_metadata.version(clean_name)
+            return True
+        except ImportError:
+            # 旧版本 Python 回退
+            try:
+                import pkg_resources
+                pkg_resources.get_distribution(clean_name)
+                return True
+            except Exception:
+                return False
+        except Exception:
+            return False
+
+    def _install_plugin_dependencies(self, plugin_dir: Path, plugin_id: str) -> bool:
+        """
+        安装插件依赖
+
+        Args:
+            plugin_dir: 插件目录路径
+            plugin_id: 插件ID
+
+        Returns:
+            bool: 是否成功安装（或无需安装）
+        """
+        # 检查是否已经安装过该插件的依赖
+        if plugin_id in self._installed_plugins:
+            print(f"[PluginManager] Dependencies already installed for plugin: {plugin_id}")
+            return True
+
+        # 检查是否存在 requirements.txt
+        requirements_file = plugin_dir / "requirements.txt"
+        if not requirements_file.exists():
+            print(f"[PluginManager] No requirements.txt found for plugin: {plugin_id}")
+            return True  # 无需安装依赖
+
+        try:
+            # 读取 requirements.txt
+            with open(requirements_file, 'r', encoding='utf-8') as f:
+                requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+
+            if not requirements:
+                print(f"[PluginManager] requirements.txt is empty for plugin: {plugin_id}")
+                return True
+
+            # 检查哪些包需要安装
+            packages_to_install = []
+            for requirement in requirements:
+                if not self._check_package_installed(requirement):
+                    packages_to_install.append(requirement)
+                    print(f"[PluginManager] Package needs installation: {requirement}")
+
+            if not packages_to_install:
+                print(f"[PluginManager] All dependencies already installed for plugin: {plugin_id}")
+                self._installed_plugins.add(plugin_id)
+                return True
+
+            # 显示安装信息
+            print(f"[PluginManager] Installing {len(packages_to_install)} package(s) for plugin: {plugin_id}")
+            for pkg in packages_to_install:
+                print(f"  - {pkg}")
+
+            # 执行 pip 安装
+            try:
+                # 使用 sys.executable 确保在当前 Python 环境中安装
+                result = subprocess.run(
+                    [sys.executable, "-m", "pip", "install"] + packages_to_install,
+                    capture_output=True,
+                    text=True,
+                    timeout=300  # 5分钟超时
+                )
+
+                if result.returncode == 0:
+                    print(f"[PluginManager] Successfully installed dependencies for plugin: {plugin_id}")
+                    self._installed_plugins.add(plugin_id)
+                    return True
+                else:
+                    print(f"[PluginManager] Failed to install dependencies for plugin: {plugin_id}")
+                    print(f"[PluginManager] Error: {result.stderr}")
+                    return False
+
+            except subprocess.TimeoutExpired:
+                print(f"[PluginManager] Timeout while installing dependencies for plugin: {plugin_id}")
+                return False
+            except Exception as e:
+                print(f"[PluginManager] Exception during dependency installation: {e}")
+                return False
+
+        except Exception as e:
+            print(f"[PluginManager] Failed to read requirements.txt for plugin {plugin_id}: {e}")
+            return False
 
     def scan_plugins(self, plugins_dir: Path = None) -> int:
         """
@@ -128,6 +238,13 @@ class PluginManager:
                 # 检查插件是否被禁用
                 is_enabled = self.settings_manager.is_plugin_enabled(plugin_info.id)
                 plugin_info.enabled = is_enabled
+
+                # 自动安装插件依赖
+                if plugin_info.enabled:
+                    dep_install_success = self._install_plugin_dependencies(plugin_dir, plugin_info.id)
+                    if not dep_install_success:
+                        print(f"[PluginManager] Warning: Failed to install dependencies for plugin: {plugin_info.name}")
+                        # 仍然加载插件，但依赖可能缺失
 
                 self._plugins[plugin_info.id] = plugin_info
                 count += 1
@@ -284,6 +401,13 @@ class PluginManager:
         if plugin_id not in self._plugins:
             print(f"[PluginManager] Plugin not found: {plugin_id}")
             return False
+
+        # 安装插件依赖
+        plugin_info = self._plugins[plugin_id]
+        dep_install_success = self._install_plugin_dependencies(plugin_info.path, plugin_id)
+        if not dep_install_success:
+            print(f"[PluginManager] Warning: Failed to install dependencies for plugin: {plugin_info.name}")
+            # 仍然启用插件，但依赖可能缺失
 
         success = self.settings_manager.set_plugin_enabled(plugin_id, True)
         if success:
