@@ -287,6 +287,71 @@ except RuntimeError:
 
 ## Common Issues
 
+### Flet Library Installation Issues
+
+**Problem**: Flet library not installed or version incompatible.
+
+**Solutions**:
+
+1. **Auto-install**: The program will automatically detect and install Flet on startup
+2. **Manual install**:
+   ```bash
+   pip install flet>=0.82.0
+   ```
+3. **Use requirements.txt**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. **Domestic mirrors** (China):
+   ```bash
+   pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
+   ```
+
+**Flet Executable Download Issues**:
+
+If Flet desktop executable fails to download automatically:
+- **Manual download**: [FLET_MANUAL_DOWNLOAD.md](FLET_MANUAL_DOWNLOAD.md)
+- **Download links**:
+  - Windows: https://github.com/flet-dev/flet/releases/latest/download/flet-latest-windows-x64.zip
+  - Linux: https://github.com/flet-dev/flet/releases/latest/download/flet-latest-linux-x64.tar.gz
+  - macOS: https://github.com/flet-dev/flet/releases/latest/download/flet-latest-macos-x64.tar.gz
+- **Install location**:
+  - Windows: `C:\Users\YourName\.flet\bin\flet.exe`
+  - Linux/Mac: `~/.flet/bin/flet`
+
+**Detailed guides**: See `FLET_INSTALL_GUIDE.md` and `FLET_MANUAL_DOWNLOAD.md`
+
+**Version compatibility**:
+- Minimum: 0.80.0
+- Recommended: 0.82.0+
+- **Important**: 0.8.0+ has breaking API changes
+
+### Playwright Browser Installation Issues
+
+**Problem**: Playwright browser fails to install, especially in packaged executables.
+
+**Solutions**:
+
+1. **Auto-install**: The program will automatically detect and install the browser on startup
+2. **Manual install**:
+   ```bash
+   python -m playwright install chromium
+   ```
+3. **Use local browser**: Add to `cli_config.json`:
+   ```json
+   {
+     "browser_settings": {
+       "local_browser_path": "C:\\Path\\To\\chrome.exe"
+     }
+   }
+   ```
+4. **Detailed guide**: See `docs/BROWSER_SETUP.md`
+
+**Common browser paths**:
+- Windows: `C:\Program Files\Google\Chrome\Application\chrome.exe`
+- Linux: `/usr/bin/chromium`
+- macOS: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+
 ### Login and Token Issues
 - **Login button click failure**: Student portal uses `<div class="loginbtn">` instead of button element. Handled by multi-strategy click approach.
 - **Token not captured**: Ensure network listeners are attached before page navigation
