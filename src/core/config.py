@@ -114,7 +114,8 @@ class SettingsManager:
                 "rate_level": "high"
             },
             "browser_settings": {
-                "headless": False  # 默认显示浏览器窗口（无头模式关闭）
+                "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
+                "local_browser_path": ""  # 本地浏览器路径（可选）
             }
         }
 
@@ -539,6 +540,32 @@ class SettingsManager:
                 disabled_plugins.append(plugin_id)
 
         return self.set_disabled_plugins(disabled_plugins)
+
+    def get_local_browser_path(self) -> str:
+        """
+        获取本地浏览器路径
+
+        Returns:
+            str: 本地浏览器路径，如果未设置则返回空字符串
+        """
+        return self.config.get("browser_settings", {}).get("local_browser_path", "")
+
+    def set_local_browser_path(self, browser_path: str) -> bool:
+        """
+        设置本地浏览器路径
+
+        Args:
+            browser_path: 浏览器可执行文件路径
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "browser_settings" not in self.config:
+            self.config["browser_settings"] = {}
+
+        self.config["browser_settings"]["local_browser_path"] = browser_path
+
+        return self._save_config(self.config)
 
 
 # 创建全局设置管理器实例

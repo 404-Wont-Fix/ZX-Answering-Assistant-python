@@ -285,9 +285,20 @@ pip install -r requirements.txt
 
 4. **安装 Playwright 浏览器**
 
+**方法1: 自动安装（推荐）**
 ```bash
-playwright install chromium
+python -m playwright install chromium
 ```
+
+**方法2: 使用本地浏览器**
+```bash
+# 编辑 cli_config.json，添加本地浏览器路径
+# "browser_settings": {"local_browser_path": "C:\\Path\\To\\chrome.exe"}
+```
+
+**⚠️ 重要提示**: 如果遇到浏览器安装问题：
+- 程序启动时会自动尝试安装浏览器
+- 详见：[浏览器安装指南](BROWSER_INSTALL_GUIDE.md)
 
 5. **运行程序**
 
@@ -381,14 +392,59 @@ def create_view(page, context):
 
 ## 常见问题
 
-### 1. 浏览器启动失败
+### 1. Flet 库安装问题
 
-**问题**: Playwright 浏览器未安装
+**问题**: Flet GUI 库未安装或版本不兼容
 
 **解决方案**:
-```bash
-playwright install chromium
-```
+
+1. **自动安装**: 程序启动时会自动检测并安装 Flet
+2. **手动安装**:
+   ```bash
+   pip install flet>=0.82.0
+   ```
+3. **使用项目依赖**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. **国内镜像加速**:
+   ```bash
+   pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
+   ```
+
+**⚠️ 重要提示**: Flet 首次运行时会自动下载桌面运行时文件（约 50-100MB），可能需要 1-3 分钟，这是正常行为。
+
+**📥 如果自动下载失败**：请查看 [Flet 可执行文件手动下载指南](FLET_MANUAL_DOWNLOAD.md)
+
+**详细指南**: 查看 [Flet 安装指南](FLET_INSTALL_GUIDE.md)
+
+### 2. 浏览器启动失败
+
+**问题**: Playwright 浏览器未安装或无法下载
+
+**解决方案**:
+
+1. **自动安装**: 程序启动时会自动尝试安装浏览器
+2. **手动安装**:
+   ```bash
+   python -m playwright install chromium
+   ```
+3. **使用本地浏览器**: 编辑 `cli_config.json`，添加浏览器路径
+   ```json
+   {
+     "browser_settings": {
+       "local_browser_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
+     }
+   }
+   ```
+4. **网络问题**: 使用国内镜像
+   ```bash
+   # Windows PowerShell
+   $env:PLAYWRIGHT_DOWNLOAD_HOST="https://npmmirror.com/mirrors/playwright/"
+   python -m playwright install chromium
+   ```
+
+**详细指南**: 查看 [浏览器安装指南](BROWSER_INSTALL_GUIDE.md)
 
 ### 2. 插件无法加载
 

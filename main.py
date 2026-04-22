@@ -354,7 +354,26 @@ def run_gui_mode():
         print("=" * 70)
         print()
         print("📋 正在初始化组件...")
-        print("   ✓ 检查浏览器环境...")
+
+        # 检查 Flet 库安装状态
+        print("   ✓ 检查 Flet 库...")
+        from src.core.flet_installer import ensure_flet_installed
+        flet_ok, flet_error = ensure_flet_installed(auto_install=True)
+        if not flet_ok:
+            print()
+            print("❌ Flet 库检查失败！")
+            print(f"错误信息: {flet_error}")
+            print()
+            print("💡 请手动安装 Flet 库:")
+            print("   pip install flet>=0.82.0")
+            print("   或")
+            print("   pip install -r requirements.txt")
+            print()
+            input("按 Enter 键退出...")
+            sys.exit(1)
+
+        print("   ✓ Flet 库就绪")
+
         import time
         time.sleep(0.3)
 
