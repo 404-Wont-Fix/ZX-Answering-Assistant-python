@@ -102,6 +102,11 @@ class SettingsManager:
                 "teacher": {
                     "username": "",
                     "password": ""
+                },
+                "weban": {
+                    "school_name": "",
+                    "account": "",
+                    "password": ""
                 }
             },
             "api_settings": {
@@ -109,7 +114,8 @@ class SettingsManager:
                 "rate_level": "high"
             },
             "browser_settings": {
-                "headless": False  # 默认显示浏览器窗口（无头模式关闭）
+                "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
+                "local_browser_path": ""  # 本地浏览器路径（可选）
             }
         }
 
@@ -208,6 +214,59 @@ class SettingsManager:
 
         self.config["credentials"]["teacher"]["username"] = ""
         self.config["credentials"]["teacher"]["password"] = ""
+
+        return self._save_config(self.config)
+
+    def get_weban_credentials(self) -> tuple[Optional[str], Optional[str], Optional[str]]:
+        """
+        获取WeBan凭据
+
+        Returns:
+            tuple: (school_name, account, password)，如果未设置则返回 (None, None, None)
+        """
+        school_name = self.config.get("credentials", {}).get("weban", {}).get("school_name", "")
+        account = self.config.get("credentials", {}).get("weban", {}).get("account", "")
+        password = self.config.get("credentials", {}).get("weban", {}).get("password", "")
+        return (school_name if school_name else None, account if account else None, password if password else None)
+
+    def set_weban_credentials(self, school_name: str, account: str, password: str) -> bool:
+        """
+        设置WeBan凭据
+
+        Args:
+            school_name: 学校名称
+            account: 账号
+            password: 密码
+
+        Returns:
+            bool: 是否保存成功
+        """
+        if "credentials" not in self.config:
+            self.config["credentials"] = {}
+        if "weban" not in self.config["credentials"]:
+            self.config["credentials"]["weban"] = {}
+
+        self.config["credentials"]["weban"]["school_name"] = school_name
+        self.config["credentials"]["weban"]["account"] = account
+        self.config["credentials"]["weban"]["password"] = password
+
+        return self._save_config(self.config)
+
+    def clear_weban_credentials(self) -> bool:
+        """
+        清除WeBan凭据
+
+        Returns:
+            bool: 是否清除成功
+        """
+        if "credentials" not in self.config:
+            self.config["credentials"] = {}
+        if "weban" not in self.config["credentials"]:
+            self.config["credentials"]["weban"] = {}
+
+        self.config["credentials"]["weban"]["school_name"] = ""
+        self.config["credentials"]["weban"]["account"] = ""
+        self.config["credentials"]["weban"]["password"] = ""
 
         return self._save_config(self.config)
 
@@ -348,6 +407,20 @@ class SettingsManager:
         else:
             print(f"   状态: ❌ 未设置")
 
+        # WeBan凭据
+        weban_school, weban_account, weban_password = self.get_weban_credentials()
+        print(f"\n🛡️ WeBan账号:")
+        if weban_account:
+            masked_school = weban_school[:4] + "****" if len(weban_school) > 4 else "****"
+            masked_user = weban_account[:3] + "****" if len(weban_account) > 3 else "****"
+            masked_pass = "****" if weban_password else "(空)"
+            print(f"   学校名称: {masked_school}")
+            print(f"   账号: {masked_user}")
+            print(f"   密码: {masked_pass}")
+            print(f"   状态: ✅ 已设置")
+        else:
+            print(f"   状态: ❌ 未设置")
+
         # API设置
         rate_level = self.get_rate_level()
         max_retries = self.get_max_retries()
@@ -361,6 +434,138 @@ class SettingsManager:
         print(f"   无头模式: {'✅ 开启（隐藏浏览器）' if headless else '❌ 关闭（显示浏览器）'}")
 
         print("\n" + "=" * 50)
+
+    # ========================================================================
+    # 插件配置相关方法
+    # ========================================================================
+
+    def get_plugin_config(self, plugin_id: str, key: str, default: Any = None) -> Any:
+        """
+        获取插件特定配置
+
+        Args:
+            plugin_id: 插件ID
+            key: 配置键
+            default: 默认值
+
+        Returns:
+            配置值，如果不存在则返回默认值
+        """
+        plugin_configs = self.config.get("plugins", {}).get("plugin_specific_configs", {})
+        plugin_config = plugin_configs.get(plugin_id, {})
+        return plugin_config.get(key, default)
+
+    def set_plugin_config(self, plugin_id: str, key: str, value: Any) -> bool:
+        """
+        设置插件特定配置
+
+        Args:
+            plugin_id: 插件ID
+            key: 配置键
+            value: 配置值
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "plugins" not in self.config:
+            self.config["plugins"] = {}
+        if "plugin_specific_configs" not in self.config["plugins"]:
+            self.config["plugins"]["plugin_specific_configs"] = {}
+        if plugin_id not in self.config["plugins"]["plugin_specific_configs"]:
+            self.config["plugins"]["plugin_specific_configs"][plugin_id] = {}
+
+        self.config["plugins"]["plugin_specific_configs"][plugin_id][key] = value
+
+        return self._save_config(self.config)
+
+    def get_disabled_plugins(self) -> list:
+        """
+        获取已禁用的插件列表
+
+        Returns:
+            list: 已禁用的插件ID列表
+        """
+        return self.config.get("plugins", {}).get("disabled_plugins", [])
+
+    def set_disabled_plugins(self, plugin_ids: list) -> bool:
+        """
+        设置已禁用的插件列表
+
+        Args:
+            plugin_ids: 插件ID列表
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "plugins" not in self.config:
+            self.config["plugins"] = {}
+
+        self.config["plugins"]["disabled_plugins"] = plugin_ids
+
+        return self._save_config(self.config)
+
+    def is_plugin_enabled(self, plugin_id: str) -> bool:
+        """
+        检查插件是否启用
+
+        Args:
+            plugin_id: 插件ID
+
+        Returns:
+            bool: True 表示启用，False 表示禁用
+        """
+        disabled_plugins = self.get_disabled_plugins()
+        return plugin_id not in disabled_plugins
+
+    def set_plugin_enabled(self, plugin_id: str, enabled: bool) -> bool:
+        """
+        设置插件启用状态
+
+        Args:
+            plugin_id: 插件ID
+            enabled: True 启用，False 禁用
+
+        Returns:
+            bool: 是否设置成功
+        """
+        disabled_plugins = self.get_disabled_plugins()
+
+        if enabled:
+            # 启用插件：从禁用列表中移除
+            if plugin_id in disabled_plugins:
+                disabled_plugins.remove(plugin_id)
+        else:
+            # 禁用插件：添加到禁用列表
+            if plugin_id not in disabled_plugins:
+                disabled_plugins.append(plugin_id)
+
+        return self.set_disabled_plugins(disabled_plugins)
+
+    def get_local_browser_path(self) -> str:
+        """
+        获取本地浏览器路径
+
+        Returns:
+            str: 本地浏览器路径，如果未设置则返回空字符串
+        """
+        return self.config.get("browser_settings", {}).get("local_browser_path", "")
+
+    def set_local_browser_path(self, browser_path: str) -> bool:
+        """
+        设置本地浏览器路径
+
+        Args:
+            browser_path: 浏览器可执行文件路径
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "browser_settings" not in self.config:
+            self.config["browser_settings"] = {}
+
+        self.config["browser_settings"]["local_browser_path"] = browser_path
+
+        return self._save_config(self.config)
 
 
 # 创建全局设置管理器实例

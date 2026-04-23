@@ -9,6 +9,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from plugins.weban_plugin.modules.WeBan.main import VERSION
+
 # 设置控制台编码为 UTF-8（修复 Windows GBK 编码问题）
 if sys.platform == 'win32':
     try:
@@ -24,46 +26,11 @@ if sys.platform == 'win32':
 # 版本名称
 VERSION_NAME = "ZX Answering Assistant"
 
-def _get_version_from_config() -> str:
-    """从配置文件读取版本号
-
-    Returns:
-        版本号字符串，如 '2.7.2'
-    """
-    try:
-        import yaml
-        # 在打包环境中，配置文件可能在 _internal 目录
-        if getattr(sys, 'frozen', False):
-            # 打包环境：尝试多个可能的路径
-            possible_paths = [
-                Path(sys._MEIPASS) / "build_config.yaml",
-                Path(__file__).parent / "build_config.yaml",
-                Path(sys.executable).parent / "build_config.yaml",
-            ]
-        else:
-            # 开发环境
-            possible_paths = [
-                Path(__file__).parent / "build_config.yaml",
-            ]
-
-        for config_path in possible_paths:
-            if config_path.exists():
-                with open(config_path, encoding='utf-8') as f:
-                    config = yaml.safe_load(f)
-                    version = config.get('app', {}).get('version', {})
-                    major = version.get('major', 0)
-                    minor = version.get('minor', 0)
-                    micro = version.get('micro', 0)
-                    return f"{major}.{minor}.{micro}"
-    except Exception:
-        pass
-    return None
-
 def _get_version_from_git() -> str:
     """从 Git 标签读取版本号
-    
+
     Returns:
-        版本号字符串，如 '2.7.8'，如果失败返回 None
+        版本号字符串，如 '3.2.0'，如果失败返回 None
     """
     try:
         result = subprocess.run(
@@ -83,21 +50,18 @@ def _get_version_from_git() -> str:
     return None
 
 def _get_version() -> str:
-    """获取版本号（优先级：配置文件 > Git > 默认值）"""
-    # 首先尝试从配置文件读取
-    version = _get_version_from_config()
-    if version:
-        return version
-    
-    # 如果配置文件不存在，尝试从 Git 读取
+    """获取版本号（优先级：Git > 默认值）"""
+    # 尝试从 Git 读取
     version = _get_version_from_git()
     if version:
         return version
-    
-    # 如果都失败，使用默认值
-    return "0.0.0"
 
-VERSION = _get_version()
+    # 如果失败，使用默认值
+    return "3.2.0"
+
+# VERSION = _get_version()
+
+VERSION = "3.4.0"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():
@@ -175,16 +139,16 @@ def print_version_info():
 
 def create_version_file(file_path: str) -> Path:
     """创建版本信息文件
-    
+
     Args:
         file_path: 文件路径
-        
+
     Returns:
         Path对象
     """
     version_file = Path(file_path)
     version_file.parent.mkdir(parents=True, exist_ok=True)
-    
+
     content = f"""{VERSION_NAME}
 版本号: {VERSION}
 构建日期: {BUILD_DATE}
@@ -192,17 +156,17 @@ def create_version_file(file_path: str) -> Path:
 Git提交: {GIT_COMMIT}
 构建模式: {BUILD_MODE}
 """
-    
+
     with open(version_file, 'w', encoding='utf-8') as f:
         f.write(content)
-    
+
     return version_file
 
 
 # 版本信息字典（用于 Windows 版本资源）
 VERSION_INFO = {
-    'file_version': (2, 7, 0, 0),
-    'product_version': (2, 7, 0, 0),
+    'file_version': (3, 2, 0, 0),
+    'product_version': (3, 2, 0, 0),
     'file_description': '智能答题助手 - 自动化答题系统',
     'copyright': 'Copyright (C) 2024-2026',
     'company_name': 'ZX Project',

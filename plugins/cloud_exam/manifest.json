@@ -1,0 +1,13 @@
+{
+  "id": "cloud_exam",
+  "name": "云考试助手",
+  "version": "1.0.0",
+  "description": "自动化处理云考试答题任务，支持试卷获取、题库匹配和答案注入",
+  "icon": "cloud",
+  "author": "TianJiaJi",
+  "entry_ui": "ui.create_view",
+  "entry_core": "core.Workflow",
+  "min_app_version": "2.9.0",
+  "dependencies": [],
+  "enabled": true
+}

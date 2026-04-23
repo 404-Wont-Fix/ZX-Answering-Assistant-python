@@ -1,0 +1,26 @@
+# 插件依赖配置文件
+# Plugin Dependencies Configuration
+#
+# 说明:
+# 1. 每行填写一个依赖包
+# 2. 支持标准 pip requirements 格式
+# 3. 程序会在加载插件时自动检查并安装这些依赖
+# 4. 如果依赖已经安装，会自动跳过
+#
+# WeBan 插件依赖
+# WeBan Plugin Dependencies
+
+# 验证码识别
+ddddocr==1.6.1
+
+# 日志处理
+loguru==0.7.3
+
+# 加密解密
+pycryptodome==3.23.0
+
+# 图像处理（用于验证码识别）
+Pillow>=10.0.0
+
+# HTTP 请求
+requests>=2.32.5
