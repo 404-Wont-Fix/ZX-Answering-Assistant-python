@@ -287,6 +287,52 @@ except RuntimeError:
 
 ## Common Issues
 
+### SSL Certificate Verification Issues
+
+**Problem**: SSL certificate verification failures on Windows, especially in new environments.
+
+**Error message**:
+```
+<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+unable to get local issuer certificate (_ssl.c:1000)>
+```
+
+**Solutions**:
+
+**Solution 1: Automatic configuration (v3.2.0+)**
+
+The program now automatically configures SSL certificates on startup using the `certifi` package. No manual intervention required.
+
+**Solution 2: Update certifi**
+
+```bash
+pip install --upgrade certifi
+```
+
+**Solution 3: Set environment variables (temporary)**
+
+PowerShell:
+```powershell
+$env:SSL_CERT_FILE = python -c "import certifi; print(certifi.where())"
+python main.py
+```
+
+CMD:
+```cmd
+for /f %i in ('python -c "import certifi; print(certifi.where())"') do set SSL_CERT_FILE=%i
+python main.py
+```
+
+**Solution 4: Manual configuration**
+
+See detailed guide: [SSL_SETUP.md](docs/SSL_SETUP.md)
+
+**Technical details**:
+- SSL auto-configuration module: `src/core/ssl_helper.py`
+- Configured at startup in `main.py` before any network operations
+- Uses `certifi` package for root certificates
+- Affects urllib, requests, and all HTTPS connections
+
 ### Flet Library Installation Issues
 
 **Problem**: Flet library not installed or version incompatible.

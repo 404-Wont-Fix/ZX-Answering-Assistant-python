@@ -392,7 +392,49 @@ def create_view(page, context):
 
 ## 常见问题
 
-### 1. Flet 库安装问题
+### 1. SSL 证书验证失败
+
+**问题**: 在新环境部署时出现 SSL 证书验证错误
+
+**错误信息**:
+```
+<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
+unable to get local issuer certificate (_ssl.c:1000)>
+```
+
+**解决方案**:
+
+**✅ 自动配置 (v3.2.0+)**
+
+从 v3.2.0 开始，程序内置了自动 SSL 证书配置功能，无需手动干预。
+
+程序会在启动时：
+1. 自动检查并安装 `certifi` 根证书包
+2. 配置全局 SSL 证书设置
+3. 配置 urllib 和 requests 的 SSL 上下文
+
+**🔧 手动修复** (如果自动配置失败)
+
+1. **更新 certifi**:
+   ```bash
+   pip install --upgrade certifi
+   ```
+
+2. **设置环境变量** (临时解决):
+   ```powershell
+   # PowerShell
+   $env:SSL_CERT_FILE = python -c "import certifi; print(certifi.where())"
+   python main.py
+   ```
+
+3. **运行测试脚本**:
+   ```bash
+   python test_ssl.py
+   ```
+
+**详细指南**: 查看 [SSL 证书配置指南](docs/SSL_SETUP.md)
+
+### 2. Flet 库安装问题
 
 **问题**: Flet GUI 库未安装或版本不兼容
 
@@ -418,7 +460,7 @@ def create_view(page, context):
 
 **详细指南**: 查看 [Flet 安装指南](FLET_INSTALL_GUIDE.md)
 
-### 2. 浏览器启动失败
+### 3. 浏览器启动失败
 
 **问题**: Playwright 浏览器未安装或无法下载
 
@@ -446,27 +488,38 @@ def create_view(page, context):
 
 **详细指南**: 查看 [浏览器安装指南](BROWSER_INSTALL_GUIDE.md)
 
-### 2. 插件无法加载
+### 4. 插件无法加载
 
 **问题**: manifest.json 格式错误或缺少必要字段
 
 **解决方案**: 检查 manifest.json 格式，确保包含 `id`、`name`、`version`、`entry_ui` 字段。
 
-### 3. API 请求失败
+### 5. API 请求失败
 
 **问题**: 网络连接问题或 Token 过期
 
 **解决方案**: 检查网络连接，重新登录获取新 Token。
 
-### 4. 打包后运行失败
+### 6. 打包后运行失败
 
 **问题**: 依赖未正确打包
 
-**解决方案**: 检查 `build_config.yaml` 中的 `hidden_imports` 配置。
+**解决方案**: 检查 `build_config.yaml` 中的 `hidden_imports` 配置。。
 
 ---
 
 ## 版本历史
+
+### v3.2.0 (2026-04-23)
+
+- 🔒 **新增**: 自动 SSL 证书配置功能
+  - 解决 Windows 环境下的 SSL 验证失败问题
+  - 自动安装和配置 certifi 根证书包
+  - 配置 urllib、requests 的 SSL 上下文
+  - 新增 SSL 测试工具 (`test_ssl.py`)
+- 📝 **文档**: 新增 SSL 证书配置指南 (`docs/SSL_SETUP.md`)
+- 🐛 **修复**: Flet 首次下载时的 SSL 证书验证错误
+- 📦 **依赖**: 添加 certifi 到 requirements.txt
 
 ### v3.0.0 (2026-04-21)
 
