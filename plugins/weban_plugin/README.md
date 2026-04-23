@@ -8,25 +8,30 @@
 
 ```
 plugins/weban_plugin/
-├── __init__.py              # 插件包初始化
+├── __init__.py              # 插件包初始化和自动设置逻辑
 ├── manifest.json            # 插件元数据
 ├── README.md                # 本文件
 ├── ui.py                    # UI入口模块
 ├── core.py                  # 核心功能模块
-└── lib/                     # 插件内部库
-    ├── weban_adapter.py     # WeBan适配器
-    └── WeBan/               # WeBan完整代码库
-        ├── __init__.py      # WeBan包初始化
-        ├── api.py           # WeBan API客户端
-        ├── client.py        # WeBan客户端实现
-        ├── main.py          # WeBan主程序
-        ├── answer/          # 题库目录
-        │   └── answer.json  # 题库数据
-        ├── images/          # 图片资源
-        ├── config.example.json  # 配置示例
-        ├── requirements.txt # 依赖列表
-        └── README.md        # WeBan原始文档
+├── weban_adapter.py         # WeBan适配器（自动查找和导入）
+├── weban_view.py            # WeBan视图组件
+└── WeBan/                   # WeBan代码库（自动创建）
+    ├── __init__.py          # WeBan包初始化
+    ├── api.py               # WeBan API客户端
+    ├── client.py            # WeBan客户端实现
+    ├── main.py              # WeBan主程序
+    ├── answer/              # 题库目录
+    │   └── answer.json      # 题库数据
+    ├── images/              # 图片资源
+    ├── config.example.json  # 配置示例
+    ├── requirements.txt     # 依赖列表
+    └── README.md            # WeBan原始文档
 ```
+
+**重要说明**：
+- `weban_adapter.py`、`weban_view.py` 等核心文件在插件根目录（会被 Git 跟踪）
+- `WeBan/` 目录在插件导入时自动创建（从项目根目录复制或链接）
+- 即使从云端拉取没有 `WeBan/` 目录，插件也会自动处理
 
 ## ✨ 特性
 
@@ -142,28 +147,29 @@ pip install ddddocr==1.6.1 loguru==0.7.3 pycryptodome==3.23.0 requests==2.32.5
 
 ### 问题：插件显示"未找到 WeBan 模块"
 
-**原因**：WeBan 代码不在预期的位置
+**原因**：WeBan 代码不在项目的任何位置
 
-**解决方案**：
-
-✅ **自动处理（推荐）**：
+**自动处理机制**：
 插件会在首次加载时自动查找 WeBan 并设置。支持以下位置：
 1. 项目根目录：`WeBan/`
-2. 插件目录：`plugins/weban_plugin/lib/WeBan/`
+2. 插件目录：`plugins/weban_plugin/WeBan/`
 3. Submodules：`submodules/WeBan/`
 
 插件会自动：
 - 创建符号链接（最快）
 - 如果符号链接失败，复制文件（备用）
 
-**无需任何手动操作！**
+**如果仍然显示未找到**：
+1. 确保项目根目录有 `WeBan/` 文件夹
+2. 或者将 WeBan 作为 Git 子模块添加
+3. 重启应用程序让插件重新尝试自动配置
 
 ### 问题：插件无法加载
 **解决方案**：
-1. 检查依赖包是否已安装
-2. 确认插件目录结构完整
+1. 检查依赖包是否已安装：`pip install -r plugins/weban_plugin/requirements.txt`
+2. 确认插件目录结构完整（至少包含 __init__.py, core.py, ui.py, weban_adapter.py）
 3. 查看控制台错误信息
-4. 确保项目根目录或 submodules 目录中有 WeBan 项目
+4. 确保项目根目录有 WeBan 项目
 
 ### 问题：验证码识别失败
 **解决方案**：

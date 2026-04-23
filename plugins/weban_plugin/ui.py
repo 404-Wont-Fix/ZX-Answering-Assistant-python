@@ -8,10 +8,10 @@ import flet as ft
 import sys
 from pathlib import Path
 
-# 添加插件lib目录到Python路径
-plugin_lib_path = Path(__file__).parent / "lib"
-if str(plugin_lib_path) not in sys.path:
-    sys.path.insert(0, str(plugin_lib_path))
+# 添加插件目录到Python路径
+plugin_dir = Path(__file__).parent
+if str(plugin_dir) not in sys.path:
+    sys.path.insert(0, str(plugin_dir))
 
 # 添加项目根目录到Python路径
 project_root = Path(__file__).parent.parent.parent
