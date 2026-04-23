@@ -111,77 +111,115 @@ class WeBanView:
 
     def _get_intro_content(self) -> ft.Column:
         """获取简介页面内容"""
-        return ft.Column(
-            [
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.SECURITY, size=40, color=ft.Colors.BLUE),
-                        ft.Text(
-                            "安全微伴 (WeBan)",
-                            size=32,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_800,
-                        ),
-                    ],
-                    spacing=15,
-                    alignment=ft.MainAxisAlignment.CENTER,
-                ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+        # 检查 WeBan 是否可用
+        weban_available = self.adapter.check_available() if hasattr(self.adapter, 'check_available') else False
 
-                # 功能说明卡片
+        content = [
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.SECURITY, size=40, color=ft.Colors.BLUE),
+                    ft.Text(
+                        "安全微伴 (WeBan)",
+                        size=32,
+                        weight=ft.FontWeight.BOLD,
+                        color=ft.Colors.BLUE_800,
+                    ),
+                ],
+                spacing=15,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+        ]
+
+        # 如果 WeBan 不可用，显示警告
+        if not weban_available:
+            content.extend([
                 ft.Card(
                     content=ft.Container(
                         content=ft.Column(
                             [
                                 ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
-                                    title=ft.Text("自动学习", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("自动完成安全微伴课程的学习任务"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.QUIZ, color=ft.Colors.GREEN),
-                                    title=ft.Text("智能答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("根据题库自动完成课程考试"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.SYNC, color=ft.Colors.ORANGE),
-                                    title=ft.Text("题库同步", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("自动同步最新题库数据"),
+                                    leading=ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED, size=40),
+                                    title=ft.Text("WeBan 模块未找到", weight=ft.FontWeight.BOLD, size=20),
+                                    subtitle=ft.Text(
+                                        "插件缺少必要的 WeBan 代码库。\n\n"
+                                        "解决方案：\n"
+                                        "1. 将 WeBan 项目放在项目根目录的 WeBan/ 文件夹\n"
+                                        "2. 或将 WeBan 添加为 Git Submodule 到 plugins/weban_plugin/modules/WeBan/\n"
+                                        "3. 重启应用程序让插件自动配置\n\n"
+                                        "详细说明请查看：plugins/weban_plugin/WEBAN_SUBMODULE_GUIDE.md",
+                                    ),
                                 ),
                             ],
                             spacing=10,
                         ),
                         padding=20,
-                        width=600,
+                        width=700,
+                        bgcolor=ft.Colors.RED_50,
                     ),
-                    elevation=2,
+                    elevation=3,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+            ])
 
-                # 重要提示
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
-                                    title=ft.Text("重要提示", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text(
-                                        "⚠️ 如果题库中没有答案，会弹出窗口让您手动作答！\n"
-                                        "⚠️ 部分学校使用腾讯云验证码，可能无法自动完成！"
-                                    ),
+        # 功能说明卡片
+        content.extend([
+            ft.Card(
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.ListTile(
+                                leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
+                                title=ft.Text("自动学习", weight=ft.FontWeight.BOLD),
+                                subtitle=ft.Text("自动完成安全微伴课程的学习任务"),
+                            ),
+                            ft.ListTile(
+                                leading=ft.Icon(ft.Icons.QUIZ, color=ft.Colors.GREEN),
+                                title=ft.Text("智能答题", weight=ft.FontWeight.BOLD),
+                                subtitle=ft.Text("根据题库自动完成课程考试"),
+                            ),
+                            ft.ListTile(
+                                leading=ft.Icon(ft.Icons.SYNC, color=ft.Colors.ORANGE),
+                                title=ft.Text("题库同步", weight=ft.FontWeight.BOLD),
+                                subtitle=ft.Text("自动同步最新题库数据"),
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    padding=20,
+                    width=600,
+                ),
+                elevation=2,
+            ),
+            ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+            # 重要提示
+            ft.Card(
+                content=ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.ListTile(
+                                leading=ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                                title=ft.Text("重要提示", weight=ft.FontWeight.BOLD),
+                                subtitle=ft.Text(
+                                    "⚠️ 如果题库中没有答案，会弹出窗口让您手动作答！\n"
+                                    "⚠️ 部分学校使用腾讯云验证码，可能无法自动完成！"
                                 ),
-                            ],
-                        ),
-                        padding=15,
-                        width=600,
-                        bgcolor=ft.Colors.ORANGE_50,
+                            ),
+                        ],
                     ),
-                    elevation=2,
+                    padding=15,
+                    width=600,
+                    bgcolor=ft.Colors.ORANGE_50,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+                elevation=2,
+            ),
+            ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+        ])
 
-                # 开始按钮
+        # 开始按钮（如果 WeBan 可用）
+        if weban_available:
+            content.append(
                 ft.ElevatedButton(
                     "开始使用",
                     icon=ft.Icons.PLAY_ARROW,
@@ -193,8 +231,11 @@ class WeBanView:
                     ),
                     on_click=self._on_start_click,
                     animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                ),
-            ],
+                )
+            )
+
+        return ft.Column(
+            content,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -442,40 +483,22 @@ class WeBanView:
         """验证学校按钮点击事件"""
         school_name = self.school_field.value.strip()
         if not school_name:
-            self.page.show_snack_bar(ft.SnackBar(
-                content=ft.Text("请输入学校名称"),
-                bgcolor=ft.Colors.RED,
-            ))
+            self._show_snackbar("请输入学校名称", ft.Colors.RED)
             return
 
         # 显示加载提示
-        self.page.show_snack_bar(ft.SnackBar(
-            content=ft.Text(f"正在验证学校: {school_name}..."),
-            duration=3000,
-        ))
+        self._show_snackbar(f"正在验证学校: {school_name}...", ft.Colors.BLUE)
 
         # 在后台线程验证学校
         def validate_school():
             try:
                 result = self.adapter.validate_tenant(school_name)
                 if result["success"]:
-                    self.page.show_snack_bar(ft.SnackBar(
-                        content=ft.Text(result["message"]),
-                        bgcolor=ft.Colors.GREEN,
-                        duration=3000,
-                    ))
+                    self._show_snackbar(result["message"], ft.Colors.GREEN)
                 else:
-                    self.page.show_snack_bar(ft.SnackBar(
-                        content=ft.Text(result["message"]),
-                        bgcolor=ft.Colors.RED,
-                        duration=5000,
-                    ))
+                    self._show_snackbar(result["message"], ft.Colors.RED)
             except Exception as ex:
-                self.page.show_snack_bar(ft.SnackBar(
-                    content=ft.Text(f"验证失败: {str(ex)}"),
-                    bgcolor=ft.Colors.RED,
-                    duration=5000,
-                ))
+                self._show_snackbar(f"验证失败: {str(ex)}", ft.Colors.RED)
 
         threading.Thread(target=validate_school, daemon=True).start()
 
@@ -488,10 +511,7 @@ class WeBanView:
 
         # 验证输入
         if not all([school_name, account, password]):
-            self.page.show_snack_bar(ft.SnackBar(
-                content=ft.Text("请填写完整的登录信息"),
-                bgcolor=ft.Colors.RED,
-            ))
+            self._show_snackbar("请填写完整的登录信息", ft.Colors.RED)
             return
 
         # 保存凭据
@@ -517,10 +537,7 @@ class WeBanView:
 
         # 加载配置
         if not self.adapter.load_config(config):
-            self.page.show_snack_bar(ft.SnackBar(
-                content=ft.Text("配置加载失败"),
-                bgcolor=ft.Colors.RED,
-            ))
+            self._show_snackbar("配置加载失败", ft.Colors.RED)
             return
 
         # 切换到控制台页面
@@ -588,30 +605,54 @@ class WeBanView:
 
     def _log(self, message: str, level: str = "info"):
         """日志输出函数"""
-        if self.log_text:
-            # 添加时间戳
-            from datetime import datetime
-            timestamp = datetime.now().strftime("%H:%M:%S")
+        # 如果 log_text 还未初始化，输出到控制台
+        if not hasattr(self, 'log_text') or self.log_text is None:
+            print(f"[WeBan] {message}")
+            return
 
-            # 根据日志级别设置颜色和图标
-            color_map = {
-                "info": ft.Colors.BLACK,
-                "success": ft.Colors.GREEN,
-                "warning": ft.Colors.ORANGE,
-                "error": ft.Colors.RED,
-            }
-            prefix_map = {
-                "info": "ℹ️",
-                "success": "✅",
-                "warning": "⚠️",
-                "error": "❌",
-            }
+        # 添加时间戳
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%H:%M:%S")
 
-            prefix = prefix_map.get(level, "ℹ️")
+        # 根据日志级别设置颜色和图标
+        color_map = {
+            "info": ft.Colors.BLACK,
+            "success": ft.Colors.GREEN,
+            "warning": ft.Colors.ORANGE,
+            "error": ft.Colors.RED,
+        }
+        prefix_map = {
+            "info": "ℹ️",
+            "success": "✅",
+            "warning": "⚠️",
+            "error": "❌",
+        }
 
-            # 添加日志
-            self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
+        prefix = prefix_map.get(level, "ℹ️")
+
+        # 添加日志
+        self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
+        self.page.update()
+
+    def _show_snackbar(self, message: str, bgcolor: ft.Color = None):
+        """
+        显示 SnackBar 提示（Flet 0.8.0+ 兼容）
+
+        Args:
+            message: 提示消息
+            bgcolor: 背景颜色
+        """
+        try:
+            self.page.snack_bar = ft.SnackBar(
+                content=ft.Text(message),
+                bgcolor=bgcolor,
+            )
+            self.page.snack_bar.open = True
             self.page.update()
+        except Exception as e:
+            # 如果 SnackBar 失败，输出到控制台
+            print(f"[SnackBar] {message}")
+            print(f"[SnackBar Error] {e}")
 
     def _handle_input(self, prompt: str) -> str:
         """处理用户输入（用于验证码、手动作答等）"""
