@@ -634,7 +634,7 @@ class WeBanView:
         self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
         self.page.update()
 
-    def _show_snackbar(self, message: str, bgcolor: ft.Color = None):
+    def _show_snackbar(self, message: str, bgcolor = None):
         """
         显示 SnackBar 提示（Flet 0.8.0+ 兼容）
 
