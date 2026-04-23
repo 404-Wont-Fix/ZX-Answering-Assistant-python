@@ -37,18 +37,6 @@ python main.py
 python main.py --cli
 ```
 
-### Build Executable
-```bash
-# Directory mode (recommended, faster startup)
-python build.py --mode onedir
-
-# Single file mode
-python build.py --mode onefile
-
-# With UPX compression (reduces size by 30-50%)
-python build.py --upx
-```
-
 ## UI Architecture
 
 ### GUI Mode (Flet Framework)

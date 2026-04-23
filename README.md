@@ -158,8 +158,6 @@ ZX-Answering-Assistant-python/
 ├── main.py                          # 应用程序入口
 ├── version.py                       # 版本信息
 ├── requirements.txt                 # 依赖列表
-├── build.py                         # 构建脚本
-├── build_config.yaml                # 构建配置
 │
 ├── plugins/                         # 插件目录
 │   ├── cloud_exam/                  # 云考试插件
@@ -245,13 +243,6 @@ ZX-Answering-Assistant-python/
 | **loguru** | 0.7.3 | 日志处理 |
 | **pycryptodome** | 3.23.0 | 加密解密 |
 
-### 开发依赖
-
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| **pyinstaller** | ≥6.0.0 | 打包工具 |
-| **pyyaml** | ≥6.0 | 配置文件解析 |
-
 ---
 
 ## 快速开始
@@ -305,14 +296,6 @@ python -m playwright install chromium
 ```bash
 python main.py
 ```
-
-### 构建可执行文件
-
-```bash
-python build.py
-```
-
-构建完成后，可执行文件位于 `dist/` 目录。
 
 ---
 
@@ -511,12 +494,6 @@ pip install flet-desktop
 **问题**: 网络连接问题或 Token 过期
 
 **解决方案**: 检查网络连接，重新登录获取新 Token。
-
-### 6. 打包后运行失败
-
-**问题**: 依赖未正确打包
-
-**解决方案**: 检查 `build_config.yaml` 中的 `hidden_imports` 配置。。
 
 ---
 
