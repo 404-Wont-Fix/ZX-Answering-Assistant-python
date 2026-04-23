@@ -444,6 +444,7 @@ unable to get local issuer certificate (_ssl.c:1000)>
 2. **手动安装**:
    ```bash
    pip install flet>=0.82.0
+   pip install flet-desktop
    ```
 3. **使用项目依赖**:
    ```bash
@@ -452,9 +453,20 @@ unable to get local issuer certificate (_ssl.c:1000)>
 4. **国内镜像加速**:
    ```bash
    pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
+   pip install flet-desktop -i https://pypi.tuna.tsinghua.edu.cn/simple
    ```
 
-**⚠️ 重要提示**: Flet 首次运行时会自动下载桌面运行时文件（约 50-100MB），可能需要 1-3 分钟，这是正常行为。
+**⚠️ 重要提示**:
+- Flet 首次运行时会自动下载桌面运行时文件（约 50-100MB），可能需要 1-3 分钟，这是正常行为
+- **Flet 0.8.0+ 需要同时安装 `flet` 和 `flet-desktop` 两个包**
+
+**错误: `No module named 'flet_desktop'`**
+
+如果看到这个错误，说明缺少 `flet-desktop` 包：
+
+```bash
+pip install flet-desktop
+```
 
 **📥 如果自动下载失败**：请查看 [Flet 可执行文件手动下载指南](FLET_MANUAL_DOWNLOAD.md)
 

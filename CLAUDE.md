@@ -343,6 +343,7 @@ See detailed guide: [SSL_SETUP.md](docs/SSL_SETUP.md)
 2. **Manual install**:
    ```bash
    pip install flet>=0.82.0
+   pip install flet-desktop
    ```
 3. **Use requirements.txt**:
    ```bash
@@ -351,7 +352,24 @@ See detailed guide: [SSL_SETUP.md](docs/SSL_SETUP.md)
 4. **Domestic mirrors** (China):
    ```bash
    pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
+   pip install flet-desktop -i https://pypi.tuna.tsinghua.edu.cn/simple
    ```
+
+**⚠️ Important: Flet 0.8.0+ requires flet-desktop**
+
+Starting from Flet 0.8.0, you need to install both `flet` and `flet-desktop` packages:
+
+```bash
+pip install flet>=0.82.0 flet-desktop
+```
+
+**Error: `No module named 'flet_desktop'`**
+
+If you see this error, install flet-desktop:
+
+```bash
+pip install flet-desktop
+```
 
 **Flet Executable Download Issues**:
 
