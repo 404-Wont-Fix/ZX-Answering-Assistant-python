@@ -22,16 +22,25 @@ def _auto_setup_weban():
 
     如果 WeBan 不存在，尝试从项目根目录复制或链接
     支持多个可能的位置，无需用户手动配置
+
+    目标位置（按优先级）：
+    1. plugins/weban_plugin/modules/WeBan/ （推荐）
+    2. plugins/weban_plugin/WeBan/ （兼容）
     """
     try:
-        # WeBan 可能的目标位置（插件目录下）
         plugin_dir = Path(__file__).parent
-        plugin_weban_dir = plugin_dir / "WeBan"
 
-        # 如果插件目录已有 WeBan，无需处理
-        if plugin_weban_dir.exists() and (plugin_weban_dir / "api.py").exists():
-            logger.debug("WeBan 模块已存在于插件目录")
-            return True
+        # WeBan 可能的目标位置
+        possible_targets = [
+            plugin_dir / "modules" / "WeBan",  # 推荐：modules 目录
+            plugin_dir / "WeBan",               # 兼容：插件根目录
+        ]
+
+        # 检查是否已有 WeBan
+        for target_dir in possible_targets:
+            if target_dir.exists() and (target_dir / "api.py").exists():
+                logger.debug(f"WeBan 模块已存在于: {target_dir}")
+                return True
 
         # 尝试查找项目根目录的 WeBan
         current_file = Path(__file__)
@@ -54,31 +63,35 @@ def _auto_setup_weban():
             logger.warning("未找到 WeBan 源目录，插件将不可用")
             return False
 
+        # 优先使用 modules/WeBan 作为目标
+        target_dir = plugin_dir / "modules" / "WeBan"
+        target_dir.parent.mkdir(exist_ok=True)
+
         # 尝试创建符号链接（最快，占用空间最小）
         try:
-            if plugin_weban_dir.exists():
-                if plugin_weban_dir.is_dir() and not plugin_weban_dir.is_symlink():
-                    shutil.rmtree(plugin_weban_dir)
+            if target_dir.exists():
+                if target_dir.is_dir() and not target_dir.is_symlink():
+                    shutil.rmtree(target_dir)
                 else:
-                    plugin_weban_dir.unlink()
+                    target_dir.unlink()
 
             # Windows 使用 junction，Unix 使用 symlink
             if sys.platform == 'win32':
                 import subprocess
-                result = subprocess.run(['mklink', '/J', str(plugin_weban_dir), str(source_dir)],
+                result = subprocess.run(['mklink', '/J', str(target_dir), str(source_dir)],
                              check=True, shell=True, capture_output=True)
             else:
-                plugin_weban_dir.symlink_to(source_dir)
+                target_dir.symlink_to(source_dir)
 
-            logger.info(f"✓ 已创建 WeBan 符号链接: {plugin_weban_dir} -> {source_dir}")
+            logger.info(f"✓ 已创建 WeBan 符号链接: {target_dir} -> {source_dir}")
             return True
 
         except Exception as link_error:
             # 符号链接失败，尝试复制
             logger.info(f"符号链接失败，尝试复制 WeBan 文件...")
             try:
-                shutil.copytree(source_dir, plugin_weban_dir, dirs_exist_ok=True)
-                logger.info(f"✓ 已复制 WeBan 到插件目录: {plugin_weban_dir}")
+                shutil.copytree(source_dir, target_dir, dirs_exist_ok=True)
+                logger.info(f"✓ 已复制 WeBan 到插件目录: {target_dir}")
                 return True
             except Exception as copy_error:
                 logger.error(f"复制 WeBan 失败: {copy_error}")
