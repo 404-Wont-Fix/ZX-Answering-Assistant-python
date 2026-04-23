@@ -269,6 +269,52 @@ class AnsweringView:
         self.current_content.content = login_content
         self.page.update()
 
+    def _cleanup_user_state(self):
+        """
+        完全清理用户状态（用于切换账号或重新登录）
+
+        清理内容包括：
+        - access_token
+        - 浏览器上下文和 cookies
+        - 内存中的课程数据
+        - 题库数据
+        """
+        print("🧹 正在清理用户状态...")
+
+        try:
+            # 1. 清理 access_token
+            if self.access_token:
+                print("  - 清理 access_token")
+                clear_access_token()
+                self.access_token = None
+
+            # 2. 清理浏览器上下文
+            print("  - 清理浏览器上下文")
+            try:
+                cleanup_browser()
+            except Exception as e:
+                print(f"  ⚠️ 清理浏览器失败: {e}")
+
+            # 3. 清理内存中的状态
+            print("  - 清理内存状态")
+            self.username = ""
+            self.course_list = []
+            self.current_course = None
+            self.current_progress = None
+            self.current_uncompleted = None
+
+            # 4. 清理题库数据
+            if self.question_bank_data:
+                print("  - 清理题库数据")
+                self.question_bank_data = None
+
+            print("✅ 用户状态清理完成")
+
+        except Exception as e:
+            print(f"❌ 清理用户状态时出错: {e}")
+            import traceback
+            traceback.print_exc()
+
     def _on_back_click(self, e):
         """处理返回按钮点击事件 - 返回主界面"""
         print("DEBUG: 返回主界面")  # 调试信息
@@ -634,6 +680,9 @@ class AnsweringView:
     def _on_back_from_courses(self, e):
         """处理从课程列表返回的按钮点击事件"""
         print("DEBUG: 返回登录界面")  # 调试信息
+
+        # 清理所有用户状态（返回登录界面时完全清理）
+        self._cleanup_user_state()
 
         # 切换回登录界面
         login_content = self._get_login_content()
@@ -2005,6 +2054,9 @@ class AnsweringView:
         # 关闭对话框
         self.page.pop_dialog()
 
+        # 清理所有用户状态
+        self._cleanup_user_state()
+
         # 返回登录界面
         login_content = self._get_login_content()
         self.current_content.content = login_content
@@ -2016,6 +2068,9 @@ class AnsweringView:
 
         # 关闭对话框
         self.page.pop_dialog()
+
+        # 清理所有用户状态
+        self._cleanup_user_state()
 
         # 返回登录界面
         login_content = self._get_login_content()

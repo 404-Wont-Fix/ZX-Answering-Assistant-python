@@ -20,6 +20,10 @@ import logging
 import asyncio
 import queue
 import concurrent.futures
+import subprocess
+import sys
+import os
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
@@ -68,20 +72,241 @@ class BrowserManager:
             self._task_id_lock = threading.Lock()
             self._thread_local = threading.local()
             self.initialized = True
+            self._browser_checked = False  # 标记是否已检查过浏览器
             logger.info("浏览器管理器初始化完成")
 
-    def start_browser(self, headless: bool = None) -> Browser:
+    def _check_playwright_browser(self) -> Tuple[bool, str]:
+        """
+        检查 Playwright 浏览器是否已安装
+
+        Returns:
+            Tuple[bool, str]: (是否已安装, 错误信息)
+        """
+        try:
+            # 尝试启动 Playwright 来检测浏览器
+            with sync_playwright() as p:
+                # 尝试获取已安装的浏览器路径
+                try:
+                    executable_path = p.chromium.executable_path
+                    if Path(executable_path).exists():
+                        logger.info(f"Chromium 浏览器已安装: {executable_path}")
+                        return True, ""
+                    else:
+                        return False, f"浏览器可执行文件不存在: {executable_path}"
+                except Exception as e:
+                    return False, f"无法获取浏览器路径: {str(e)}"
+        except Exception as e:
+            return False, f"Playwright 浏览器检查失败: {str(e)}"
+
+    def _install_playwright_browser(self, show_progress: bool = True) -> Tuple[bool, str]:
+        """
+        安装 Playwright 浏览器
+
+        Args:
+            show_progress: 是否显示安装进度
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        if show_progress:
+            logger.info("开始安装 Playwright Chromium 浏览器...")
+
+        try:
+            # 使用 subprocess 调用 playwright install
+            result = subprocess.run(
+                [sys.executable, "-m", "playwright", "install", "chromium"],
+                capture_output=True,
+                text=True,
+                timeout=600  # 10分钟超时
+            )
+
+            if result.returncode == 0:
+                if show_progress:
+                    logger.info("✓ Playwright 浏览器安装成功！")
+                return True, ""
+            else:
+                error_msg = result.stderr or result.stdout or "未知错误"
+                if show_progress:
+                    logger.error(f"✗ 浏览器安装失败: {error_msg}")
+                return False, error_msg
+
+        except subprocess.TimeoutExpired:
+            error_msg = "浏览器安装超时（10分钟）"
+            if show_progress:
+                logger.error(f"✗ {error_msg}")
+            return False, error_msg
+        except Exception as e:
+            error_msg = f"安装过程出错: {str(e)}"
+            if show_progress:
+                logger.error(f"✗ {error_msg}")
+            return False, error_msg
+
+    def _install_from_local_directory(self, local_path: str) -> Tuple[bool, str]:
+        """
+        从本地目录安装 Playwright 浏览器
+
+        Args:
+            local_path: 本地浏览器路径或包含浏览器的目录
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        logger.info(f"尝试从本地路径安装浏览器: {local_path}")
+
+        try:
+            local_path_obj = Path(local_path)
+
+            # 检查路径是否存在
+            if not local_path_obj.exists():
+                return False, f"指定的路径不存在: {local_path}"
+
+            # 如果是目录，尝试找到 chromium 可执行文件
+            if local_path_obj.is_dir():
+                # 常见的 Chromium 可执行文件位置
+                possible_executables = [
+                    local_path_obj / "chrome.exe" if os.name == 'nt' else local_path_obj / "chrome",
+                    local_path_obj / "chromium.exe" if os.name == 'nt' else local_path_obj / "chromium",
+                    local_path_obj / "chrome" / "chrome.exe" if os.name == 'nt' else local_path_obj / "chrome" / "chrome",
+                ]
+
+                executable_path = None
+                for possible_path in possible_executables:
+                    if possible_path.exists():
+                        executable_path = possible_path
+                        break
+
+                if executable_path:
+                    logger.info(f"找到本地浏览器: {executable_path}")
+                    # 设置环境变量指向本地浏览器
+                    os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] = str(executable_path)
+                    return True, ""
+                else:
+                    return False, f"在目录中未找到浏览器可执行文件: {local_path}"
+
+            # 如果是文件，检查是否为可执行文件
+            elif local_path_obj.is_file():
+                logger.info(f"使用指定的浏览器文件: {local_path_obj}")
+                os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'] = str(local_path_obj)
+                return True, ""
+
+            return False, f"无效的路径类型: {local_path}"
+
+        except Exception as e:
+            return False, f"从本地目录安装失败: {str(e)}"
+
+    def ensure_browser_installed(self, local_browser_path: str = None) -> Tuple[bool, str]:
+        """
+        确保浏览器已安装，提供多种备选方案
+
+        Args:
+            local_browser_path: 本地浏览器路径（可选）
+
+        Returns:
+            Tuple[bool, str]: (是否成功, 错误信息)
+        """
+        # 如果已经检查过，直接返回
+        if self._browser_checked:
+            return True, ""
+
+        logger.info("检查 Playwright 浏览器安装状态...")
+
+        # 方案1: 检查浏览器是否已安装
+        is_installed, error_msg = self._check_playwright_browser()
+        if is_installed:
+            self._browser_checked = True
+            return True, ""
+
+        logger.warning(f"浏览器未安装: {error_msg}")
+
+        # 方案2: 使用指定的本地浏览器
+        if local_browser_path:
+            logger.info(f"尝试使用本地浏览器: {local_browser_path}")
+            success, error = self._install_from_local_directory(local_browser_path)
+            if success:
+                self._browser_checked = True
+                return True, ""
+            else:
+                logger.warning(f"本地浏览器设置失败: {error}")
+
+        # 方案3: 自动安装浏览器
+        logger.info("尝试自动安装浏览器...")
+        success, error = self._install_playwright_browser(show_progress=True)
+        if success:
+            self._browser_checked = True
+            return True, ""
+
+        # 所有方案都失败
+        error_msg = f"""
+        ================================================
+        浏览器安装失败！
+        ================================================
+
+        自动安装失败原因: {error}
+
+        请尝试以下备选方案:
+
+        方案1: 手动安装浏览器
+        ------------------------
+        打开命令行，执行以下命令:
+            python -m playwright install chromium
+
+        方案2: 使用本地浏览器
+        ------------------------
+        如果您已经有 Chromium 浏览器，可以指定路径:
+        1. 编辑配置文件 cli_config.json
+        2. 添加: "local_browser_path": "浏览器路径"
+        3. Windows 示例: "C:\\Program Files\\Chromium\\chrome.exe"
+        4. Linux/Mac 示例: "/usr/bin/chromium"
+
+        方案3: 下载 Playwright 浏览器到本地
+        ------------------------
+        1. 访问: https://playwright.dev/python/docs/cli
+        2. 下载对应平台的 Chromium 浏览器
+        3. 解压到指定目录
+        4. 使用方案2指定路径
+
+        详细文档: {Path(__file__).parent.parent.parent / "docs" / "BROWSER_SETUP.md"}
+        ================================================
+        """
+        return False, error_msg.strip()
+
+    def start_browser(self, headless: bool = None, local_browser_path: str = None, auto_install: bool = True) -> Browser:
         """
         启动浏览器实例（单例）
 
         Args:
             headless: 是否无头模式，默认从设置读取
                      如果不指定，则使用配置文件中的设置
+            local_browser_path: 本地浏览器路径（可选），如果未指定则从配置文件读取
+            auto_install: 是否自动安装浏览器（默认True）
 
         Returns:
             Browser: 浏览器实例
+
+        Raises:
+            RuntimeError: 如果浏览器安装失败且auto_install为True
         """
         if self._browser is None:
+            # 如果没有提供本地浏览器路径，从配置文件读取
+            if local_browser_path is None:
+                try:
+                    from src.core.config import get_settings_manager
+                    settings = get_settings_manager()
+                    local_browser_path = settings.get_local_browser_path()
+                    if local_browser_path:
+                        logger.info(f"从配置文件读取本地浏览器路径: {local_browser_path}")
+                except Exception:
+                    pass
+
+            # 确保浏览器已安装
+            if auto_install:
+                success, error_msg = self.ensure_browser_installed(local_browser_path)
+                if not success:
+                    raise RuntimeError(error_msg)
+            elif local_browser_path:
+                # 即使不自动安装，也要设置本地浏览器路径
+                self._install_from_local_directory(local_browser_path)
+
             # 如果没有指定 headless 参数，从配置文件读取
             if headless is None:
                 try:
@@ -104,6 +329,11 @@ class BrowserManager:
             # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
             if headless:
                 launch_args['args'] = ['--headless=new']
+
+            # 检查是否有自定义浏览器路径
+            if os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'):
+                launch_args['executable_path'] = os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']
+                logger.info(f"使用自定义浏览器路径: {os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']}")
 
             self._browser = self._playwright.chromium.launch(**launch_args)
 

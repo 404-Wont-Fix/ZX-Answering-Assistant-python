@@ -1,0 +1,13 @@
+{
+  "id": "course_certification",
+  "name": "课程认证助手",
+  "version": "1.0.0",
+  "description": "自动化处理教师课程认证答题任务",
+  "icon": "school",
+  "author": "TianJiaJi",
+  "entry_ui": "ui.create_view",
+  "entry_core": "core.Workflow",
+  "min_app_version": "2.9.0",
+  "dependencies": [],
+  "enabled": true
+}
