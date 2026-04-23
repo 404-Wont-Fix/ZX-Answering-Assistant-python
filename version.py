@@ -9,6 +9,8 @@ import os
 from datetime import datetime
 from pathlib import Path
 
+from plugins.weban_plugin.modules.WeBan.main import VERSION
+
 # 设置控制台编码为 UTF-8（修复 Windows GBK 编码问题）
 if sys.platform == 'win32':
     try:
@@ -57,7 +59,9 @@ def _get_version() -> str:
     # 如果失败，使用默认值
     return "3.2.0"
 
-VERSION = _get_version()
+# VERSION = _get_version()
+
+VERSION = "3.4.0"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():
