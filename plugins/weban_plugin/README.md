@@ -71,12 +71,26 @@ plugins/weban_plugin/
 ddddocr==1.6.1      # 验证码识别
 loguru==0.7.3       # 日志处理
 pycryptodome==3.23.0  # 加密解密
-requests==2.32.5    # HTTP请求
+Pillow>=10.0.0      # 图像处理（验证码）
+requests>=2.32.5    # HTTP请求
 ```
 
-安装依赖：
+**自动安装**：
+
+主程序会在加载插件时自动检查并安装这些依赖，无需手动操作。
+
+**手动安装（可选）**：
+
+如果自动安装失败，可以手动安装：
+
 ```bash
-pip install ddddocr==1.6.1 loguru==0.7.3 pycryptodome==3.23.0 requests==2.32.5
+pip install ddddocr==1.6.1 loguru==0.7.3 pycryptodome==3.23.0 Pillow>=10.0.0 requests>=2.32.5
+```
+
+或使用插件的 requirements.txt：
+
+```bash
+pip install -r plugins/weban_plugin/requirements.txt
 ```
 
 ## 🚀 使用方法
@@ -204,6 +218,20 @@ git commit -m "feat: 添加 WeBan 子模块"
 3. 手动作答更新题库
 
 ## 📝 更新日志
+
+### v1.2.1 (2026-04-23)
+- 🔧 **依赖管理优化**
+  - 从主项目 requirements.txt 移除 WeBan 特有依赖
+  - 依赖完全由插件自行管理（requirements.txt + manifest.json）
+  - 主程序自动安装插件依赖
+  - 添加 Pillow>=10.0.0 到依赖列表
+- 🐛 **修复** Flet API 兼容性问题
+  - 修复 ft.Color 类型提示错误
+  - 修复 log_text 未初始化时的崩溃
+  - 修复 show_snack_bar API 变更
+- 🎨 **UI 改进**
+  - WeBan 缺失时显示友好提示
+  - 提供详细的解决方案说明
 
 ### v1.2.0 (2026-04-23)
 - ✨ **新增 Git Submodule 支持**
