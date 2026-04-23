@@ -43,7 +43,13 @@ class FletInstaller:
 
             # 检查版本是否满足最低要求
             if self._version_comparable(version) >= self._version_comparable(self.MIN_FLET_VERSION):
-                return True, f"Flet 已安装 (v{version})", version
+                # Flet 0.8.0+ 需要检查 flet-desktop
+                try:
+                    import flet_desktop
+                    return True, f"Flet 已安装 (v{version})", version
+                except ImportError:
+                    # flet 包存在但 flet-desktop 未安装
+                    return False, f"Flet 已安装 (v{version}) 但缺少 flet-desktop 包", version
             else:
                 return False, f"Flet 版本过低 (v{version}，需要 v{self.MIN_FLET_VERSION}+)", version
 
@@ -54,7 +60,7 @@ class FletInstaller:
 
     def install_flet(self, show_progress: bool = True) -> Tuple[bool, str]:
         """
-        安装 Flet 库
+        安装 Flet 库和 flet-desktop 包
 
         Args:
             show_progress: 是否显示安装进度
@@ -66,7 +72,9 @@ class FletInstaller:
             logger.info("开始安装 Flet 库...")
 
         try:
-            # 尝试安装推荐版本
+            # 步骤 1: 安装 flet 包
+            if show_progress:
+                logger.info("正在安装 flet 包...")
             result = subprocess.run(
                 [sys.executable, "-m", "pip", "install", f"flet>={self.RECOMMENDED_FLET_VERSION}"],
                 capture_output=True,
@@ -74,21 +82,43 @@ class FletInstaller:
                 timeout=300  # 5分钟超时
             )
 
-            if result.returncode == 0:
-                if show_progress:
-                    logger.info("✓ Flet 安装成功！")
-
-                # 验证安装
-                is_installed, msg, version = self.check_flet_installed()
-                if is_installed:
-                    return True, f"Flet v{version} 安装成功"
-                else:
-                    return False, f"安装完成但验证失败: {msg}"
-            else:
+            if result.returncode != 0:
                 error_msg = result.stderr or result.stdout or "未知错误"
                 if show_progress:
                     logger.error(f"✗ Flet 安装失败: {error_msg}")
                 return False, error_msg
+
+            if show_progress:
+                logger.info("✓ Flet 包安装成功")
+
+            # 步骤 2: 安装 flet-desktop 包（Flet 0.8.0+ 必需）
+            if show_progress:
+                logger.info("正在安装 flet-desktop 包...")
+            result_desktop = subprocess.run(
+                [sys.executable, "-m", "pip", "install", "flet-desktop"],
+                capture_output=True,
+                text=True,
+                timeout=300  # 5分钟超时
+            )
+
+            if result_desktop.returncode != 0:
+                # flet-desktop 安装失败，但尝试继续
+                error_msg = result_desktop.stderr or result_desktop.stdout or "未知错误"
+                if show_progress:
+                    logger.warning(f"⚠ flet-desktop 安装失败: {error_msg}")
+                    logger.warning("⚠ 桌面应用可能无法运行，但 Web 模式仍可使用")
+
+            if show_progress and result_desktop.returncode == 0:
+                logger.info("✓ flet-desktop 安装成功")
+
+            # 验证安装
+            is_installed, msg, version = self.check_flet_installed()
+            if is_installed:
+                if show_progress:
+                    logger.info("✓ Flet 安装完成！")
+                return True, f"Flet v{version} 安装成功"
+            else:
+                return False, f"安装完成但验证失败: {msg}"
 
         except subprocess.TimeoutExpired:
             error_msg = "Flet 安装超时（5分钟）"

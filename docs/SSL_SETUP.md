@@ -151,6 +151,23 @@ except Exception as e:
     print(f"✗ SSL 配置失败: {e}")
 ```
 
+### Q: 出现 `No module named 'flet_desktop'` 错误？
+
+A: 这与 SSL 证书无关，但也是一个常见的新环境问题。Flet 0.8.0+ 需要同时安装两个包：
+
+```bash
+pip install flet>=0.82.0
+pip install flet-desktop
+```
+
+或者使用项目 requirements.txt：
+
+```bash
+pip install -r requirements.txt
+```
+
+详细说明请查看主 README.md 中的"Flet 库安装问题"部分。
+
 ## 相关文件
 
 - SSL 配置模块: `src/core/ssl_helper.py`
