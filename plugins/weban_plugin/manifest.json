@@ -1,8 +1,8 @@
 {
   "id": "weban_plugin",
   "name": "安全微伴",
-  "version": "1.1.0",
-  "description": "安全微伴自动学习答题插件，支持多账号自动化学习、考试和答题。自动检测和配置 WeBan 依赖，无需手动设置。",
+  "version": "1.2.0",
+  "description": "安全微伴自动学习答题插件，支持多账号自动化学习、考试和答题。自动检测和配置 WeBan 依赖，支持 Git Submodule。",
   "icon": "school",
   "author": "TianJiaJi",
   "entry_ui": "ui.create_view",

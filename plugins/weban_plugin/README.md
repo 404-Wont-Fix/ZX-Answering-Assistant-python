@@ -15,23 +15,25 @@ plugins/weban_plugin/
 ├── core.py                  # 核心功能模块
 ├── weban_adapter.py         # WeBan适配器（自动查找和导入）
 ├── weban_view.py            # WeBan视图组件
-└── WeBan/                   # WeBan代码库（自动创建）
-    ├── __init__.py          # WeBan包初始化
-    ├── api.py               # WeBan API客户端
-    ├── client.py            # WeBan客户端实现
-    ├── main.py              # WeBan主程序
-    ├── answer/              # 题库目录
-    │   └── answer.json      # 题库数据
-    ├── images/              # 图片资源
-    ├── config.example.json  # 配置示例
-    ├── requirements.txt     # 依赖列表
-    └── README.md            # WeBan原始文档
+└── modules/                 # 插件模块目录
+    └── WeBan/               # WeBan代码库（自动创建）
+        ├── __init__.py      # WeBan包初始化
+        ├── api.py           # WeBan API客户端
+        ├── client.py        # WeBan客户端实现
+        ├── main.py          # WeBan主程序
+        ├── answer/          # 题库目录
+        │   └── answer.json  # 题库数据
+        ├── images/          # 图片资源
+        ├── config.example.json  # 配置示例
+        ├── requirements.txt # 依赖列表
+        └── README.md        # WeBan原始文档
 ```
 
 **重要说明**：
 - `weban_adapter.py`、`weban_view.py` 等核心文件在插件根目录（会被 Git 跟踪）
-- `WeBan/` 目录在插件导入时自动创建（从项目根目录复制或链接）
-- 即使从云端拉取没有 `WeBan/` 目录，插件也会自动处理
+- `modules/WeBan/` 目录在插件导入时自动创建（从项目根目录复制或链接）
+- 推荐将 WeBan 项目作为 Git Submodule 添加到 `modules/WeBan/`
+- 即使从云端拉取没有 `modules/WeBan/` 目录，插件也会自动处理
 
 ## ✨ 特性
 
@@ -152,16 +154,34 @@ pip install ddddocr==1.6.1 loguru==0.7.3 pycryptodome==3.23.0 requests==2.32.5
 **自动处理机制**：
 插件会在首次加载时自动查找 WeBan 并设置。支持以下位置：
 1. 项目根目录：`WeBan/`
-2. 插件目录：`plugins/weban_plugin/WeBan/`
-3. Submodules：`submodules/WeBan/`
+2. 插件 modules 目录（推荐）：`plugins/weban_plugin/modules/WeBan/`
+3. 插件目录（兼容）：`plugins/weban_plugin/WeBan/`
+4. Submodules：`submodules/WeBan/`
 
 插件会自动：
-- 创建符号链接（最快）
+- 创建符号链接到 `plugins/weban_plugin/modules/WeBan/`（最快）
 - 如果符号链接失败，复制文件（备用）
+
+**推荐做法（Git Submodule）**：
+
+如果要将 WeBan 作为 Git 子模块管理：
+
+```bash
+# 在插件目录添加子模块
+cd plugins/weban_plugin
+mkdir -p modules
+cd modules
+git submodule add <WeBan仓库URL> WeBan
+
+# 提交更改
+cd ../../..
+git add plugins/weban_module/modules
+git commit -m "feat: 添加 WeBan 子模块"
+```
 
 **如果仍然显示未找到**：
 1. 确保项目根目录有 `WeBan/` 文件夹
-2. 或者将 WeBan 作为 Git 子模块添加
+2. 或者将 WeBan 作为 Git 子模块添加到 `modules/WeBan/`
 3. 重启应用程序让插件重新尝试自动配置
 
 ### 问题：插件无法加载
@@ -184,6 +204,20 @@ pip install ddddocr==1.6.1 loguru==0.7.3 pycryptodome==3.23.0 requests==2.32.5
 3. 手动作答更新题库
 
 ## 📝 更新日志
+
+### v1.2.0 (2026-04-23)
+- ✨ **新增 Git Submodule 支持**
+  - 推荐将 WeBan 添加为 Git Submodule 到 `modules/WeBan/`
+  - 插件自动检测并使用子模块
+  - 新增 `WEBAN_SUBMODULE_GUIDE.md` 详细说明
+- 🐛 **修复** WeBanClient 为 None 时的 AttributeError
+  - 添加 WeBan 可用性检查
+  - 优雅降级，不因 WeBan 缺失而崩溃
+- 🗂️ **目录结构优化**
+  - 推荐使用 `plugins/weban_plugin/modules/WeBan/` 路径
+  - 兼容 `plugins/weban_plugin/WeBan/` 路径
+  - 更新 `.gitignore` 规则
+- 📝 **文档更新** 说明 Git Submodule 配置方法
 
 ### v1.1.0 (2026-04-23)
 - ✨ **新增自动依赖检测和配置功能**

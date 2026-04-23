@@ -74,6 +74,11 @@ weban_config.json
 src/modules/WeBan/config.json
 src/modules/WeBan/weban.log
 
+# WeBan 插件目录（使用 Git Submodule 或自动配置）
+# 如果要提交 WeBan 代码，请删除下面这行
+plugins/weban_plugin/modules/WeBan/
+plugins/weban_plugin/WeBan/
+
 # Playwright 和 Flet 缓存
 playwright_browsers/
 flet_browsers/

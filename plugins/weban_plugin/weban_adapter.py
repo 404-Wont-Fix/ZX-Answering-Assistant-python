@@ -18,9 +18,10 @@ def _find_weban_path() -> Optional[Path]:
     查找 WeBan 模块路径
 
     按优先级查找以下位置：
-    1. 插件目录：plugins/weban_plugin/WeBan/
-    2. 项目根目录：WeBan/
-    3. Submodules 目录：submodules/WeBan/
+    1. 插件 modules 目录：plugins/weban_plugin/modules/WeBan/
+    2. 插件目录：plugins/weban_plugin/WeBan/
+    3. 项目根目录：WeBan/
+    4. Submodules 目录：submodules/WeBan/
 
     Returns:
         找到的 WeBan 路径，如果未找到返回 None
@@ -30,13 +31,15 @@ def _find_weban_path() -> Optional[Path]:
 
     # 可能的 WeBan 位置
     possible_paths = [
-        # 1. 插件目录（自动设置后的位置）
+        # 1. 插件 modules 目录（推荐位置）
+        current_dir / "modules" / "WeBan",
+        # 2. 插件目录（自动设置后的位置）
         current_dir / "WeBan",
-        # 2. 项目根目录（开发环境）
+        # 3. 项目根目录（开发环境）
         current_dir.parent.parent / "WeBan",
-        # 3. 作为 git submodule
+        # 4. 作为 git submodule
         current_dir.parent.parent / "submodules" / "WeBan",
-        # 4. 上一级目录
+        # 5. 上一级目录
         current_dir.parent.parent.parent / "WeBan",
     ]
 
@@ -96,13 +99,21 @@ class WeBanAdapter:
         self._stop_event = threading.Event()
         self._config: List[Dict[str, Any]] = []
 
+        # 检查 WeBan 是否可用
+        if not WEBAN_AVAILABLE:
+            self._log("WeBan 模块不可用，插件功能受限", "warning")
+            return
+
         # 应用 Monkey Patch 添加停止功能
         self._apply_stop_patch()
         # 应用 Monkey Patch 添加 GUI 输入支持
         self._apply_input_patch()
 
         # 保存 input_callback 的引用，供 monkey patch 使用
-        WeBanClient._weban_adapter_input = self.input_callback
+        try:
+            WeBanClient._weban_adapter_input = self.input_callback
+        except AttributeError as e:
+            self._log(f"无法设置 WeBanClient 回调: {e}", "warning")
 
     def _default_callback(self, message: str, level: str = "info"):
         """默认进度回调"""
