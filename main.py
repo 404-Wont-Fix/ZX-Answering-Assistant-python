@@ -34,6 +34,11 @@ if sys.platform == 'win32':
 project_root = Path(__file__).parent
 sys.path.insert(0, str(project_root))
 
+# 【重要】在所有网络操作之前配置 SSL 证书
+# 这必须在导入 Flet 或 Playwright 之前完成
+from src.core.ssl_helper import setup_ssl_auto_config
+setup_ssl_auto_config(silent=False)
+
 # 导入版本信息
 import version
 
@@ -327,6 +332,13 @@ def setup_flet_executable(silent=False):
             print(msg)
 
     try:
+        # 【重要】在 Flet 尝试下载可执行文件之前配置 SSL
+        # Flet 首次运行时会从 GitHub 下载可执行文件，需要正确的 SSL 证书
+        from src.core.ssl_helper import configure_urllib_ssl
+        configure_urllib_ssl()
+        if not silent:
+            log("[OK] SSL 证书已配置（用于 Flet 下载）")
+
         # 设置环境变量，让 Flet 使用 pip 而不是 uv
         os.environ["UV_SYSTEM_PYTHON"] = "1"
 
