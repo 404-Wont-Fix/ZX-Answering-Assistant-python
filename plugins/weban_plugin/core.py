@@ -66,16 +66,9 @@ class WeBanPluginCore:
             是否可用
         """
         try:
-            # 尝试导入 WeBan 模块（使用插件内部版本）
-            weban_path = Path(__file__).parent / "lib" / "WeBan"
-            if not weban_path.exists():
-                return False
-
-            # 尝试导入核心模块
-            sys.path.insert(0, str(weban_path.parent))
-            from client import WeBanClient
-            from api import WeBanAPI
-            return True
+            # 使用 adapter 检查可用性
+            adapter = get_weban_adapter()
+            return adapter.check_available()
         except Exception:
             return False
 
