@@ -10,7 +10,7 @@ from pathlib import Path
 import shutil
 import logging
 
-__version__ = "1.0.0"
+__version__ = "1.1.0"
 __author__ = "TianJiaJi"
 
 logger = logging.getLogger(__name__)
@@ -20,11 +20,13 @@ def _auto_setup_weban():
     """
     自动设置 WeBan 模块
 
-    如果 WeBan 不在插件 lib 目录，尝试从项目根目录复制或链接
+    如果 WeBan 不存在，尝试从项目根目录复制或链接
+    支持多个可能的位置，无需用户手动配置
     """
     try:
-        plugin_lib_dir = Path(__file__).parent / "lib"
-        plugin_weban_dir = plugin_lib_dir / "WeBan"
+        # WeBan 可能的目标位置（插件目录下）
+        plugin_dir = Path(__file__).parent
+        plugin_weban_dir = plugin_dir / "WeBan"
 
         # 如果插件目录已有 WeBan，无需处理
         if plugin_weban_dir.exists() and (plugin_weban_dir / "api.py").exists():
@@ -45,24 +47,25 @@ def _auto_setup_weban():
         for source in possible_sources:
             if source.exists() and (source / "api.py").exists():
                 source_dir = source
+                logger.info(f"找到 WeBan 源: {source_dir}")
                 break
 
         if not source_dir:
-            logger.warning("未找到 WeBan 源目录，插件可能无法正常工作")
+            logger.warning("未找到 WeBan 源目录，插件将不可用")
             return False
-
-        # 创建 lib 目录
-        plugin_lib_dir.mkdir(exist_ok=True)
 
         # 尝试创建符号链接（最快，占用空间最小）
         try:
             if plugin_weban_dir.exists():
-                shutil.rmtree(plugin_weban_dir)
+                if plugin_weban_dir.is_dir() and not plugin_weban_dir.is_symlink():
+                    shutil.rmtree(plugin_weban_dir)
+                else:
+                    plugin_weban_dir.unlink()
 
             # Windows 使用 junction，Unix 使用 symlink
             if sys.platform == 'win32':
                 import subprocess
-                subprocess.run(['mklink', '/J', str(plugin_weban_dir), str(source_dir)],
+                result = subprocess.run(['mklink', '/J', str(plugin_weban_dir), str(source_dir)],
                              check=True, shell=True, capture_output=True)
             else:
                 plugin_weban_dir.symlink_to(source_dir)
