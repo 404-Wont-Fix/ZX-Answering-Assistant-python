@@ -104,3 +104,27 @@ def _auto_setup_weban():
 
 # 在插件导入时自动设置
 _auto_setup_weban()
+
+
+def _setup_weban_import_path():
+    """
+    设置 WeBan 模块的导入路径
+
+    由于 WeBan/main.py 使用了绝对导入（from client import WeBanClient），
+    需要将 WeBan 目录临时添加到 sys.path 以便导入成功。
+    """
+    try:
+        plugin_dir = Path(__file__).parent
+        weban_path = plugin_dir / "modules" / "WeBan"
+
+        if weban_path.exists():
+            # 将 WeBan 目录添加到 sys.path
+            if str(weban_path) not in sys.path:
+                sys.path.insert(0, str(weban_path))
+                logger.debug(f"已添加 WeBan 路径到 sys.path: {weban_path}")
+    except Exception as e:
+        logger.warning(f"设置 WeBan 导入路径失败: {e}")
+
+
+# 设置 WeBan 导入路径
+_setup_weban_import_path()
