@@ -28,8 +28,6 @@ class AutoAnswer:
         """
         self.page = None  # 不再存储 page 对象，改为动态获取
         self.question_bank = None  # 题库数据
-        self.should_stop = False  # 停止标志
-        self.input_thread = None  # 输入监听线程
         self.current_chapter = None  # 当前章节信息
         self.current_knowledge = None  # 当前知识点信息
         self.current_knowledge_index = None  # 当前知识点在章节中的索引（用于按顺序匹配）
@@ -127,48 +125,10 @@ class AutoAnswer:
         self.question_bank = question_bank_data
         logger.info("✅ 题库数据已加载")
 
-    def _listen_for_stop(self):
-        """
-        监听用户输入，检测是否要停止
-        在单独的线程中运行
-        """
-        try:
-            while True:
-                # 非阻塞检测用户输入
-                # Windows下使用msvcrt，其他平台使用select
-                try:
-                    import msvcrt
-                    if msvcrt.kbhit():  # 检测是否有键盘输入
-                        char = msvcrt.getch().decode('utf-8')
-                        if char.lower() == 'q':
-                            self.request_stop()
-                            break
-                except ImportError:
-                    # 非Windows平台，使用input阻塞（简化处理）
-                    # 这种情况下用户需要按回车
-                    pass
-                except Exception as e:
-                    logger.debug(f"键盘监听异常（非阻塞）: {e}")
-
-                time.sleep(0.1)  # 避免CPU占用过高
-
-                if self.should_stop:
-                    break
-        except Exception as e:
-            logger.debug(f"监听线程异常: {str(e)}")
-
-    def start_stop_listener(self):
-        """启动停止监听线程"""
-        self.should_stop = False
-        self.input_thread = threading.Thread(target=self._listen_for_stop, daemon=True)
-        self.input_thread.start()
-        logger.info("✅ 停止监听已启动（按 'q' 键可随时停止）")
-
     def request_stop(self):
-        """请求停止（按Q键时调用）"""
-        print("\n\n🛑 检测到Q键，准备停止...")
-        logger.info("🛑 检测到Q键，准备停止...")
-        self.should_stop = True
+        """请求停止（GUI调用）"""
+        print("\n\n🛑 用户请求停止...")
+        logger.info("🛑 用户请求停止...")
 
         if self._is_answering_question:
             print("⏳ 当前正在答题，完成后将停止...")
@@ -180,15 +140,6 @@ class AutoAnswer:
             print("🛑 立即停止...")
             logger.info("🛑 立即停止...")
 
-    def stop_stop_listener(self):
-        """停止停止监听线程"""
-        self.should_stop = True
-        if self.input_thread and self.input_thread.is_alive():
-            self.input_thread.join(timeout=1)
-        logger.info("✅ 停止监听已停止")
-        # 清理日志处理器
-        self._cleanup_log_handler()
-
     def _check_stop(self) -> bool:
         """
         检查是否应该停止
@@ -196,18 +147,7 @@ class AutoAnswer:
         Returns:
             bool: True表示应该停止，False表示继续
         """
-        if self.should_stop:
-            # 如果正在答题，不等当前题目做完
-            # 如果正在处理知识点，等当前知识点做完
-            if self._is_answering_question:
-                logger.info("⏸️ 等待当前题目完成...")
-                return False
-            elif self._is_processing_knowledge:
-                logger.info("⏸️ 等待当前知识点完成...")
-                return False
-            else:
-                logger.info("🛑 按Q键退出，停止做题")
-                return True
+        # 键盘停止功能已移除，此方法保留用于向后兼容
         return False
 
     def start_api_listener(self):
@@ -1627,41 +1567,26 @@ class AutoAnswer:
             # 启动API监听器（在点击开始测评之前）
             self.start_api_listener()
 
-            # 启动停止监听
-            self.start_stop_listener()
-            print("💡 提示：按 'q' 键可随时停止做题（将在完成当前知识点后退出）")
-
             # 点击开始测评按钮（会自动查找可作答的知识点）
             if not self.click_start_button():
                 logger.error("❌ 点击开始测评按钮失败")
-                self.stop_stop_listener()
                 return result
 
             # 处理确认弹窗
             if not self.handle_confirm_dialog():
                 logger.error("❌ 处理确认弹窗失败")
-                self.stop_stop_listener()
                 return result
 
             # 调用答题循环
             result = self._answer_loop(max_questions)
 
-            # 检查是否用户请求停止
-            if self.should_stop:
-                result['stopped'] = True
-                logger.info("⚠️  用户请求停止，不做下一个知识点")
-            else:
-                result['stopped'] = False
-
             # 停止监听
-            self.stop_stop_listener()
             self.stop_api_listener()
 
             return result
 
         except Exception as e:
             logger.error(f"❌ 自动做题流程失败: {str(e)}")
-            self.stop_stop_listener()
             self.stop_api_listener()
             return result
 
@@ -1719,10 +1644,6 @@ class AutoAnswer:
             # 启动API监听器（在点击开始测评之前）
             self.start_api_listener()
 
-            # 启动停止监听
-            self.start_stop_listener()
-            print("💡 提示：按 'q' 键可随时停止做题（将在完成当前知识点后退出）")
-
             # 先尝试直接点击当前页面的"开始测评"按钮（快速路径）
             logger.info("🎯 尝试直接点击当前页面的开始测评按钮...")
             if self.click_start_button_only():
@@ -1755,34 +1676,23 @@ class AutoAnswer:
 
                 if not found:
                     logger.error("❌ 检索失败，未找到可作答的知识点，可能所有知识点都已完成")
-                    self.stop_stop_listener()
                     return result
 
             # 处理确认弹窗
             if not self.handle_confirm_dialog():
                 logger.error("❌ 处理确认弹窗失败")
-                self.stop_stop_listener()
                 return result
 
             # 调用答题循环
             result = self._answer_loop(max_questions)
 
-            # 检查是否用户请求停止
-            if self.should_stop:
-                result['stopped'] = True
-                logger.info("⚠️  用户请求停止，不做下一个知识点")
-            else:
-                result['stopped'] = False
-
             # 停止监听
-            self.stop_stop_listener()
             self.stop_api_listener()
 
             return result
 
         except Exception as e:
             logger.error(f"❌ 继续做题流程失败: {str(e)}")
-            self.stop_stop_listener()
             self.stop_api_listener()
             return result
 
