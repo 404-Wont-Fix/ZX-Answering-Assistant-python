@@ -115,7 +115,8 @@ class SettingsManager:
             },
             "browser_settings": {
                 "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
-                "local_browser_path": ""  # 本地浏览器路径（可选）
+                "local_browser_path": "",  # 本地浏览器路径（可选）
+                "browser_channel": "chrome"  # 系统浏览器通道: chrome, msedge, chromium (空字符串使用 Playwright 内置浏览器)
             }
         }
 
@@ -564,6 +565,32 @@ class SettingsManager:
             self.config["browser_settings"] = {}
 
         self.config["browser_settings"]["local_browser_path"] = browser_path
+
+        return self._save_config(self.config)
+
+    def get_browser_channel(self) -> str:
+        """
+        获取浏览器通道设置
+
+        Returns:
+            str: 浏览器通道，可选值: "chrome", "msedge", "chromium", "" (空字符串使用 Playwright 内置浏览器)
+        """
+        return self.config.get("browser_settings", {}).get("browser_channel", "chrome")
+
+    def set_browser_channel(self, channel: str) -> bool:
+        """
+        设置浏览器通道
+
+        Args:
+            channel: 浏览器通道，可选值: "chrome", "msedge", "chromium", "" (空字符串使用 Playwright 内置浏览器)
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "browser_settings" not in self.config:
+            self.config["browser_settings"] = {}
+
+        self.config["browser_settings"]["browser_channel"] = channel
 
         return self._save_config(self.config)
 
