@@ -621,26 +621,25 @@ class CloudExamView:
 
     def _on_load_bank_click(self, e):
         """处理加载题库按钮点击"""
-        try:
-            import tkinter as tk
-            from tkinter import filedialog
+        def on_file_picked(file_picker_result):
+            """文件选择回调（不使用类型注解以兼容 Flet 0.82.2）"""
+            if hasattr(file_picker_result, 'path') and file_picker_result.path:
+                self._process_question_bank(file_picker_result.path)
+            elif hasattr(file_picker_result, 'files') and file_picker_result.files:
+                files = file_picker_result.files
+                if files and len(files) > 0:
+                    self._process_question_bank(files[0].path)
 
-            root = tk.Tk()
-            root.withdraw()
-            root.wm_attributes('-topmost', 1)
+        # 创建并显示文件选择器
+        pick_files_dialog = ft.FilePicker(on_result=on_file_picked)
+        self.page.overlay.append(pick_files_dialog)
+        self.page.update()
 
-            file_path = filedialog.askopenfilename(
-                title="选择JSON题库文件",
-                filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-            )
-
-            root.destroy()
-
-            if file_path:
-                self._process_question_bank(file_path)
-
-        except Exception as ex:
-            self._show_error_dialog(f"打开文件选择器失败: {str(ex)}")
+        # 打开文件选择对话框
+        pick_files_dialog.pick_files(
+            allowed_extensions=["json"],
+            dialog_title="选择JSON题库文件"
+        )
 
     def _process_question_bank(self, file_path: str):
         """处理选中的题库文件"""
