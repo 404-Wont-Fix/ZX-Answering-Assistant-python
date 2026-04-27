@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v3.0.0-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v3.5.0-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
@@ -72,6 +72,21 @@
 | **评估出题助手** | 评估出题功能 | ✅ 可用 |
 
 ### 核心功能
+
+#### 🌐 系统浏览器支持
+
+- **智能检测**: 自动检测系统已安装的浏览器（Chrome/Edge）
+- **零配置启动**: 无需下载 170MB 浏览器，直接使用系统浏览器
+- **体积优化**: 打包体积减少 80%（200MB → 40MB）
+- **自动降级**: 智能选择最佳浏览器，确保程序始终可用
+- **详细文档**: 查看 [系统浏览器支持指南](docs/SYSTEM_BROWSER_SUPPORT.md)
+
+#### 🎨 启动动画系统
+
+- **启动画面**: 应用启动时显示品牌标识和渐变背景
+- **加载界面**: 显示加载进度和组件初始化状态
+- **用户体验**: 视觉反馈提升，缓解启动等待感
+- **一键编译**: 使用 `build.bat` 自动清理并编译
 
 #### 学生端功能
 
@@ -233,7 +248,6 @@ ZX-Answering-Assistant-python/
 | **flet** | ≥0.82.0 | GUI 框架 |
 | **playwright** | ≥1.57.0 | 浏览器自动化 |
 | **requests** | ≥2.31.0 | HTTP 客户端 |
-| **keyboard** | ≥0.13.5 | 键盘监听 |
 
 ### WeBan 模块依赖
 
@@ -498,6 +512,23 @@ pip install flet-desktop
 ---
 
 ## 版本历史
+
+### v3.5.0 (2026-04-27)
+
+- 🎨 **优化**: 清理项目结构，移除多余文件和文档
+- 🔧 **优化**: 清理不必要的依赖（pyyaml、py7zr）
+- 📝 **简化**: 整合文档，提高可维护性
+- 🐛 **修复**: 保留所有 v3.4.1 的功能修复
+
+### v3.4.1 (2026-04-27)
+
+- 🎨 **新增**: 启动动画系统
+- ⚡ **新增**: 一键构建脚本 (`build.bat`)
+- 🐛 **修复**: `__builtins__` 兼容性问题
+- 🐛 **修复**: Flet API 兼容性问题（v0.82.2）
+- 🐛 **修复**: 软件标题乱码
+- 🐛 **修复**: 启动屏幕中文显示
+- 🐛 **修复**: ImportError: No module named main
 
 ### v3.2.0 (2026-04-23)
 

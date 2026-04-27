@@ -1,0 +1,58 @@
+[tool.flet]
+# 项目名称
+project = "ZX-Answering-Assistant"
+# 产品名称（使用英文避免乱码）
+product = "ZX Answering Assistant"
+# 公司/组织名称
+org = "TianJiaJi"
+# 描述（使用英文避免乱码）
+description = "Intelligent Answering Assistant System"
+# 版权信息
+copyright = "Copyright © 2026 TianJiaJi"
+
+# 排除不必要的文件（减小构建体积）
+exclude = [
+    "*.pyc",
+    "__pycache__",
+    ".git",
+    ".venv",
+    "venv",
+    "tests",
+    "docs",
+    "*.md",
+    ".gitignore",
+    "CLAUDE.md",
+    ".claude",
+]
+
+# 包含必要的文件
+[tool.flet.include]
+# 确保包含主入口文件
+assets = [
+    "main.py",
+    "version.py",
+]
+
+# 启动画面配置（应用图标显示的背景色）
+[tool.flet.splash]
+# 浅色模式背景色（与品牌色匹配）
+color = "#0B6BFF"
+# 深色模式背景色
+dark_color = "#1a1a1a"
+
+# Boot screen - 首次启动解压时显示
+[tool.flet.app.boot_screen]
+show = true
+message = "正在准备首次启动"
+
+# Startup screen - Python 运行时初始化时显示
+[tool.flet.app.startup_screen]
+show = true
+message = "正在加载组件"
+
+# Windows 平台特定配置
+[tool.flet.windows]
+# 可以添加 Windows 特定配置
+[tool.flet.windows.app.startup_screen]
+show = true
+message = "正在初始化应用"

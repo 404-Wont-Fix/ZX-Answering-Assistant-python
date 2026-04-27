@@ -176,7 +176,6 @@ browser_manager.stop_browser()
 - **playwright** (>=1.57.0) - Browser automation
 - **requests** (>=2.31.0) - HTTP client
 - **flet** (>=0.80.0) - GUI framework
-- **keyboard** (>=0.13.5) - Keyboard listener
 
 ## Important Architectural Patterns
 
