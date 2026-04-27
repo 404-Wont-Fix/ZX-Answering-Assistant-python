@@ -61,7 +61,7 @@ def _get_version() -> str:
 
 # VERSION = _get_version()
 
-VERSION = "3.4.0"
+VERSION = "3.5.0"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():

@@ -10,7 +10,6 @@ import logging
 import time
 import threading
 import requests
-import keyboard
 from typing import Dict, List, Optional
 from urllib.parse import urlencode, quote
 
@@ -43,7 +42,6 @@ class APIAutoAnswer:
 
         # 停止控制相关
         self._stop_requested = False  # 用户是否请求停止
-        self._stop_thread = None  # 停止监听线程
         self._is_answering_question = False  # 是否正在答题
         self._is_processing_knowledge = False  # 是否正在处理知识点
 
@@ -88,24 +86,8 @@ class APIAutoAnswer:
         if hasattr(self, '_log_handler') and self._log_handler:
             logger.removeHandler(self._log_handler)
 
-    def start_stop_listener(self):
-        """启动停止监听器（监听Q键）"""
-        self._stop_requested = False
-        self._stop_thread = threading.Thread(target=self._listen_for_stop, daemon=True)
-        self._stop_thread.start()
-        logger.info("✅ 停止监听器已启动（按Q键退出）")
-
-    def _listen_for_stop(self):
-        """监听停止信号的线程函数"""
-        while not self._stop_requested:
-            if keyboard.is_pressed('q'):
-                logger.info("\n🛑 检测到Q键，准备停止...")
-                self.request_stop()
-                break
-            time.sleep(0.1)
-
     def request_stop(self):
-        """请求停止（按Q键时调用）"""
+        """请求停止（GUI调用）"""
         self._stop_requested = True
         if self._is_answering_question:
             logger.info("⏳ 当前正在答题，完成后将停止...")
@@ -113,15 +95,6 @@ class APIAutoAnswer:
             logger.info("⏳ 当前正在处理知识点，完成后将停止...")
         else:
             logger.info("🛑 立即停止...")
-
-    def stop_listener(self):
-        """停止监听器"""
-        self._stop_requested = True
-        if self._stop_thread and self._stop_thread.is_alive():
-            self._stop_thread.join(timeout=1)
-        logger.info("🛑 停止监听器已关闭")
-        # 清理日志处理器
-        self._cleanup_log_handler()
 
     def _check_stop(self) -> bool:
         """
@@ -140,7 +113,7 @@ class APIAutoAnswer:
                 logger.info("⏸️ 等待当前知识点完成...")
                 return False
             else:
-                logger.info("🛑 按Q键退出，停止做题")
+                logger.info("🛑 用户请求停止，停止做题")
                 return True
         return False
 
@@ -804,9 +777,6 @@ class APIAutoAnswer:
             'skipped': 0
         }
 
-        # 启动停止监听器
-        self.start_stop_listener()
-
         try:
             logger.info("🚀 开始自动完成所有知识点")
             logger.info("=" * 60)
@@ -854,7 +824,6 @@ class APIAutoAnswer:
             chapters_data = self.get_chapter_and_knowledge(course_id)
             if not chapters_data:
                 logger.error("❌ 获取章节信息失败")
-                self.stop_listener()
                 return total_result
 
             # 收集所有未完成的知识点
@@ -892,7 +861,6 @@ class APIAutoAnswer:
 
             if not all_knowledges:
                 logger.info("✅ 没有未完成的知识点")
-                self.stop_listener()
                 return total_result
 
             logger.info(f"📋 共找到 {len(all_knowledges)} 个未完成的知识点")
@@ -977,12 +945,10 @@ class APIAutoAnswer:
 
         except KeyboardInterrupt:
             logger.info("\n\n⚠️ 用户中断自动做题")
-            self.stop_listener()
             return total_result
         except Exception as e:
             logger.error(f"❌ 自动做题流程异常: {str(e)}")
-            self.stop_listener()
             return total_result
         finally:
-            # 确保停止监听器被关闭
-            self.stop_listener()
+            # 清理日志处理器
+            self._cleanup_log_handler()

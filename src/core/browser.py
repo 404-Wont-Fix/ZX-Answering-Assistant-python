@@ -10,6 +10,7 @@
 - 上下文之间完全隔离（Cookie、Session、LocalStorage）
 - 支持 AsyncIO 环境（Flet GUI 兼容）
 - 所有 Playwright 操作在专用工作线程中执行，避免 greenlet 线程切换问题
+- 支持系统浏览器（Chrome/Edge）和 Playwright 内置浏览器
 """
 
 from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
@@ -23,9 +24,38 @@ import concurrent.futures
 import subprocess
 import sys
 import os
+import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+class BrowserChannel(Enum):
+    """浏览器通道枚举"""
+    CHROME = "chrome"           # Google Chrome (系统安装)
+    MSEdge = "msedge"          # Microsoft Edge (系统安装)
+    CHROMIUM = "chromium"       # Playwright 内置 Chromium
+    BUNDLED = ""               # Playwright 打包的 Chromium (默认)
+
+    @classmethod
+    def from_string(cls, channel_str: str) -> 'BrowserChannel':
+        """从字符串获取浏览器通道"""
+        if not channel_str:
+            return cls.BUNDLED
+        for channel in cls:
+            if channel.value == channel_str.lower():
+                return channel
+        return cls.BUNDLED  # 默认使用打包浏览器
+
+    def get_display_name(self) -> str:
+        """获取显示名称"""
+        names = {
+            BrowserChannel.CHROME: "Google Chrome (系统)",
+            BrowserChannel.MSEdge: "Microsoft Edge (系统)",
+            BrowserChannel.CHROMIUM: "Chromium (Playwright)",
+            BrowserChannel.BUNDLED: "Chromium (Playwright 内置)"
+        }
+        return names[self]
 
 
 class BrowserType(Enum):
@@ -194,6 +224,126 @@ class BrowserManager:
         except Exception as e:
             return False, f"从本地目录安装失败: {str(e)}"
 
+    @staticmethod
+    def detect_system_browsers() -> Dict[str, str]:
+        """
+        检测系统中已安装的浏览器
+
+        Returns:
+            Dict[str, str]: 可用浏览器及其路径，格式 {"chrome": "路径", "msedge": "路径"}
+        """
+        browsers = {}
+
+        try:
+            # Windows 系统常见浏览器路径
+            if sys.platform == 'win32':
+                # Google Chrome
+                chrome_paths = [
+                    Path(os.environ.get('PROGRAMFILES', 'C:\\Program Files')) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe',
+                    Path(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe',
+                    Path(os.environ.get('LOCALAPPDATA', '')) / 'Google' / 'Chrome' / 'Application' / 'chrome.exe',
+                ]
+
+                # Microsoft Edge
+                edge_paths = [
+                    Path(os.environ.get('PROGRAMFILES', 'C:\\Program Files')) / 'Microsoft' / 'Edge' / 'Application' / 'msedge.exe',
+                    Path(os.environ.get('PROGRAMFILES(X86)', 'C:\\Program Files (x86)')) / 'Microsoft' / 'Edge' / 'Application' / 'msedge.exe',
+                ]
+
+            # Linux 系统常见浏览器路径
+            elif sys.platform == 'linux':
+                chrome_paths = [
+                    Path('/usr/bin/google-chrome'),
+                    Path('/usr/bin/google-chrome-stable'),
+                    Path('/opt/google/chrome/chrome'),
+                ]
+                edge_paths = [
+                    Path('/usr/bin/microsoft-edge'),
+                    Path('/opt/microsoft-edge/msedge'),
+                ]
+
+            # macOS 系统常见浏览器路径
+            elif sys.platform == 'darwin':
+                chrome_paths = [
+                    Path('/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'),
+                ]
+                edge_paths = [
+                    Path('/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge'),
+                ]
+            else:
+                return browsers
+
+            # 检测 Google Chrome
+            for path in chrome_paths:
+                if path.exists():
+                    browsers['chrome'] = str(path)
+                    logger.info(f"✓ 检测到 Google Chrome: {path}")
+                    break
+
+            # 检测 Microsoft Edge
+            for path in edge_paths:
+                if path.exists():
+                    browsers['msedge'] = str(path)
+                    logger.info(f"✓ 检测到 Microsoft Edge: {path}")
+                    break
+
+            if not browsers:
+                logger.warning("未检测到系统浏览器（Chrome 或 Edge）")
+
+        except Exception as e:
+            logger.error(f"检测系统浏览器时出错: {e}")
+
+        return browsers
+
+    def get_available_browser_channel(self) -> Tuple[str, str]:
+        """
+        获取可用的浏览器通道
+
+        Returns:
+            Tuple[str, str]: (浏览器通道, 显示信息)
+
+        优先级：
+        1. 配置文件中指定的浏览器通道
+        2. 自动检测系统浏览器
+        3. 使用 Playwright 内置浏览器
+        """
+        try:
+            from src.core.config import get_settings_manager
+            settings = get_settings_manager()
+            config_channel = settings.get_browser_channel()
+
+            # 如果配置了通道且不是空字符串，直接使用
+            if config_channel and config_channel != BrowserChannel.BUNDLED.value:
+                # 验证该浏览器是否可用
+                if config_channel in ['chrome', 'msedge']:
+                    system_browsers = self.detect_system_browsers()
+                    if config_channel in system_browsers:
+                        logger.info(f"✓ 使用配置的浏览器通道: {config_channel}")
+                        return config_channel, f"使用系统浏览器: {BrowserChannel.from_string(config_channel).get_display_name()}"
+                    else:
+                        logger.warning(f"⚠️ 配置的浏览器通道 '{config_channel}' 不可用，将尝试其他选项")
+
+                # 对于 chromium 或检测失败的通道，继续尝试其他选项
+
+            # 尝试自动检测系统浏览器（优先级：Chrome > Edge）
+            system_browsers = self.detect_system_browsers()
+            if system_browsers:
+                # 优先使用 Chrome
+                if 'chrome' in system_browsers:
+                    logger.info("✓ 自动选择系统 Google Chrome")
+                    return 'chrome', "自动选择系统浏览器: Google Chrome"
+                elif 'msedge' in system_browsers:
+                    logger.info("✓ 自动选择系统 Microsoft Edge")
+                    return 'msedge', "自动选择系统浏览器: Microsoft Edge"
+
+            # 使用 Playwright 内置浏览器
+            logger.info("✓ 使用 Playwright 内置浏览器")
+            return '', "使用 Playwright 内置浏览器"
+
+        except Exception as e:
+            logger.warning(f"获取浏览器通道配置时出错: {e}，使用默认配置")
+            return '', "使用 Playwright 内置浏览器（配置读取失败）"
+
     def ensure_browser_installed(self, local_browser_path: str = None) -> Tuple[bool, str]:
         """
         确保浏览器已安装，提供多种备选方案
@@ -287,25 +437,35 @@ class BrowserManager:
             RuntimeError: 如果浏览器安装失败且auto_install为True
         """
         if self._browser is None:
-            # 如果没有提供本地浏览器路径，从配置文件读取
-            if local_browser_path is None:
-                try:
-                    from src.core.config import get_settings_manager
-                    settings = get_settings_manager()
-                    local_browser_path = settings.get_local_browser_path()
-                    if local_browser_path:
-                        logger.info(f"从配置文件读取本地浏览器路径: {local_browser_path}")
-                except Exception:
-                    pass
+            # 获取浏览器通道（系统浏览器或内置浏览器）
+            browser_channel, channel_info = self.get_available_browser_channel()
+            logger.info(f"📋 {channel_info}")
 
-            # 确保浏览器已安装
-            if auto_install:
-                success, error_msg = self.ensure_browser_installed(local_browser_path)
-                if not success:
-                    raise RuntimeError(error_msg)
-            elif local_browser_path:
-                # 即使不自动安装，也要设置本地浏览器路径
-                self._install_from_local_directory(local_browser_path)
+            # 如果使用系统浏览器，跳过浏览器安装检查
+            if browser_channel:
+                logger.info("✓ 使用系统浏览器，跳过 Playwright 浏览器安装检查")
+                self._browser_checked = True
+            else:
+                # 使用 Playwright 内置浏览器，进行安装检查
+                # 如果没有提供本地浏览器路径，从配置文件读取
+                if local_browser_path is None:
+                    try:
+                        from src.core.config import get_settings_manager
+                        settings = get_settings_manager()
+                        local_browser_path = settings.get_local_browser_path()
+                        if local_browser_path:
+                            logger.info(f"从配置文件读取本地浏览器路径: {local_browser_path}")
+                    except Exception:
+                        pass
+
+                # 确保浏览器已安装
+                if auto_install:
+                    success, error_msg = self.ensure_browser_installed(local_browser_path)
+                    if not success:
+                        raise RuntimeError(error_msg)
+                elif local_browser_path:
+                    # 即使不自动安装，也要设置本地浏览器路径
+                    self._install_from_local_directory(local_browser_path)
 
             # 如果没有指定 headless 参数，从配置文件读取
             if headless is None:
@@ -326,11 +486,18 @@ class BrowserManager:
             launch_args = {
                 'headless': headless,
             }
-            # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
-            if headless:
-                launch_args['args'] = ['--headless=new']
 
-            # 检查是否有自定义浏览器路径
+            # 如果使用系统浏览器通道，添加 channel 参数
+            if browser_channel:
+                launch_args['channel'] = browser_channel
+                logger.info(f"✓ 设置浏览器通道: {browser_channel}")
+            else:
+                # 使用 Playwright 内置浏览器
+                # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
+                if headless:
+                    launch_args['args'] = ['--headless=new']
+
+            # 检查是否有自定义浏览器路径（优先级高于 channel）
             if os.environ.get('PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH'):
                 launch_args['executable_path'] = os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']
                 logger.info(f"使用自定义浏览器路径: {os.environ['PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH']}")
@@ -338,7 +505,8 @@ class BrowserManager:
             self._browser = self._playwright.chromium.launch(**launch_args)
 
             mode_str = "无头模式（隐藏浏览器）" if headless else "有头模式（显示浏览器）"
-            logger.info(f"浏览器已启动 - {mode_str}")
+            browser_info = f"浏览器通道: {browser_channel if browser_channel else 'Playwright 内置'}, {mode_str}"
+            logger.info(f"✅ 浏览器已启动 - {browser_info}")
 
         return self._browser
 
