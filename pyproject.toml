@@ -12,17 +12,68 @@ copyright = "Copyright © 2026 TianJiaJi"
 
 # 排除不必要的文件（减小构建体积）
 exclude = [
+    # Python 编译文件
     "*.pyc",
     "__pycache__",
+    "*.pyo",
+    "*.pyd",
+
+    # 版本控制
     ".git",
+    ".gitignore",
+    ".gitmodules",
+
+    # 虚拟环境
     ".venv",
     "venv",
+    "env",
+    "ENV",
+
+    # 开发文件
     "tests",
     "docs",
     "*.md",
-    ".gitignore",
     "CLAUDE.md",
     ".claude",
+
+    # IDE
+    ".vscode",
+    ".idea",
+
+    # 构建产物
+    "build",
+    "build-system",
+    "dist",
+    "*.spec",
+    "*.egg-info",
+
+    # 输出和日志
+    "output",
+    "*.log",
+    "logs/",
+
+    # 用户配置（运行时生成）
+    "cli_config.json",
+    "weban_config.json",
+    "config.json",
+    "*.env",
+
+    # 数据文件
+    "*.xlsx",
+    "*.csv",
+    "data/",
+
+    # 缓存
+    "playwright_browsers",
+    "flet_browsers",
+    ".pytest_cache",
+
+    # 用户数据
+    ".trae/",
+    "账号密码",
+    "签名",
+    "sign",
+    "API/",
 ]
 
 # 包含必要的文件
