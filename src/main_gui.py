@@ -277,7 +277,159 @@ def main(page: ft.Page):
     Args:
         page (ft.Page): The main page control provided by Flet framework
     """
-    app = MainApp(page)
+    # 创建启动加载界面
+    loading_view = create_loading_view(page)
+    page.add(loading_view)
+    page.update()
+
+    # 使用 asyncio 在后台初始化应用
+    import asyncio
+
+    async def initialize_app():
+        """异步初始化应用"""
+        try:
+            # 模拟加载延迟（确保用户能看到启动动画）
+            await asyncio.sleep(0.5)
+
+            # 清空加载界面
+            page.clean()
+            page.update()
+
+            # 创建主应用
+            app = MainApp(page)
+
+            # 添加淡入动画效果
+            await fade_in_app(page)
+
+        except Exception as e:
+            page.clean()
+            page.add(
+                ft.Column(
+                    [
+                        ft.Icon(ft.Icons.ERROR, size=50, color=ft.Colors.RED),
+                        ft.Text("启动失败", size=30, weight=ft.FontWeight.BOLD),
+                        ft.Text(f"错误信息: {e}", color=ft.Colors.RED),
+                        ft.ElevatedButton(
+                            "重试",
+                            icon=ft.Icons.REFRESH,
+                            on_click=lambda _: page.window.close()
+                        )
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=20
+                )
+            )
+            page.update()
+
+    # 检查是否在 asyncio 事件循环中
+    try:
+        asyncio.get_running_loop()
+        # 如果已经在事件循环中，直接创建同步版本
+        page.clean()
+        app = MainApp(page)
+    except RuntimeError:
+        # 没有事件循环，使用异步初始化
+        # Flet 会自动处理事件循环
+        import threading
+        import time
+
+        def sync_init():
+            """同步初始化（兼容模式）"""
+            time.sleep(0.5)  # 显示加载动画
+            page.clean()
+            app = MainApp(page)
+
+        # 在新线程中运行同步初始化
+        thread = threading.Thread(target=sync_init)
+        thread.start()
+
+
+def create_loading_view(page: ft.Page):
+    """
+    创建启动加载界面
+
+    Args:
+        page: Flet 页面对象
+
+    Returns:
+        加载界面的控件
+    """
+    return ft.Container(
+        content=ft.Column(
+            [
+                # Logo/图标
+                ft.Icon(
+                    ft.Icons.SCHOOL,
+                    size=80,
+                    color=ft.Colors.BLUE,
+                    animate_opacity=200,
+                ),
+
+                # 标题
+                ft.Text(
+                    "ZX 智能答题助手",
+                    size=32,
+                    weight=ft.FontWeight.BOLD,
+                    color=ft.Colors.BLUE_900,
+                    animate_opacity=200,
+                ),
+
+                ft.Text(
+                    version.VERSION if hasattr(version, 'VERSION') else "v3.2.0",
+                    size=16,
+                    color=ft.Colors.GREY_600,
+                    opacity=0.7,
+                ),
+
+                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
+
+                # 加载进度条（带动画）
+                ft.ProgressBar(
+                    width=300,
+                    color=ft.Colors.BLUE,
+                    bgcolor=ft.Colors.BLUE_50,
+                    bar_height=20,
+                ),
+
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+
+                # 加载提示文字（带切换动画）
+                ft.Text(
+                    "正在初始化组件...",
+                    size=14,
+                    color=ft.Colors.GREY_600,
+                    animate_opacity=300,
+                ),
+            ],
+            alignment=ft.MainAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=10,
+        ),
+        alignment=ft.Alignment(0, 0),  # 使用 Alignment(0, 0) 代替 alignment.center
+        expand=True,
+        # 渐变背景
+        gradient=ft.LinearGradient(
+            begin=ft.Alignment(-1, -1),  # 使用 Alignment(-1, -1) 代替 alignment.top_center
+            end=ft.Alignment(1, 1),      # 使用 Alignment(1, 1) 代替 alignment.bottom_center
+            colors=[
+                "#ffffff",  # 白色
+                "#f0f4ff",  # 淡蓝色
+            ],
+        ),
+    )
+
+
+def fade_in_app(page: ft.Page):
+    """
+    应用淡入动画（简化版本）
+
+    Args:
+        page: Flet 页面对象
+    """
+    # 简化版本，不添加复杂动画以兼容 Flet 0.82+
+    # 只需要更新页面即可
+    page.update()
 
 
 def run_app():

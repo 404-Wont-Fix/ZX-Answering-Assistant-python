@@ -11,8 +11,17 @@ import os
 import atexit
 
 # 在打包环境中，确保 exit 函数可用（Flet 内部可能使用 exit()）
-if 'exit' not in dir(__builtins__):
-    __builtins__.exit = lambda code=0: sys.exit(code)
+# 兼容 __builtins__ 是字典或模块的情况
+try:
+    if 'exit' not in dir(__builtins__):
+        if isinstance(__builtins__, dict):
+            __builtins__['exit'] = lambda code=0: sys.exit(code)
+        else:
+            __builtins__.exit = lambda code=0: sys.exit(code)
+except (TypeError, AttributeError):
+    # 如果上述方法失败，直接添加到字典中
+    if isinstance(__builtins__, dict):
+        __builtins__['exit'] = lambda code=0: sys.exit(code)
 
 # 设置控制台编码为 UTF-8（Windows 打包环境必需）
 if sys.platform == 'win32':
