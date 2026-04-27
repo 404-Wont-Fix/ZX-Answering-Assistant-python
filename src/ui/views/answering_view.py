@@ -1039,37 +1039,28 @@ class AnsweringView:
             self.page.show_dialog(dialog)
 
     def _on_use_json_bank(self, e):
-        """处理使用JSON题库按钮点击事件"""
+        """处理使用JSON题库按钮点击事件（使用新的 FilePicker API）"""
         print("DEBUG: 使用JSON题库")
 
-        # 使用 Flet FilePicker
-        def on_file_picked(file_picker_result):
-            """文件选择回调（不使用类型注解以兼容 Flet 0.82.2）"""
-            # 尝试访问 path 属性
-            if hasattr(file_picker_result, 'path') and file_picker_result.path:
-                print(f"DEBUG: 选择的文件 = {file_picker_result.path}")
-                # 调用文件选择处理逻辑
-                self._process_selected_json_file(file_picker_result.path)
-            elif hasattr(file_picker_result, 'files') and file_picker_result.files:
-                # 使用 files 属性（可能是列表）
-                files = file_picker_result.files
-                if files and len(files) > 0:
-                    file_path = files[0].path
-                    print(f"DEBUG: 选择的文件 = {file_path}")
-                    self._process_selected_json_file(file_path)
+        # 使用 page.run_task() 来运行异步操作
+        async def pick_file_async():
+            # 使用新的 FilePicker API（async/await 模式）
+            file_picker = ft.FilePicker()
+            files = await file_picker.pick_files(
+                allowed_extensions=["json"],
+                dialog_title="选择JSON题库文件"
+            )
+
+            # 处理选择的文件
+            if files and len(files) > 0:
+                file_path = files[0].path
+                print(f"DEBUG: 选择的文件 = {file_path}")
+                self._process_selected_json_file(file_path)
             else:
                 print("DEBUG: 用户取消了文件选择")
 
-        # 创建并显示文件选择器
-        pick_files_dialog = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(pick_files_dialog)
-        self.page.update()
-
-        # 打开文件选择对话框
-        pick_files_dialog.pick_files(
-            allowed_extensions=["json"],
-            dialog_title="选择JSON题库文件"
-        )
+        # 使用 Flet 的 run_task 方法运行异步函数
+        self.page.run_task(pick_file_async)
 
     def _process_selected_json_file(self, file_path: str):
         """
