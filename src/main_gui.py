@@ -35,6 +35,7 @@ from src.ui.views.answering_view import AnsweringView
 from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
 from src.ui.views.plugin_center_view import PluginCenterView
+from src.ui.views.about_view import AboutView
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
@@ -71,6 +72,7 @@ class MainApp:
         self.extraction_view = ExtractionView(page)
         self.plugin_center_view = PluginCenterView(page, main_app=self)
         self.settings_view = SettingsView(page)
+        self.about_view = AboutView(page)
 
         # 缓存每个视图的内容（保持状态）
         self.cached_contents = {
@@ -78,6 +80,7 @@ class MainApp:
             1: None,  # 答案提取
             2: None,  # 插件中心
             3: None,  # 系统设置
+            4: None,  # 关于
         }
 
         # 初始化UI
@@ -183,6 +186,11 @@ class MainApp:
                     selected_icon=ft.Icons.SETTINGS,
                     label="系统设置",
                 ),
+                ft.NavigationRailDestination(
+                    icon=ft.Icons.INFO,
+                    selected_icon=ft.Icons.INFO_OUTLINE,
+                    label="关于",
+                ),
             ],
             on_change=self._on_destination_changed,
             bgcolor=ft.Colors.BLUE_50,
@@ -242,6 +250,8 @@ class MainApp:
                 cached_content = self.plugin_center_view.get_content()
             elif self.current_destination == 3:
                 cached_content = self.settings_view.get_content()
+            elif self.current_destination == 4:
+                cached_content = self.about_view.get_content()
             else:
                 return
 
