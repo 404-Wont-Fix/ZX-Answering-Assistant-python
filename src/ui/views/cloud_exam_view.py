@@ -620,26 +620,24 @@ class CloudExamView:
         threading.Thread(target=capture_task, daemon=True).start()
 
     def _on_load_bank_click(self, e):
-        """处理加载题库按钮点击"""
-        def on_file_picked(file_picker_result):
-            """文件选择回调（不使用类型注解以兼容 Flet 0.82.2）"""
-            if hasattr(file_picker_result, 'path') and file_picker_result.path:
-                self._process_question_bank(file_picker_result.path)
-            elif hasattr(file_picker_result, 'files') and file_picker_result.files:
-                files = file_picker_result.files
-                if files and len(files) > 0:
-                    self._process_question_bank(files[0].path)
+        """处理加载题库按钮点击（使用新的 FilePicker API）"""
+        # 使用 page.run_task() 来运行异步操作
+        async def pick_file_async():
+            # 使用新的 FilePicker API（async/await 模式）
+            file_picker = ft.FilePicker()
+            files = await file_picker.pick_files(
+                allowed_extensions=["json"],
+                dialog_title="选择JSON题库文件"
+            )
 
-        # 创建并显示文件选择器
-        pick_files_dialog = ft.FilePicker(on_result=on_file_picked)
-        self.page.overlay.append(pick_files_dialog)
-        self.page.update()
+            # 处理选择的文件
+            if files and len(files) > 0:
+                self._process_question_bank(files[0].path)
+            else:
+                print("DEBUG: 用户取消了文件选择")
 
-        # 打开文件选择对话框
-        pick_files_dialog.pick_files(
-            allowed_extensions=["json"],
-            dialog_title="选择JSON题库文件"
-        )
+        # 使用 Flet 的 run_task 方法运行异步函数
+        self.page.run_task(pick_file_async)
 
     def _process_question_bank(self, file_path: str):
         """处理选中的题库文件"""
