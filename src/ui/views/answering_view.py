@@ -171,14 +171,58 @@ class AnsweringView:
             autofocus=True,
         )
 
+        # 创建密码输入框（去除边框，由外部容器提供）
         self.password_field = ft.TextField(
             label="密码",
             hint_text="请输入学生端密码",
             value=saved_password or "",
-            width=400,
+            expand=True,
             password=True,
-            can_reveal_password=True,
+            border=ft.InputBorder.NONE,
             prefix_icon=ft.Icons.LOCK,
+            content_padding=ft.padding.only(left=12, top=12, bottom=12, right=0),
+        )
+
+        # 填充密码后缀图标按钮
+        fill_password_icon = ft.IconButton(
+            icon=ft.Icons.KEY,
+            icon_size=20,
+            tooltip="使用账号后六位作为密码",
+            on_click=lambda e: self._on_fill_password_click(e),
+            icon_color=ft.Colors.GREY_600,
+            width=40,
+            height=40,
+            padding=5,
+        )
+
+        # 显示/隐藏密码按钮
+        reveal_password_icon = ft.IconButton(
+            icon=ft.Icons.VISIBILITY,
+            icon_size=20,
+            tooltip="显示/隐藏密码",
+            on_click=lambda e: self._toggle_password_visibility(e),
+            icon_color=ft.Colors.GREY_600,
+            width=40,
+            height=40,
+            padding=5,
+        )
+
+        # 密码输入行（使用 Container 模拟 TextField 外观）
+        password_row = ft.Container(
+            content=ft.Row(
+                [
+                    self.password_field,
+                    fill_password_icon,
+                    reveal_password_icon,
+                ],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            width=400,
+            border=ft.border.all(1, ft.Colors.GREY_400),
+            border_radius=4,
+            padding=ft.padding.only(left=0, top=0, right=0, bottom=0),
+            # bgcolor=ft.Colors.WHITE,
         )
 
         # 创建"记住我"复选框
@@ -210,7 +254,7 @@ class AnsweringView:
                                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
                                 self.username_field,
                                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                                self.password_field,
+                                password_row,
                                 ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                                 self.remember_password_checkbox,
                                 ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
@@ -259,6 +303,32 @@ class AnsweringView:
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
+
+    def _on_fill_password_click(self, e):
+        """处理填充密码按钮点击事件 - 将账号后六位填充到密码框"""
+        username = self.username_field.value
+        if username and isinstance(username, str) and len(username) >= 6:
+            last_six = username[-6:]
+            self.password_field.value = last_six
+            self.page.update()
+        else:
+            dialog = ft.AlertDialog(
+                title=ft.Text("提示"),
+                content=ft.Text("账号长度不足6位，无法提取后六位"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
+
+    def _toggle_password_visibility(self, e):
+        """处理显示/隐藏密码按钮点击事件"""
+        self.password_field.password = not self.password_field.password
+        if self.password_field.password:
+            self.password_field.prefix_icon = ft.Icons.LOCK
+        else:
+            self.password_field.prefix_icon = ft.Icons.LOCK_OPEN
+        self.page.update()
 
     def _on_start_answer_click(self, e):
         """处理开始答题按钮点击事件 - 切换到登录界面"""
