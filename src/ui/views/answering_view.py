@@ -307,11 +307,10 @@ class AnsweringView:
     def _on_fill_password_click(self, e):
         """处理填充密码按钮点击事件 - 将账号后六位填充到密码框"""
         username = self.username_field.value
-        if username and len(username) >= 6:
+        if username and isinstance(username, str) and len(username) >= 6:
             last_six = username[-6:]
             self.password_field.value = last_six
             self.page.update()
-            print(f"DEBUG: 已将账号后六位 '{last_six}' 填充到密码框")
         else:
             dialog = ft.AlertDialog(
                 title=ft.Text("提示"),
