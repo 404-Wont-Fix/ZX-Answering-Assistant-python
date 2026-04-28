@@ -25,6 +25,7 @@
 - [功能特性](#功能特性)
 - [技术架构](#技术架构)
 - [快速开始](#快速开始)
+- [打包构建](#打包构建可选)
 - [使用指南](#使用指南)
 - [插件开发](#插件开发)
 - [常见问题](#常见问题)
@@ -310,6 +311,26 @@ python -m playwright install chromium
 ```bash
 python main.py
 ```
+
+### 打包构建（可选）
+
+如果你想将程序打包成独立的可执行文件：
+
+**快速构建**:
+```bash
+build.bat
+```
+
+**如果构建失败**，请查看 [BUILD_GUIDE.md](BUILD_GUIDE.md) 获取详细的故障排查步骤。
+
+可用的构建脚本：
+- `build.bat` - 标准构建（推荐）
+- `build_detailed.bat` - 详细模式（查看完整输出）
+- `build_manual.bat` - 手动分步构建（便于定位问题）
+- `build_offline.bat` - 预下载依赖（网络不稳定时使用）
+- `build_diagnose.bat` - 环境诊断（检查构建环境）
+
+构建产物位于：`build\windows\x64\runner\Release\`
 
 ---
 
