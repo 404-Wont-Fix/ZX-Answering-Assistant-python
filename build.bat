@@ -38,9 +38,9 @@ if exist "dist" (
 echo ✓ 清理完成
 echo.
 
-echo 📦 正在编译应用...
+echo 📦 正在编译应用（详细模式）...
 echo.
-flet build windows --project=ZX-Answering-Assistant
+flet build windows --project=ZX-Answering-Assistant --verbose
 
 if %ERRORLEVEL% EQU 0 (
     echo.

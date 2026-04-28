@@ -1,3 +1,26 @@
+[project]
+name = "zx-answering-assistant"
+version = "3.5.0"
+description = "Intelligent Answering Assistant System"
+readme = "README.md"
+requires-python = ">=3.10"
+authors = [
+    {name = "TianJiaJi"}
+]
+
+dependencies = [
+    "flet>=0.82.0",
+    "requests>=2.31.0",
+    "certifi>=2024.0.0",
+    "playwright>=1.57.0",
+    "flet-desktop>=0.21.0",
+    "pycryptodome>=3.19.0",
+    "loguru>=0.7.0",
+    "ddddocr>=1.5.0",
+]
+
+
+
 [tool.flet]
 # 项目名称
 project = "ZX-Answering-Assistant"
@@ -10,71 +33,10 @@ description = "Intelligent Answering Assistant System"
 # 版权信息
 copyright = "Copyright © 2026 TianJiaJi"
 
-# 排除不必要的文件（减小构建体积）
-exclude = [
-    # Python 编译文件
-    "*.pyc",
-    "__pycache__",
-    "*.pyo",
-    "*.pyd",
-
-    # 版本控制
-    ".git",
-    ".gitignore",
-    ".gitmodules",
-
-    # 虚拟环境
-    ".venv",
-    "venv",
-    "env",
-    "ENV",
-
-    # 开发文件
-    "tests",
-    "docs",
-    "*.md",
-    "CLAUDE.md",
-    ".claude",
-
-    # IDE
-    ".vscode",
-    ".idea",
-
-    # 构建产物
-    "build",
-    "build-system",
-    "dist",
-    "*.spec",
-    "*.egg-info",
-
-    # 输出和日志
-    "output",
-    "*.log",
-    "logs/",
-
-    # 用户配置（运行时生成）
-    "cli_config.json",
-    "weban_config.json",
-    "config.json",
-    "*.env",
-
-    # 数据文件
-    "*.xlsx",
-    "*.csv",
-    "data/",
-
-    # 缓存
-    "playwright_browsers",
-    "flet_browsers",
-    ".pytest_cache",
-
-    # 用户数据
-    ".trae/",
-    "账号密码",
-    "签名",
-    "sign",
-    "API/",
-]
+# 启动画面配置
+[tool.flet.splash]
+color = "#0B6BFF"
+dark_color = "#1a1a1a"
 
 # 包含必要的文件
 [tool.flet.include]
@@ -84,26 +46,17 @@ assets = [
     "version.py",
 ]
 
-# 启动画面配置（应用图标显示的背景色）
-[tool.flet.splash]
-# 浅色模式背景色（与品牌色匹配）
-color = "#0B6BFF"
-# 深色模式背景色
-dark_color = "#1a1a1a"
-
-# Boot screen - 首次启动解压时显示
+# Boot screen
 [tool.flet.app.boot_screen]
 show = true
 message = "正在准备首次启动"
 
-# Startup screen - Python 运行时初始化时显示
+# Startup screen
 [tool.flet.app.startup_screen]
 show = true
 message = "正在加载组件"
 
 # Windows 平台特定配置
-[tool.flet.windows]
-# 可以添加 Windows 特定配置
 [tool.flet.windows.app.startup_screen]
 show = true
 message = "正在初始化应用"
