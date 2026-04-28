@@ -30,6 +30,7 @@
 - [插件开发](#插件开发)
 - [常见问题](#常见问题)
 - [许可证](#许可证)
+- [致谢](#致谢)
 
 ---
 
@@ -314,23 +315,37 @@ python main.py
 
 ### 打包构建（可选）
 
-如果你想将程序打包成独立的可执行文件：
+如果你想将程序打包成独立的 Windows 可执行文件：
 
-**快速构建**:
+#### ⚠️ 网络环境要求
+
+**重要：构建过程需要访问 Google 和 GitHub 服务，请确保网络环境能正常访问这些服务！**
+
+构建过程会下载约 1.5-2 GB 资源（Flutter SDK、Flet 运行时、Playwright 浏览器等）。
+
+**如果无法访问 Google/GitHub**：
+- 使用代理（推荐）
+- 配置国内镜像（详见 BUILD_GUIDE.md）
+- 或在良好网络环境下构建
+
+#### 快速构建
+
 ```bash
+# 1. 激活虚拟环境
+.venv\Scripts\activate
+
+# 2. 运行构建脚本
 build.bat
 ```
 
-**如果构建失败**，请查看 [BUILD_GUIDE.md](BUILD_GUIDE.md) 获取详细的故障排查步骤。
+#### 构建产物
 
-可用的构建脚本：
-- `build.bat` - 标准构建（推荐）
-- `build_detailed.bat` - 详细模式（查看完整输出）
-- `build_manual.bat` - 手动分步构建（便于定位问题）
-- `build_offline.bat` - 预下载依赖（网络不稳定时使用）
-- `build_diagnose.bat` - 环境诊断（检查构建环境）
+可执行文件位于：`build\windows\x64\runner\Release\ZX Answering Assistant.exe`
 
-构建产物位于：`build\windows\x64\runner\Release\`
+#### 详细文档
+
+- **[编译打包指南](docs/BUILD_GUIDE.md)** - 详细步骤和配置说明
+- **[快速参考](docs/BUILD_QUICKREF.md)** - 常用命令速查
 
 ---
 
@@ -591,6 +606,52 @@ pip install flet-desktop
 
 ---
 
+## 致谢
+
+感谢以下开源项目和贡献者：
+
+### 核心依赖
+
+- **[Flet](https://github.com/flet-dev/flet)** - 现代化的 Python Flutter GUI 框架
+- **[Playwright](https://github.com/microsoft/playwright)** - 微软开发的浏览器自动化框架
+- **[Requests](https://github.com/psf/requests)** - 优雅的 Python HTTP 库
+
+### 特别感谢
+
+#### 🌟 WeBan 项目
+
+本项目的安全微伴（WeBan）插件基于 **[WeBan](https://github.com/hangone/WeBan)** 项目开发。
+
+**原项目作者**: [hangone](https://github.com/hangone)
+
+**WeBan** 是一个优秀的**安全微伴学习平台自动化工具**，提供了：
+
+- ✅ 自动学习课程功能
+- ✅ 智能答题系统
+- ✅ OCR 验证码识别
+- ✅ 完善的 API 客户端
+- ✅ 稳定的加密解密方案
+
+本项目的 WeBan 插件在原项目基础上进行了：
+- 🔧 插件化改造
+- 🎨 GUI 界面集成
+- 🚀 性能优化
+- 📚 文档完善
+
+**致谢原项目作者 hangone 的开源精神和优秀代码！**
+
+### 其他开源项目
+
+- **[ddddocr](https://github.com/sml2h3/ddddocr)** - 优秀的验证码识别库
+- **[loguru](https://github.com/Delgan/loguru)** - 简单易用的 Python 日志库
+- **[pycryptodome](https://github.com/Legrandin/pycryptodome)** - 强大的 Python 加密库
+
+### 社区贡献
+
+感谢所有为本项目提交 Issue、PR 和建议的开发者！
+
+---
+
 ## 贡献指南
 
 欢迎提交 Issue 和 Pull Request！
@@ -606,4 +667,5 @@ pip install flet-desktop
 ## 联系方式
 
 - 作者: TianJiaJi
+- 邮箱: notify@mail.tianjiaji.top
 - GitHub: [https://github.com/TianJiaJi/ZX-Answering-Assistant-python](https://github.com/TianJiaJi/ZX-Answering-Assistant-python)
