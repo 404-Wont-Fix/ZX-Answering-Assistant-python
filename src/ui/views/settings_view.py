@@ -193,14 +193,74 @@ class SettingsView:
             prefix_icon=ft.Icons.SCHOOL,
         )
 
+        # 创建密码输入框（去除边框，由外部容器提供）
         self.student_password_field = ft.TextField(
             label="学生端密码",
             hint_text="请输入学生端密码",
             value=student_pass or "",
-            width=400,
+            expand=True,
             password=True,
-            can_reveal_password=True,
-            icon=ft.Icons.LOCK,
+            border=ft.InputBorder.NONE,
+            content_padding=ft.padding.only(left=12, top=12, bottom=12, right=0),
+        )
+
+        # 填充密码后缀图标按钮
+        fill_student_password_icon = ft.IconButton(
+            icon=ft.Icons.KEY,
+            icon_size=20,
+            tooltip="使用账号后六位作为密码",
+            on_click=lambda e: self._on_student_fill_password_click(e),
+            icon_color=ft.Colors.BLACK,
+            width=40,
+            height=40,
+            padding=5,
+        )
+
+        # 显示/隐藏密码按钮
+        reveal_student_password_icon = ft.IconButton(
+            icon=ft.Icons.VISIBILITY,
+            icon_size=20,
+            tooltip="显示/隐藏密码",
+            on_click=lambda e: self._on_student_toggle_password_visibility(e),
+            icon_color=ft.Colors.BLACK,
+            width=40,
+            height=40,
+            padding=5,
+        )
+
+        # 密码输入容器（带边框）
+        password_field_container = ft.Container(
+            content=ft.Row(
+                [
+                    self.student_password_field,
+                    fill_student_password_icon,
+                    reveal_student_password_icon,
+                ],
+                spacing=0,
+                alignment=ft.MainAxisAlignment.CENTER,
+            ),
+            border=ft.border.all(1, ft.Colors.BLACK),
+            border_radius=4,
+            padding=ft.padding.only(left=0, top=0, right=0, bottom=0),
+            width=310,
+        )
+
+        # 学生端密码输入行：左侧图标 + 密码输入容器
+        student_password_row = ft.Row(
+            [
+                ft.Container(
+                    content=ft.Icon(
+                        ft.Icons.LOCK,
+                        color=ft.Colors.BLACK,
+                        size=22,
+                    ),
+                    width=40,
+                    padding=ft.padding.only(right=4),
+                ),
+                password_field_container,
+            ],
+            spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
         self.teacher_username_field = ft.TextField(
@@ -289,7 +349,7 @@ class SettingsView:
                                                                 height=10,
                                                                 color=ft.Colors.TRANSPARENT,
                                                             ),
-                                                            self.student_password_field,
+                                                            student_password_row,
                                                         ],
                                                         spacing=0,
                                                     ),
@@ -959,6 +1019,36 @@ class SettingsView:
                 ],
             )
             self.page.show_dialog(error_dialog)
+
+    def _on_student_fill_password_click(self, e):
+        """处理填充密码按钮点击事件 - 将学生端账号后六位填充到密码框"""
+        username = self.student_username_field.value
+        if username and isinstance(username, str) and len(username) >= 6:
+            last_six = username[-6:]
+            self.student_password_field.value = last_six
+            self.page.update()
+        else:
+            dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Row(
+                    [
+                        ft.Icon(ft.Icons.INFO_OUTLINE, color=ft.Colors.BLUE),
+                        ft.Text("提示"),
+                    ],
+                    spacing=10,
+                ),
+                content=ft.Text("账号长度不足6位，无法提取后六位"),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+            self.page.show_dialog(dialog)
+
+    def _on_student_toggle_password_visibility(self, e):
+        """处理学生端显示/隐藏密码按钮点击事件"""
+        self.student_password_field.password = not self.student_password_field.password
+        self.page.update()
 
     def _restart_browser(self):
         """重启浏览器"""
