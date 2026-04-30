@@ -483,24 +483,94 @@ class WeBanView:
         """验证学校按钮点击事件"""
         school_name = self.school_field.value.strip()
         if not school_name:
-            self._show_snackbar("请输入学校名称", ft.Colors.RED)
+            self._show_validation_dialog("错误", "请输入学校名称", ft.Colors.RED)
             return
 
-        # 显示加载提示
-        self._show_snackbar(f"正在验证学校: {school_name}...", ft.Colors.BLUE)
+        # 显示加载对话框
+        loading_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.REFRESH, color=ft.Colors.BLUE),
+                    ft.Text("正在验证", weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Column(
+                [
+                    ft.Text(f"正在验证学校: {school_name}"),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    ft.ProgressBar(width=300),
+                ],
+                tight=True,
+                width=400,
+            ),
+        )
+
+        self.page.show_dialog(loading_dialog)
 
         # 在后台线程验证学校
         def validate_school():
             try:
                 result = self.adapter.validate_tenant(school_name)
-                if result["success"]:
-                    self._show_snackbar(result["message"], ft.Colors.GREEN)
-                else:
-                    self._show_snackbar(result["message"], ft.Colors.RED)
+                # 在主线程中显示结果
+                def show_result():
+                    self.page.pop_dialog()  # 关闭加载对话框
+                    if result["success"]:
+                        self._show_validation_dialog(
+                            "验证成功",
+                            f"✓ {result['message']}",
+                            ft.Colors.GREEN
+                        )
+                    else:
+                        self._show_validation_dialog(
+                            "验证失败",
+                            f"✗ {result['message']}",
+                            ft.Colors.RED
+                        )
+                self.page.run_thread(show_result)
             except Exception as ex:
-                self._show_snackbar(f"验证失败: {str(ex)}", ft.Colors.RED)
+                # 在主线程中显示错误
+                def show_error():
+                    self.page.pop_dialog()  # 关闭加载对话框
+                    self._show_validation_dialog(
+                        "验证失败",
+                        f"验证失败: {str(ex)}",
+                        ft.Colors.RED
+                    )
+                self.page.run_thread(show_error)
 
         threading.Thread(target=validate_school, daemon=True).start()
+
+    def _show_validation_dialog(self, title: str, message: str, color: ft.Colors):
+        """显示验证结果对话框"""
+        # 选择图标
+        if color == ft.Colors.GREEN:
+            icon = ft.Icons.CHECK_CIRCLE
+        elif color == ft.Colors.RED:
+            icon = ft.Icons.ERROR
+        else:
+            icon = ft.Icons.INFO
+
+        dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(icon, color=color, size=28),
+                    ft.Text(title, weight=ft.FontWeight.BOLD),
+                ],
+                spacing=10,
+            ),
+            content=ft.Text(message),
+            actions=[
+                ft.TextButton(
+                    "确定",
+                    on_click=lambda _: self.page.pop_dialog()
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
 
     def _on_login_click(self, e):
         """登录按钮点击事件"""
