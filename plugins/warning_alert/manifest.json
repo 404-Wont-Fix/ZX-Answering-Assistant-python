@@ -1,0 +1,13 @@
+{
+  "id": "warning_alert",
+  "name": "警告提示器",
+  "version": "1.0.0",
+  "description": "弹出自定义警告提示窗口，支持自定义警告内容和样式",
+  "icon": "warning",
+  "author": "ZX Answering Assistant",
+  "entry_ui": "ui.create_view",
+  "entry_core": null,
+  "min_app_version": "1.3.0",
+  "dependencies": [],
+  "enabled": true
+}
