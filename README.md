@@ -7,7 +7,7 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v3.5.1-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v3.6.0-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
@@ -72,6 +72,7 @@
 | **云考试助手** | 云考试答题、题库匹配 | ✅ 可用 |
 | **课程认证助手** | 教师课程认证答题 | ✅ 可用 |
 | **评估出题助手** | 评估出题功能 | ✅ 可用 |
+| **警告提示器** | 弹出自定义警告提示窗口，支持循环提醒 | ✅ 可用 |
 
 ### 核心功能
 
@@ -114,6 +115,17 @@
 - **智能考试**: 基于题库自动匹配正确答案
 - **OCR 验证码**: 自动识别验证码（失败后手动输入）
 - **实时进度**: 显示学习进度和考试统计
+
+#### 警告提示器功能
+
+- **独立窗口**: 使用 Tkinter 创建完全独立的警告窗口，不阻塞主界面
+- **自定义内容**: 支持自定义警告标题、内容文本、警告级别
+- **丰富样式**: 多种颜色主题、字体大小、窗口尺寸可配置
+- **循环提醒**: 支持定时重复弹出警告（可配置间隔时间）
+- **动画效果**: 淡入动画效果，视觉体验更佳
+- **自动关闭**: 可设置自动关闭时间，适合快速通知场景
+- **透明度调节**: 支持窗口透明度设置，避免完全遮挡内容
+- **配置持久化**: JSON 格式配置文件，自动保存用户设置
 
 ---
 
@@ -184,6 +196,12 @@ ZX-Answering-Assistant-python/
 │   │   └── core.py                  # 业务逻辑
 │   ├── course_certification/        # 课程认证插件
 │   ├── evaluation/                  # 评估出题插件
+│   ├── warning_alert/               # 警告提示器插件
+│   │   ├── manifest.json            # 插件元数据
+│   │   ├── __init__.py
+│   │   ├── ui.py                    # UI 入口
+│   │   ├── warning_window.py        # 独立警告窗口
+│   │   └── warning_config.json      # 配置文件
 │   └── README.md                    # 插件开发指南
 │
 ├── src/
@@ -548,6 +566,19 @@ pip install flet-desktop
 ---
 
 ## 版本历史
+
+### v3.6.0 (2026-05-07)
+
+- ✨ **新增**: 警告提示器插件
+  - 基于 Tkinter 的独立警告窗口系统
+  - 支持循环提醒功能，可配置重复间隔
+  - 丰富的自定义选项：颜色、字体、窗口大小、透明度
+  - 多种警告级别：info/warning/error/success/critical
+  - 支持自动关闭和淡入动画效果
+  - JSON 配置文件持久化存储
+  - 完善的设置界面和文档
+- 🎨 **优化**: 插件系统架构
+- 📝 **文档**: 更新插件开发指南和配置文档
 
 ### v3.5.0 (2026-04-27)
 
