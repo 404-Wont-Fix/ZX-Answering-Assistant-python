@@ -577,13 +577,17 @@ class WeBanView:
                 self.status_text.color = ft.Colors.RED
 
             finally:
-                self.is_running = False
-                self.start_button.disabled = False
-                self.stop_button.disabled = True
-                # 更新对话框内的控件
-                self.start_button.update()
-                self.stop_button.update()
-                self.status_text.update()
+                # 线程安全的UI更新
+                def update_final_state():
+                    self.is_running = False
+                    self.start_button.disabled = False
+                    self.stop_button.disabled = True
+                    # 更新对话框内的控件
+                    self.start_button.update()
+                    self.stop_button.update()
+                    self.status_text.update()
+
+                self.page.run_thread(update_final_state)
 
         self.task_thread = threading.Thread(target=run_task, daemon=True)
         self.task_thread.start()
@@ -892,7 +896,7 @@ class WeBanView:
                 self.log_text.controls.pop(0)
             self.log_text.update()
         else:
-            # 在后台线程中，使用 run_task 在主线程更新
+            # 在后台线程中，使用 run_thread 在主线程更新
             def update_in_main_thread():
                 self.log_text.controls.append(new_log)
                 if len(self.log_text.controls) > 200:
@@ -900,17 +904,10 @@ class WeBanView:
                 self.log_text.update()
 
             try:
-                # 尝试使用 run_task
-                if hasattr(self.page, 'run_task'):
-                    # 创建一个协程来执行更新
-                    async def async_update():
-                        update_in_main_thread()
-                    self.page.run_task(async_update)
-                else:
-                    # 回退到直接调用
-                    update_in_main_thread()
+                # 使用 run_thread 确保在主线程中更新UI
+                self.page.run_thread(update_in_main_thread)
             except Exception:
-                # 最后的尝试：直接调用
+                # 回退到直接调用（可能不会刷新）
                 update_in_main_thread()
 
     def _show_snackbar(self, message: str, color: ft.Colors):
