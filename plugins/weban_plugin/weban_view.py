@@ -655,12 +655,16 @@ class WeBanView:
                 import traceback
                 self._log(f"错误详情: {traceback.format_exc()}", "error")
             finally:
-                self.is_running = False
-                self.start_button.disabled = False
-                self.stop_button.disabled = True
-                self.status_text.value = "执行完成"
-                self.status_text.color = ft.Colors.GREEN
-                self.page.update()
+                # 线程安全的UI更新
+                def update_final_state():
+                    self.is_running = False
+                    self.start_button.disabled = False
+                    self.stop_button.disabled = True
+                    self.status_text.value = "执行完成"
+                    self.status_text.color = ft.Colors.GREEN
+                    self.page.update()
+
+                self.page.run_thread(update_final_state)
 
         self.task_thread = threading.Thread(target=run_task, daemon=True)
         self.task_thread.start()
@@ -700,9 +704,13 @@ class WeBanView:
 
         prefix = prefix_map.get(level, "ℹ️")
 
-        # 添加日志
-        self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
-        self.page.update()
+        # 线程安全的UI更新
+        def update_ui():
+            self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
+            self.page.update()
+
+        # 使用 run_thread 确保在主线程中更新UI
+        self.page.run_thread(update_ui)
 
     def _show_snackbar(self, message: str, bgcolor = None):
         """
