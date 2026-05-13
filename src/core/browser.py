@@ -152,7 +152,7 @@ class BrowserManager:
 
             if result.returncode == 0:
                 if show_progress:
-                    logger.info("✓ Playwright 浏览器安装成功！")
+                    logger.info("[OK] Playwright 浏览器安装成功！")
                 return True, ""
             else:
                 error_msg = result.stderr or result.stdout or "未知错误"
@@ -277,14 +277,14 @@ class BrowserManager:
             for path in chrome_paths:
                 if path.exists():
                     browsers['chrome'] = str(path)
-                    logger.info(f"✓ 检测到 Google Chrome: {path}")
+                    logger.info(f"[OK] 检测到 Google Chrome: {path}")
                     break
 
             # 检测 Microsoft Edge
             for path in edge_paths:
                 if path.exists():
                     browsers['msedge'] = str(path)
-                    logger.info(f"✓ 检测到 Microsoft Edge: {path}")
+                    logger.info(f"[OK] 检测到 Microsoft Edge: {path}")
                     break
 
             if not browsers:
@@ -318,7 +318,7 @@ class BrowserManager:
                 if config_channel in ['chrome', 'msedge']:
                     system_browsers = self.detect_system_browsers()
                     if config_channel in system_browsers:
-                        logger.info(f"✓ 使用配置的浏览器通道: {config_channel}")
+                        logger.info(f"[OK] 使用配置的浏览器通道: {config_channel}")
                         return config_channel, f"使用系统浏览器: {BrowserChannel.from_string(config_channel).get_display_name()}"
                     else:
                         logger.warning(f"⚠️ 配置的浏览器通道 '{config_channel}' 不可用，将尝试其他选项")
@@ -330,14 +330,14 @@ class BrowserManager:
             if system_browsers:
                 # 优先使用 Chrome
                 if 'chrome' in system_browsers:
-                    logger.info("✓ 自动选择系统 Google Chrome")
+                    logger.info("[OK] 自动选择系统 Google Chrome")
                     return 'chrome', "自动选择系统浏览器: Google Chrome"
                 elif 'msedge' in system_browsers:
-                    logger.info("✓ 自动选择系统 Microsoft Edge")
+                    logger.info("[OK] 自动选择系统 Microsoft Edge")
                     return 'msedge', "自动选择系统浏览器: Microsoft Edge"
 
             # 使用 Playwright 内置浏览器
-            logger.info("✓ 使用 Playwright 内置浏览器")
+            logger.info("[OK] 使用 Playwright 内置浏览器")
             return '', "使用 Playwright 内置浏览器"
 
         except Exception as e:
@@ -439,11 +439,11 @@ class BrowserManager:
         if self._browser is None:
             # 获取浏览器通道（系统浏览器或内置浏览器）
             browser_channel, channel_info = self.get_available_browser_channel()
-            logger.info(f"📋 {channel_info}")
+            logger.info(f"[INFO] {channel_info}")
 
             # 如果使用系统浏览器，跳过浏览器安装检查
             if browser_channel:
-                logger.info("✓ 使用系统浏览器，跳过 Playwright 浏览器安装检查")
+                logger.info("[OK] 使用系统浏览器，跳过 Playwright 浏览器安装检查")
                 self._browser_checked = True
             else:
                 # 使用 Playwright 内置浏览器，进行安装检查
@@ -490,7 +490,7 @@ class BrowserManager:
             # 如果使用系统浏览器通道，添加 channel 参数
             if browser_channel:
                 launch_args['channel'] = browser_channel
-                logger.info(f"✓ 设置浏览器通道: {browser_channel}")
+                logger.info(f"[OK] 设置浏览器通道: {browser_channel}")
             else:
                 # 使用 Playwright 内置浏览器
                 # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
