@@ -61,7 +61,7 @@ def _get_version() -> str:
 
 # VERSION = _get_version()
 
-VERSION = "3.6.0"
+VERSION = "3.6.1"
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():
@@ -165,8 +165,8 @@ Git提交: {GIT_COMMIT}
 
 # 版本信息字典（用于 Windows 版本资源）
 VERSION_INFO = {
-    'file_version': (3, 2, 0, 0),
-    'product_version': (3, 2, 0, 0),
+    'file_version': (3, 6, 1, 0),
+    'product_version': (3, 6, 1, 0),
     'file_description': '智能答题助手 - 自动化答题系统',
     'copyright': 'Copyright (C) 2024-2026',
     'company_name': 'ZX Project',

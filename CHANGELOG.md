@@ -1,5 +1,59 @@
 # 更新日志
 
+## [v3.6.1] - 2026-05-14
+
+### 🐛 重要修复
+
+#### Flet版本兼容性修复
+- ✅ **修复Flet 0.82.0+ API兼容性问题**
+  - 修复`window_center`方法调用（属性→方法）
+  - 修复`ft.app()`废弃API（`ft.app()` → `ft.run()`）
+  - 修复窗口属性访问问题
+  - 固定Flet版本至0.82.2确保稳定性
+
+#### 系统浏览器自动检测优化
+- ✅ **完全自动化系统浏览器支持**
+  - 自动检测系统Chrome浏览器
+  - 自动检测系统Edge浏览器
+  - 智能选择优先级：Chrome > Edge > Playwright内置
+  - 无需手动配置，无需下载额外浏览器
+
+#### Greenlet线程切换错误修复
+- ✅ **修复AsyncIO环境下的线程安全问题**
+  - 完善BrowserManager工作线程机制
+  - 修复`Extractor`类的浏览器初始化
+  - 统一所有模块使用BrowserManager
+  - 解决GUI模式下的greenlet错误
+
+#### Windows编码问题修复
+- ✅ **修复emoji字符导致的GBK编码错误**
+  - 替换所有emoji为文本标记
+  - `[OK]` 替代 ✅
+  - `[INFO]` 替代 💡/📋
+  - `[WARNING]` 替代 ⚠️
+  - `[ERROR]` 替代 ❌
+
+### 🔧 技术改进
+- 📝 更新依赖版本固定（flet==0.82.2, flet-desktop==0.82.2）
+- 📝 优化BrowserManager线程安全机制
+- 📝 统一日志输出格式，避免编码问题
+- 📝 完善系统浏览器检测逻辑
+
+### 📝 文件修改
+- `src/main_gui.py` - Flet API修复
+- `src/core/browser.py` - 浏览器管理优化，日志格式统一
+- `src/extraction/extractor.py` - 重构使用BrowserManager
+- `src/certification/workflow.py` - emoji字符修复
+- `requirements.txt` - 版本固定
+- `version.py` - 版本号更新至3.6.1
+
+### 🚀 部署改进
+- **最小化部署**: `pip install -r requirements.txt` → `python main.py`
+- **零额外配置**: 无需下载Playwright浏览器，无需手动配置
+- **完全兼容**: 支持GUI和CLI模式，Windows系统Chrome/Edge
+
+---
+
 ## [v3.5.1] - 2026-04-30
 
 ### 🎉 用户体验改进
