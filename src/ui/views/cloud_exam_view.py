@@ -123,7 +123,7 @@ class CloudExamView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                         animation_duration=200,
                     ),
                     on_click=lambda e: self._on_start_click(e),
@@ -159,7 +159,7 @@ class CloudExamView:
             password=True,
             border=ft.InputBorder.NONE,
             prefix_icon=ft.Icons.LOCK,
-            content_padding=ft.padding.only(left=12, top=12, bottom=12, right=0),
+            content_padding=ft.Padding.only(left=12, top=12, bottom=12, right=0),
         )
 
         # 填充密码后缀图标按钮
@@ -200,7 +200,7 @@ class CloudExamView:
             width=400,
             border=ft.border.all(1, ft.Colors.GREY_400),
             border_radius=4,
-            padding=ft.padding.only(left=0, top=0, right=0, bottom=0),
+            padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
         )
 
         # 创建"记住我"复选框
@@ -256,7 +256,7 @@ class CloudExamView:
                                             color=ft.Colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.padding.symmetric(
+                                                padding=ft.Padding.symmetric(
                                                     horizontal=30, vertical=15
                                                 ),
                                                 animation_duration=200,
@@ -347,7 +347,7 @@ class CloudExamView:
                     width=400,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                     ),
                     on_click=lambda e: self._on_get_paper_click(e),
                 ),
@@ -360,7 +360,7 @@ class CloudExamView:
                     width=400,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                     ),
                     on_click=lambda e: self._on_load_bank_click(e),
                 ),
@@ -374,7 +374,7 @@ class CloudExamView:
                     disabled=not (self.exam_paper and self.question_bank_data),
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                     ),
                     on_click=lambda e: self._on_inject_click(e),
                 ),
@@ -385,7 +385,7 @@ class CloudExamView:
                     width=400,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                        padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                     ),
                     on_click=lambda e: self._on_back_to_main(e),
                 ),

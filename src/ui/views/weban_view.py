@@ -170,7 +170,7 @@ class WeBanView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                     ),
                     on_click=self._on_start_click,
                     animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
@@ -298,7 +298,7 @@ class WeBanView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=40, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=40, vertical=15),
                     ),
                     on_click=self._on_login_click,
                 ),
