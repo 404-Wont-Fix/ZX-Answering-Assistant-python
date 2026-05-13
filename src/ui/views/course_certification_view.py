@@ -1207,7 +1207,7 @@ class CourseCertificationView:
         )
 
         # 保存进度区域的引用
-        self.progress_column = dialog.content.controls[0]
+        self.progress_column = dialog.content.content.controls[0]
 
         return dialog
 
@@ -1317,17 +1317,10 @@ class CourseCertificationView:
 
             self._append_log(f"✅ Access Token已获取\n")
 
-            # 创建进度回调函数
-            def _progress_update(current: int, total: int, message: str = ""):
-                """进度回调函数"""
-                msg = message or f"已完成 {current}/{total} 个知识点"
-                self._update_progress(msg, current, total)
-
-            # 创建API答题器，传入日志回调和进度回调
+            # 创建API答题器，传入日志回调
             answerer = APICourseAnswer(
                 access_token=self.access_token,
-                log_callback=self._append_log,
-                progress_callback=_progress_update
+                log_callback=self._append_log
             )
             self.auto_answer_instance = answerer
 

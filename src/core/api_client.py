@@ -220,12 +220,25 @@ class APIClient:
                         self._set_cached(cache_key, response, cache_ttl)
                     return response
 
-                # 判断是否需要重试
-                if not self._should_retry(response, error, attempt, max_retries):
-                    logger.error(f"❌ 请求失败: {method} {url}")
-                    logger.error(f"   状态码: {response.status_code}")
-                    logger.error(f"   响应内容: {response.text[:500]}")
-                    return None
+                # 判断是否需要重试（非200状态码也要检查是否重试）
+                if self._should_retry(response, error, attempt, max_retries):
+                    # 需要重试
+                    if attempt < max_retries - 1:
+                        delay = 2 ** attempt  # 指数退避: 1s, 2s, 4s...
+                        logger.warning(f"⚠️ 请求失败，{delay}秒后重试... ({attempt + 1}/{max_retries})")
+                        logger.warning(f"   状态码: {response.status_code}")
+                        time.sleep(delay)
+                        continue
+                    else:
+                        logger.error(f"❌ 请求失败，已达最大重试次数: {method} {url}")
+                        logger.error(f"   状态码: {response.status_code}")
+                        return None
+
+                # 不需要重试，直接返回失败
+                logger.error(f"❌ 请求失败: {method} {url}")
+                logger.error(f"   状态码: {response.status_code}")
+                logger.error(f"   响应内容: {response.text[:500]}")
+                return None
 
                 # 需要重试
                 if attempt < max_retries - 1:
