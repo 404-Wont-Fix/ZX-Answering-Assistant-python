@@ -163,7 +163,7 @@ class MainApp:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=5,
                 ),
-                padding=ft.padding.symmetric(vertical=20),
+                padding=ft.Padding.symmetric(vertical=20),
             ),
             destinations=[
                 ft.NavigationRailDestination(
