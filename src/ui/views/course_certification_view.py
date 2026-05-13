@@ -118,7 +118,7 @@ class CourseCertificationView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                         animation_duration=200,
                     ),
                     on_click=lambda e: self._on_start_answer_click(e),
@@ -203,7 +203,7 @@ class CourseCertificationView:
                                             color=ft.Colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.padding.symmetric(
+                                                padding=ft.Padding.symmetric(
                                                     horizontal=30, vertical=15
                                                 ),
                                                 animation_duration=200,
@@ -257,7 +257,7 @@ class CourseCertificationView:
                 expand=True,
             ),
             expand=2,  # 占据2/3宽度
-            padding=ft.padding.all(10),
+            padding=ft.Padding.all(10),
             bgcolor=ft.Colors.GREY_50,
             border_radius=10,
         )
@@ -276,11 +276,11 @@ class CourseCertificationView:
                 tight=True,
             ),
             expand=1,  # 占据1/3宽度
-            padding=ft.padding.all(10),
+            padding=ft.Padding.all(10),
         )
 
         # 计算可用高度（视口高度减去导航栏和边距）
-        available_height = (self.page.window.height - 100) if hasattr(self.page, 'window') else 600
+        available_height = 600  # 使用固定高度，避免Flet版本兼容性问题
 
         return ft.Row(
             [
@@ -436,7 +436,7 @@ class CourseCertificationView:
                         width=280,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                         ),
                         on_click=lambda e: self._on_select_json_bank(e),
                     ),
@@ -450,7 +450,7 @@ class CourseCertificationView:
                         disabled=not self.question_bank_data,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                         ),
                         on_click=lambda e: self._on_start_api_answer(e),
                     ),
@@ -461,7 +461,7 @@ class CourseCertificationView:
                         width=280,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                         ),
                         on_click=lambda e: self._on_back_to_main(e),
                     ),
@@ -1198,7 +1198,7 @@ class CourseCertificationView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                     ),
                     on_click=self._on_stop_answering,
                 ),

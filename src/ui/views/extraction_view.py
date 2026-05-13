@@ -156,7 +156,7 @@ class ExtractionView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                         animation_duration=200,
                     ),
                     on_click=lambda e: self._on_extract_click(e),
@@ -258,7 +258,7 @@ class ExtractionView:
                                             color=ft.Colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.padding.symmetric(
+                                                padding=ft.Padding.symmetric(
                                                     horizontal=30, vertical=15
                                                 ),
                                                 animation_duration=200,
@@ -825,7 +825,7 @@ class ExtractionView:
                                     ],
                                     alignment=ft.MainAxisAlignment.END,
                                 ),
-                                padding=ft.padding.symmetric(horizontal=10, vertical=5),
+                                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
                             ),
                         ],
                         spacing=0,
@@ -872,7 +872,7 @@ class ExtractionView:
                                 spacing=5,
                             ),
                             expand=True,
-                            padding=ft.padding.only(left=20),
+                            padding=ft.Padding.only(left=20),
                         ),
                     ],
                 ),
@@ -1114,7 +1114,7 @@ class ExtractionView:
                                     ft.Text(f"• 题目：{total_questions} 道", size=13),
                                     ft.Text(f"• 选项：{total_options} 个", size=13),
                                 ], spacing=3),
-                                padding=ft.padding.only(left=10),
+                                padding=ft.Padding.only(left=10),
                             ),
                             ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                             ft.Text("💾 文件保存位置：", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700),

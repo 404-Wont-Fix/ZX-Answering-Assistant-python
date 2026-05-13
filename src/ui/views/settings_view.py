@@ -101,7 +101,7 @@ class SettingsView:
                         spacing=15,
                         vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    padding=ft.padding.symmetric(vertical=10),
+                    padding=ft.Padding.symmetric(vertical=10),
                 ),
                 ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
 
@@ -130,7 +130,7 @@ class SettingsView:
                             color=ft.Colors.WHITE,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.padding.symmetric(horizontal=40, vertical=15),
+                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
                                 animation_duration=200,
                             ),
                             on_click=lambda e: self._on_save_click(e),
@@ -143,7 +143,7 @@ class SettingsView:
                             color=ft.Colors.WHITE,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.padding.symmetric(horizontal=40, vertical=15),
+                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
                                 animation_duration=200,
                             ),
                             on_click=lambda e: self._on_apply_click(e),
@@ -201,7 +201,7 @@ class SettingsView:
             expand=True,
             password=True,
             border=ft.InputBorder.NONE,
-            content_padding=ft.padding.only(left=12, top=12, bottom=12, right=0),
+            content_padding=ft.Padding.only(left=12, top=12, bottom=12, right=0),
         )
 
         # 填充密码后缀图标按钮
@@ -241,7 +241,7 @@ class SettingsView:
             ),
             border=ft.border.all(1, ft.Colors.BLACK),
             border_radius=4,
-            padding=ft.padding.only(left=0, top=0, right=0, bottom=0),
+            padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
             width=310,
         )
 
@@ -255,7 +255,7 @@ class SettingsView:
                         size=22,
                     ),
                     width=40,
-                    padding=ft.padding.only(right=4),
+                    padding=ft.Padding.only(right=4),
                 ),
                 password_field_container,
             ],
@@ -299,7 +299,7 @@ class SettingsView:
                             ],
                             spacing=10,
                         ),
-                        padding=ft.padding.only(bottom=15),
+                        padding=ft.Padding.only(bottom=15),
                     ),
 
                     # 账号卡片
@@ -353,7 +353,7 @@ class SettingsView:
                                                         ],
                                                         spacing=0,
                                                     ),
-                                                    padding=ft.padding.all(15),
+                                                    padding=ft.Padding.all(15),
                                                 ),
                                             ],
                                             spacing=0,
@@ -414,7 +414,7 @@ class SettingsView:
                                                         ],
                                                         spacing=0,
                                                     ),
-                                                    padding=ft.padding.all(15),
+                                                    padding=ft.Padding.all(15),
                                                 ),
                                             ],
                                             spacing=0,
@@ -507,7 +507,7 @@ class SettingsView:
                             ],
                             spacing=10,
                         ),
-                        padding=ft.padding.only(bottom=15),
+                        padding=ft.Padding.only(bottom=15),
                     ),
 
                     # API设置卡片
@@ -535,7 +535,7 @@ class SettingsView:
                                     ),
                                     ft.Container(
                                         content=self.rate_level_dropdown,
-                                        padding=ft.padding.symmetric(
+                                        padding=ft.Padding.symmetric(
                                             horizontal=20, vertical=10
                                         ),
                                     ),
@@ -562,7 +562,7 @@ class SettingsView:
                                     ),
                                     ft.Container(
                                         content=self.max_retries_field,
-                                        padding=ft.padding.symmetric(
+                                        padding=ft.Padding.symmetric(
                                             horizontal=20, vertical=10
                                         ),
                                     ),
@@ -585,7 +585,7 @@ class SettingsView:
                                             ],
                                             spacing=10,
                                         ),
-                                        padding=ft.padding.all(15),
+                                        padding=ft.Padding.all(15),
                                         bgcolor=ft.Colors.BLUE_50,
                                         border_radius=8,
                                     ),
@@ -639,7 +639,7 @@ class SettingsView:
                             ],
                             spacing=10,
                         ),
-                        padding=ft.padding.only(bottom=15),
+                        padding=ft.Padding.only(bottom=15),
                     ),
 
                     # 浏览器设置卡片
@@ -673,7 +673,7 @@ class SettingsView:
                                     ),
                                     ft.Container(
                                         content=self.headless_switch,
-                                        padding=ft.padding.symmetric(
+                                        padding=ft.Padding.symmetric(
                                             horizontal=20, vertical=10
                                         ),
                                     ),
@@ -707,7 +707,7 @@ class SettingsView:
                                             spacing=2,
                                             tight=True,
                                         ),
-                                        padding=ft.padding.only(left=60, bottom=10),
+                                        padding=ft.Padding.only(left=60, bottom=10),
                                     ),
                                 ],
                                 spacing=0,

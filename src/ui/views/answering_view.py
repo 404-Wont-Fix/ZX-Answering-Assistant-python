@@ -141,7 +141,7 @@ class AnsweringView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=15),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
                         animation_duration=200,
                     ),
                     on_click=lambda e: self._on_start_answer_click(e),
@@ -180,7 +180,7 @@ class AnsweringView:
             password=True,
             border=ft.InputBorder.NONE,
             prefix_icon=ft.Icons.LOCK,
-            content_padding=ft.padding.only(left=12, top=12, bottom=12, right=0),
+            content_padding=ft.Padding.only(left=12, top=12, bottom=12, right=0),
         )
 
         # 填充密码后缀图标按钮
@@ -221,7 +221,7 @@ class AnsweringView:
             width=400,
             border=ft.border.all(1, ft.Colors.BLACK),
             border_radius=4,
-            padding=ft.padding.only(left=0, top=0, right=0, bottom=0),
+            padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
             # bgcolor=ft.Colors.WHITE,
         )
 
@@ -278,7 +278,7 @@ class AnsweringView:
                                             color=ft.Colors.WHITE,
                                             style=ft.ButtonStyle(
                                                 shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.padding.symmetric(
+                                                padding=ft.Padding.symmetric(
                                                     horizontal=30, vertical=15
                                                 ),
                                                 animation_duration=200,
@@ -808,7 +808,7 @@ class AnsweringView:
                             width=280,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=8),
-                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                             ),
                             on_click=lambda e: self._on_extract_answers(e, course_id),
                         ),
@@ -821,7 +821,7 @@ class AnsweringView:
                             width=280,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=8),
-                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                             ),
                             on_click=lambda e: self._on_use_json_bank(e),
                         ),
@@ -834,7 +834,7 @@ class AnsweringView:
                             width=280,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=8),
-                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                             ),
                             on_click=lambda e: self._on_start_compatibility_mode(e, course_id),
                         ),
@@ -847,7 +847,7 @@ class AnsweringView:
                             width=280,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=8),
-                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                             ),
                             on_click=lambda e: self._on_start_brute_mode(e, course_id),
                         ),
@@ -858,7 +858,7 @@ class AnsweringView:
                             width=280,
                             style=ft.ButtonStyle(
                                 shape=ft.RoundedRectangleBorder(radius=8),
-                                padding=ft.padding.symmetric(horizontal=20, vertical=12),
+                                padding=ft.Padding.symmetric(horizontal=20, vertical=12),
                             ),
                             on_click=lambda e: self._on_back_from_course_detail(e),
                         ),
@@ -1579,7 +1579,7 @@ class AnsweringView:
                     tight=True,
                 ),
                 width=400,
-                padding=ft.padding.symmetric(horizontal=20, vertical=25),
+                padding=ft.Padding.symmetric(horizontal=20, vertical=25),
             ),
             actions=[
                 ft.ElevatedButton(
@@ -1589,7 +1589,7 @@ class AnsweringView:
                     color=ft.Colors.WHITE,
                     style=ft.ButtonStyle(
                         shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.padding.symmetric(horizontal=30, vertical=12),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=12),
                     ),
                     on_click=self._on_stop_answering,
                 ),
@@ -2371,7 +2371,7 @@ class AnsweringView:
                                     ],
                                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                                 ),
-                                padding=ft.padding.symmetric(horizontal=10),
+                                padding=ft.Padding.symmetric(horizontal=10),
                             ),
                             ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
                             ft.Row(
@@ -2612,7 +2612,7 @@ class AnsweringView:
                                     weight=ft.FontWeight.BOLD,
                                     color=ft.Colors.BLUE_800,
                                 ),
-                                padding=ft.padding.only(top=15 if chapter_count > 1 else 0, bottom=8),
+                                padding=ft.Padding.only(top=15 if chapter_count > 1 else 0, bottom=8),
                             )
                         )
 
@@ -2644,7 +2644,7 @@ class AnsweringView:
                                 ],
                                 spacing=10,
                             ),
-                            padding=ft.padding.only(left=20, bottom=8),
+                            padding=ft.Padding.only(left=20, bottom=8),
                         )
                     )
             else:
@@ -2663,7 +2663,7 @@ class AnsweringView:
                                 weight=ft.FontWeight.BOLD,
                                 color=ft.Colors.BLUE_800,
                             ),
-                            padding=ft.padding.only(top=10, bottom=5),
+                            padding=ft.Padding.only(top=10, bottom=5),
                         )
                     )
 
@@ -2704,7 +2704,7 @@ class AnsweringView:
                                     ],
                                     spacing=10,
                                 ),
-                                padding=ft.padding.only(left=20, bottom=8),
+                                padding=ft.Padding.only(left=20, bottom=8),
                             )
                         )
 

@@ -230,7 +230,7 @@ class PluginCenterView:
                         icon=ft.Icons.FOLDER_OPEN,
                         style=ft.ButtonStyle(
                             shape=ft.RoundedRectangleBorder(radius=6),
-                            padding=ft.padding.symmetric(horizontal=12, vertical=8),
+                            padding=ft.Padding.symmetric(horizontal=12, vertical=8),
                         ),
                         on_click=self._open_plugin_directory,
                     ),
@@ -460,7 +460,7 @@ class PluginCenterView:
                                         weight=ft.FontWeight.BOLD,
                                     ),
                                     bgcolor=ft.Colors.with_opacity(0.1, status_color),
-                                    padding=ft.padding.symmetric(horizontal=6, vertical=3),
+                                    padding=ft.Padding.symmetric(horizontal=6, vertical=3),
                                     border_radius=6,
                                 ),
                             ],
