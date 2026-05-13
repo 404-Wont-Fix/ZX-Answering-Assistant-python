@@ -130,7 +130,7 @@ def _ensure_context_and_page() -> tuple:
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
         )
         page = context.new_page()
-        print("✅ 已创建课程认证浏览器上下文和页面")
+        print("[OK] 已创建课程认证浏览器上下文和页面")
 
     return context, page
 
@@ -157,7 +157,7 @@ def import_question_bank(file_path: str) -> bool:
         success = importer.import_from_file(file_path)
 
         if not success:
-            print("❌ 题库文件导入失败")
+            print("[ERROR] 题库文件导入失败")
             return False
 
         # 保存到缓存
@@ -208,12 +208,12 @@ def import_question_bank(file_path: str) -> bool:
                 print(f"  选项：{stats['totalOptions']} 个")
 
         print("=" * 60)
-        print(f"✅ 题库已缓存")
+        print(f"[OK] 题库已缓存")
 
         return True
 
     except Exception as e:
-        print(f"❌ 导入题库异常: {str(e)}")
+        print(f"[ERROR] 导入题库异常: {str(e)}")
         import traceback
         traceback.print_exc()
         return False
@@ -234,7 +234,7 @@ def hello_world():
     print("\n" + "=" * 50)
     print("🎉 Hello World!")
     print("=" * 50)
-    print("✅ 课程认证模块运行成功！")
+    print("[OK] 课程认证模块运行成功！")
     print("=" * 50)
 
 
@@ -246,9 +246,9 @@ def close_browser():
     try:
         manager = _get_browser_manager()
         manager.cleanup_type(BrowserType.COURSE_CERTIFICATION)
-        print("✅ 课程认证浏览器上下文已关闭")
+        print("[OK] 课程认证浏览器上下文已关闭")
     except Exception as e:
-        print(f"⚠️ 关闭浏览器时发生错误: {str(e)}")
+        print(f"[WARNING] 关闭浏览器时发生错误: {str(e)}")
 
 
 def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username: str, password: str) -> Optional[tuple]:
@@ -299,12 +299,12 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
                 nonlocal captured_data
                 if 'token' in response.url:
                     logger.info(f"捕获到 token 响应: {response.url}")
-                    print(f"🔍 捕获到 token 响应")
+                    print(f"[DEBUG] 捕获到 token 响应")
                     try:
                         data = response.json()
                         captured_data = data
                         logger.info("成功捕获响应数据")
-                        print(f"✅ 成功捕获响应数据")
+                        print(f"[OK] 成功捕获响应数据")
                     except Exception as e:
                         logger.error(f"解析响应失败: {e}")
                         print(f"解析失败: {e}")
@@ -338,18 +338,18 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
             try:
                 page.wait_for_url("**/home", timeout=15000)
                 logger.info("页面已跳转到 home，登录成功")
-                print("✅ 页面已跳转到 home，登录成功")
+                print("[OK] 页面已跳转到 home，登录成功")
                 time.sleep(1)
             except Exception as e:
                 logger.warning(f"等待页面跳转超时: {e}")
-                print(f"⚠️ 等待页面跳转超时: {e}")
+                print(f"[WARNING] 等待页面跳转超时: {e}")
                 print("继续检查是否捕获到 token...")
 
             if captured_data and 'access_token' in captured_data:
                 access_token = captured_data['access_token']
                 logger.info(f"成功获取 access_token: {access_token[:20]}...")
                 print("\n" + "=" * 50)
-                print("✅ 登录成功！")
+                print("[OK] 登录成功！")
                 print("=" * 50)
                 print(f"access_token: {access_token}")
                 print(f"token类型: Bearer")
@@ -370,7 +370,7 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
                     return (access_token, page)
             else:
                 logger.error("未能在响应中捕获到 access_token")
-                print("❌ 未能在响应中捕获到 access_token")
+                print("[ERROR] 未能在响应中捕获到 access_token")
                 if captured_data:
                     logger.warning(f"响应内容: {captured_data}")
                     print(f"响应内容: {captured_data}")
@@ -378,12 +378,12 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
 
         except Exception as e:
             logger.error(f"登录过程异常：{str(e)}")
-            print(f"❌ 登录过程异常：{str(e)}")
+            print(f"[ERROR] 登录过程异常：{str(e)}")
             return None
 
     except Exception as e:
         logger.error(f"Playwright登录异常：{str(e)}")
-        print(f"❌ Playwright登录异常：{str(e)}")
+        print(f"[ERROR] Playwright登录异常：{str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -414,12 +414,12 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
             config_username, config_password = settings.get_teacher_credentials()
 
             if config_username and config_password:
-                print("\n💡 检测到已保存的教师端账号")
+                print("\n[INFO] 检测到已保存的教师端账号")
                 logger.info("检测到已保存的教师端账号")
 
                 # 如果跳过提示（GUI模式），直接使用已保存的账号
                 if skip_prompt:
-                    print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                    print(f"[OK] 使用已保存的账号: {config_username[:3]}****")
                     logger.info(f"使用已保存的账号: {config_username[:3]}****")
                     username = config_username
                     password = config_password
@@ -428,18 +428,18 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                     use_saved = input("是否使用已保存的账号？(yes/no，默认yes): ").strip().lower()
 
                     if use_saved in ['', 'yes', 'y', '是']:
-                        print(f"✅ 使用已保存的账号: {config_username[:3]}****")
+                        print(f"[OK] 使用已保存的账号: {config_username[:3]}****")
                         logger.info(f"使用已保存的账号: {config_username[:3]}****")
                         username = config_username
                         password = config_password
                     else:
-                        print("💡 请手动输入账号密码")
+                        print("[INFO] 请手动输入账号密码")
                         username = input("请输入课程认证账户：").strip()
                         password = input("请输入课程认证密码：").strip()
             else:
                 # 没有已保存的账号
                 if skip_prompt:
-                    print("❌ 未找到已保存的教师端账号")
+                    print("[ERROR] 未找到已保存的教师端账号")
                     logger.warning("未找到已保存的教师端账号")
                     return None
                 else:
@@ -447,7 +447,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                     password = input("请输入课程认证密码：").strip()
         except Exception:
             if skip_prompt:
-                print("❌ 读取配置文件失败")
+                print("[ERROR] 读取配置文件失败")
                 logger.error("读取配置文件失败")
                 return None
             else:
@@ -455,7 +455,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
                 password = input("请输入课程认证密码：").strip()
 
         if not username or not password:
-            print("❌ 用户名或密码不能为空")
+            print("[ERROR] 用户名或密码不能为空")
             logger.error("用户名或密码不能为空")
             return None
 
@@ -470,7 +470,7 @@ def get_access_token(keep_browser_open: bool = False, skip_prompt: bool = False)
 
     except Exception as e:
         logger.error(f"获取访问令牌失败：{str(e)}")
-        print(f"❌ 获取访问令牌失败：{str(e)}")
+        print(f"[ERROR] 获取访问令牌失败：{str(e)}")
         import traceback
         traceback.print_exc()
         return None
@@ -491,7 +491,7 @@ def start_answering():
         result = get_access_token(keep_browser_open=True)
 
         if not result:
-            print("\n❌ 登录失败，无法继续")
+            print("\n[ERROR] 登录失败，无法继续")
             return
 
         access_token, page = result
@@ -580,29 +580,29 @@ def start_answering():
                                 else:
                                     print("已取消")
                             else:
-                                print(f"❌ 无效的选择，请输入 0-{len(filtered_courses)} 之间的数字")
+                                print(f"[ERROR] 无效的选择，请输入 0-{len(filtered_courses)} 之间的数字")
                         except ValueError:
-                            print("❌ 请输入有效的数字")
+                            print("[ERROR] 请输入有效的数字")
 
                 else:
-                    print(f"❌ API返回错误: {data.get('message', '未知错误')}")
+                    print(f"[ERROR] API返回错误: {data.get('message', '未知错误')}")
                     close_browser()
             else:
-                print(f"❌ 请求失败，状态码: {response.status_code}")
+                print(f"[ERROR] 请求失败，状态码: {response.status_code}")
                 close_browser()
 
         except requests.exceptions.Timeout:
-            print("❌ 请求超时")
+            print("[ERROR] 请求超时")
             close_browser()
         except requests.exceptions.RequestException as e:
-            print(f"❌ 请求异常: {str(e)}")
+            print(f"[ERROR] 请求异常: {str(e)}")
             close_browser()
         except Exception as e:
-            print(f"❌ 处理响应异常: {str(e)}")
+            print(f"[ERROR] 处理响应异常: {str(e)}")
             close_browser()
 
     except Exception as e:
-        print(f"❌ 开始做题异常: {str(e)}")
+        print(f"[ERROR] 开始做题异常: {str(e)}")
         import traceback
         traceback.print_exc()
         close_browser()
@@ -621,7 +621,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
     def show_operation_menu():
         """显示操作菜单"""
         print("\n" + "=" * 60)
-        print("📋 操作菜单")
+        print("[INFO] 操作菜单")
         print("=" * 60)
         print("1. 开始做题（兼容模式）")
         print("2. 开始做题（API模式）")
@@ -655,8 +655,8 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
             try:
                 page.wait_for_selector(".el-menu.el-menu--vertical", timeout=10000)
             except:
-                print("⚠️ 未找到题目列表，页面可能加载失败")
-                print("\n💡 浏览器将保持打开状态，你可以手动查看")
+                print("[WARNING] 未找到题目列表，页面可能加载失败")
+                print("\n[INFO] 浏览器将保持打开状态，你可以手动查看")
                 input("按回车键关闭浏览器...")
                 return
 
@@ -705,7 +705,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                 first_icon_style = icons[0].get_attribute("style") or ""
                                 second_icon_style = icons[1].get_attribute("style") or ""
 
-                                # 如果第一个图标不隐藏（显示✓），则已完成
+                                # 如果第一个图标不隐藏（显示[OK]），则已完成
                                 if "display: none" not in first_icon_style:
                                     is_completed = True
                                 # 如果第二个图标不隐藏（显示✕），则未完成
@@ -713,7 +713,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                     is_completed = False
 
                         # 状态标记
-                        status_mark = "✅" if is_completed else "❌"
+                        status_mark = "[OK]" if is_completed else "[ERROR]"
 
                         # 如果已完成，使用灰色显示
                         if is_completed:
@@ -722,7 +722,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                             print(f"{i}. {status_mark} {question_name}")
 
                     except Exception as e:
-                        print(f"{i}. ❌ 解析题目失败: {e}")
+                        print(f"{i}. [ERROR] 解析题目失败: {e}")
 
                 print("\n" + "=" * 60)
                 completed_count = sum(1 for item in question_items if "已完成" in str(item.get_attribute("outerHTML")))
@@ -738,14 +738,14 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                     if choice == "1":
                         # 开始做题（兼容模式）- 自动遍历所有未完成的题目
-                        print("\n✅ 选择了：开始做题（兼容模式）")
-                        print("💡 将自动遍历所有未完成的题目")
+                        print("\n[OK] 选择了：开始做题（兼容模式）")
+                        print("[INFO] 将自动遍历所有未完成的题目")
 
                         # 检查是否已导入题库
                         question_bank = get_question_bank()
                         if not question_bank:
-                            print("⚠️ 未检测到题库，请先导入题库")
-                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            print("[WARNING] 未检测到题库，请先导入题库")
+                            print("[INFO] 提示：在操作菜单选择'5. 导入题库'功能")
                             continue
 
                         # 自动遍历所有题目
@@ -755,7 +755,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                         # 获取所有章节（包括折叠的）
                         chapters = page.query_selector_all(".el-sub-menu")
-                        print(f"📋 找到 {len(chapters)} 个章节")
+                        print(f"[INFO] 找到 {len(chapters)} 个章节")
 
                         total_completed = 0
                         total_failed = 0
@@ -779,9 +779,9 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                         print(f"   ↕️  正在展开折叠的章节...")
                                         chapter_title_div.click()
                                         time.sleep(0.5)  # 等待展开动画
-                                        print(f"   ✅ 章节已展开")
+                                        print(f"   [OK] 章节已展开")
                                     else:
-                                        print(f"   ✅ 章节已展开")
+                                        print(f"   [OK] 章节已展开")
 
                                 # 获取该章节下的所有题目
                                 question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
@@ -826,7 +826,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                         try:
                                             start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
                                             start_button.click()
-                                            print("      ✅ 已点击开始测评按钮")
+                                            print("      [OK] 已点击开始测评按钮")
                                             time.sleep(2)  # 等待答题界面加载
 
                                             # 开始做题
@@ -834,11 +834,11 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                                             if result['total'] > 0:
                                                 success_rate = result['success'] / result['total']
-                                                print(f"      ✅ 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
+                                                print(f"      [OK] 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
                                                 total_completed += result['success']
                                                 total_failed += result['failed']
                                             else:
-                                                print(f"      ⚠️ 没有题目被回答")
+                                                print(f"      [WARNING] 没有题目被回答")
 
                                             # 等待网站自动跳转（参考学生端逻辑）
                                             print(f"      ⏳ 等待网站显示成功提示并自动跳转...")
@@ -852,7 +852,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                     # 检查是否有成功提示（.eva-success）
                                                     success_element = page.query_selector(".eva-success")
                                                     if success_element and not success_detected:
-                                                        print(f"      ✅ 检测到成功提示，等待5秒自动跳转...")
+                                                        print(f"      [OK] 检测到成功提示，等待5秒自动跳转...")
                                                         success_detected = True
                                                         break
                                                     time.sleep(0.5)
@@ -864,23 +864,23 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                 time.sleep(6)
 
                                                 # 检测是否成功跳转
-                                                print(f"      🔍 检测是否自动跳转...")
+                                                print(f"      [DEBUG] 检测是否自动跳转...")
 
                                                 # 方法1：检测答题页面元素是否消失
                                                 auto_jumped = False
                                                 try:
                                                     page.wait_for_selector(".question-type", state="hidden", timeout=3000)
-                                                    print(f"      ✅ 已自动跳转到题目列表")
+                                                    print(f"      [OK] 已自动跳转到题目列表")
                                                     auto_jumped = True
                                                 except:
-                                                    print(f"      ⚠️ 答题页面元素仍然存在")
+                                                    print(f"      [WARNING] 答题页面元素仍然存在")
 
                                                 # 方法2：检测是否出现"开始测评"按钮
                                                 if not auto_jumped:
                                                     try:
                                                         start_button = page.query_selector("button:has-text('开始测评')", timeout=2000)
                                                         if start_button:
-                                                            print(f"      ✅ 检测到'开始测评'按钮，已自动跳转")
+                                                            print(f"      [OK] 检测到'开始测评'按钮，已自动跳转")
                                                             auto_jumped = True
                                                     except:
                                                         pass
@@ -896,7 +896,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                         question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
                                                     continue
                                                 else:
-                                                    print(f"      ⚠️ 未检测到自动跳转，手动返回题目列表")
+                                                    print(f"      [WARNING] 未检测到自动跳转，手动返回题目列表")
                                                     page.goto(course_url)
                                                     time.sleep(2)
                                                     # 重新获取章节和题目元素
@@ -904,7 +904,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                     question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
                                                     continue
                                             else:
-                                                print(f"      ⚠️ 超时未检测到成功提示，手动返回题目列表")
+                                                print(f"      [WARNING] 超时未检测到成功提示，手动返回题目列表")
                                                 page.goto(course_url)
                                                 time.sleep(2)
                                                 # 重新获取章节和题目元素
@@ -913,7 +913,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                 continue
 
                                         except Exception as e:
-                                            print(f"      ❌ 做题失败: {str(e)}")
+                                            print(f"      [ERROR] 做题失败: {str(e)}")
                                             total_failed += 1
                                             # 出错时也要返回题目列表
                                             page.goto(course_url)
@@ -924,16 +924,16 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                             continue
 
                                     except Exception as e:
-                                        print(f"      ⚠️ 题目处理失败: {str(e)}")
+                                        print(f"      [WARNING] 题目处理失败: {str(e)}")
                                         continue
 
                             except Exception as e:
-                                print(f"   ⚠️ 章节处理失败: {str(e)}")
+                                print(f"   [WARNING] 章节处理失败: {str(e)}")
                                 continue
 
                         # 所有题目处理完成
                         print("\n" + "=" * 60)
-                        print("✅ 所有题目遍历完成")
+                        print("[OK] 所有题目遍历完成")
                         print(f"📊 总计: 成功 {total_completed} 题, 失败 {total_failed} 题")
                         print("=" * 60)
 
@@ -942,14 +942,14 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                     elif choice == "2":
                         # 开始做题（API模式）- 只做未完成的题目
-                        print("\n✅ 选择了：开始做题（API模式）")
-                        print("💡 将自动遍历未完成的题目（API直接提交）")
+                        print("\n[OK] 选择了：开始做题（API模式）")
+                        print("[INFO] 将自动遍历未完成的题目（API直接提交）")
 
                         # 检查是否已导入题库
                         question_bank = get_question_bank()
                         if not question_bank:
-                            print("⚠️ 未检测到题库，请先导入题库")
-                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            print("[WARNING] 未检测到题库，请先导入题库")
+                            print("[INFO] 提示：在操作菜单选择'5. 导入题库'功能")
                             continue
 
                         # 创建API做题器
@@ -960,18 +960,18 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                         # 显示结果
                         print("\n" + "=" * 60)
-                        print("✅ API模式做题完成")
+                        print("[OK] API模式做题完成")
                         print("=" * 60)
                     elif choice == "3":
                         # 重新作答（兼容模式）- 自动遍历所有题目（包括已完成的）
-                        print("\n✅ 选择了：重新作答（兼容模式）")
-                        print("💡 将自动遍历所有题目（包括已完成的题目）")
+                        print("\n[OK] 选择了：重新作答（兼容模式）")
+                        print("[INFO] 将自动遍历所有题目（包括已完成的题目）")
 
                         # 检查是否已导入题库
                         question_bank = get_question_bank()
                         if not question_bank:
-                            print("⚠️ 未检测到题库，请先导入题库")
-                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            print("[WARNING] 未检测到题库，请先导入题库")
+                            print("[INFO] 提示：在操作菜单选择'5. 导入题库'功能")
                             continue
 
                         # 自动遍历所有题目（包括已完成的）
@@ -981,7 +981,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                         # 获取所有章节（包括折叠的）
                         chapters = page.query_selector_all(".el-sub-menu")
-                        print(f"📋 找到 {len(chapters)} 个章节")
+                        print(f"[INFO] 找到 {len(chapters)} 个章节")
 
                         total_completed = 0
                         total_failed = 0
@@ -1005,9 +1005,9 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                         print(f"   ↕️  正在展开折叠的章节...")
                                         chapter_title_div.click()
                                         time.sleep(0.5)  # 等待展开动画
-                                        print(f"   ✅ 章节已展开")
+                                        print(f"   [OK] 章节已展开")
                                     else:
-                                        print(f"   ✅ 章节已展开")
+                                        print(f"   [OK] 章节已展开")
 
                                 # 获取该章节下的所有题目
                                 question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
@@ -1045,7 +1045,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                         try:
                                             start_button = page.wait_for_selector("button.el-button--primary:has-text('开始测评')", timeout=5000)
                                             start_button.click()
-                                            print("      ✅ 已点击开始测评按钮")
+                                            print("      [OK] 已点击开始测评按钮")
                                             time.sleep(2)  # 等待答题界面加载
 
                                             # 创建自动做题器并开始做题
@@ -1054,11 +1054,11 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                                             if result['total'] > 0:
                                                 success_rate = result['success'] / result['total']
-                                                print(f"      ✅ 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
+                                                print(f"      [OK] 做题完成: 成功 {result['success']}/{result['total']} 题 ({success_rate:.1%})")
                                                 total_completed += result['success']
                                                 total_failed += result['failed']
                                             else:
-                                                print(f"      ⚠️ 没有题目被回答")
+                                                print(f"      [WARNING] 没有题目被回答")
 
                                             # 等待网站自动跳转（参考学生端逻辑）
                                             print(f"      ⏳ 等待网站显示成功提示并自动跳转...")
@@ -1072,7 +1072,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                     # 检查是否有成功提示（.eva-success）
                                                     success_element = page.query_selector(".eva-success")
                                                     if success_element and not success_detected:
-                                                        print(f"      ✅ 检测到成功提示，等待5秒自动跳转...")
+                                                        print(f"      [OK] 检测到成功提示，等待5秒自动跳转...")
                                                         success_detected = True
                                                         break
                                                     time.sleep(0.5)
@@ -1084,23 +1084,23 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                 time.sleep(6)
 
                                                 # 检测是否成功跳转
-                                                print(f"      🔍 检测是否自动跳转...")
+                                                print(f"      [DEBUG] 检测是否自动跳转...")
 
                                                 # 方法1：检测答题页面元素是否消失
                                                 auto_jumped = False
                                                 try:
                                                     page.wait_for_selector(".question-type", state="hidden", timeout=3000)
-                                                    print(f"      ✅ 已自动跳转到题目列表")
+                                                    print(f"      [OK] 已自动跳转到题目列表")
                                                     auto_jumped = True
                                                 except:
-                                                    print(f"      ⚠️ 答题页面元素仍然存在")
+                                                    print(f"      [WARNING] 答题页面元素仍然存在")
 
                                                 # 方法2：检测是否出现"开始测评"按钮
                                                 if not auto_jumped:
                                                     try:
                                                         start_button = page.query_selector("button:has-text('开始测评')", timeout=2000)
                                                         if start_button:
-                                                            print(f"      ✅ 检测到'开始测评'按钮，已自动跳转")
+                                                            print(f"      [OK] 检测到'开始测评'按钮，已自动跳转")
                                                             auto_jumped = True
                                                     except:
                                                         pass
@@ -1116,7 +1116,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                         question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
                                                     continue
                                                 else:
-                                                    print(f"      ⚠️ 未检测到自动跳转，手动返回题目列表")
+                                                    print(f"      [WARNING] 未检测到自动跳转，手动返回题目列表")
                                                     page.goto(course_url)
                                                     time.sleep(2)
                                                     # 重新获取章节和题目元素
@@ -1124,7 +1124,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                     question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
                                                     continue
                                             else:
-                                                print(f"      ⚠️ 超时未检测到成功提示，手动返回题目列表")
+                                                print(f"      [WARNING] 超时未检测到成功提示，手动返回题目列表")
                                                 page.goto(course_url)
                                                 time.sleep(2)
                                                 # 重新获取章节和题目元素
@@ -1133,7 +1133,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                                 continue
 
                                         except Exception as e:
-                                            print(f"      ❌ 做题失败: {str(e)}")
+                                            print(f"      [ERROR] 做题失败: {str(e)}")
                                             total_failed += 1
                                             # 出错时也要返回题目列表
                                             page.goto(course_url)
@@ -1144,16 +1144,16 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                                             continue
 
                                     except Exception as e:
-                                        print(f"      ⚠️ 题目处理失败: {str(e)}")
+                                        print(f"      [WARNING] 题目处理失败: {str(e)}")
                                         continue
 
                             except Exception as e:
-                                print(f"   ⚠️ 章节处理失败: {str(e)}")
+                                print(f"   [WARNING] 章节处理失败: {str(e)}")
                                 continue
 
                         # 所有题目处理完成
                         print("\n" + "=" * 60)
-                        print("✅ 所有题目重新作答完成")
+                        print("[OK] 所有题目重新作答完成")
                         print(f"📊 总计: 成功 {total_completed} 题, 失败 {total_failed} 题")
                         print("=" * 60)
 
@@ -1161,14 +1161,14 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                         break
                     elif choice == "4":
                         # 重新作答（API模式）- 做所有题目（包括已完成的）
-                        print("\n✅ 选择了：重新作答（API模式）")
-                        print("💡 将自动遍历所有题目（包括已完成的题目）")
+                        print("\n[OK] 选择了：重新作答（API模式）")
+                        print("[INFO] 将自动遍历所有题目（包括已完成的题目）")
 
                         # 检查是否已导入题库
                         question_bank = get_question_bank()
                         if not question_bank:
-                            print("⚠️ 未检测到题库，请先导入题库")
-                            print("💡 提示：在操作菜单选择'5. 导入题库'功能")
+                            print("[WARNING] 未检测到题库，请先导入题库")
+                            print("[INFO] 提示：在操作菜单选择'5. 导入题库'功能")
                             continue
 
                         # 创建API做题器
@@ -1179,32 +1179,32 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                         # 显示结果
                         print("\n" + "=" * 60)
-                        print("✅ API模式重新作答完成")
+                        print("[OK] API模式重新作答完成")
                         print("=" * 60)
                     elif choice == "5":
                         # 导入题库
-                        print("\n✅ 选择了：导入题库")
+                        print("\n[OK] 选择了：导入题库")
                         print("=" * 60)
-                        print("💡 请输入题库JSON文件的路径")
+                        print("[INFO] 请输入题库JSON文件的路径")
                         print("提示：可以直接拖拽文件到此处")
                         print("=" * 60)
 
                         file_path = input("\n文件路径: ").strip().strip('"').strip("'")
 
                         if not file_path:
-                            print("❌ 文件路径不能为空")
+                            print("[ERROR] 文件路径不能为空")
                             continue
 
                         # 调用题库导入功能
                         success = import_question_bank(file_path)
 
                         if success:
-                            print("\n✅ 题库导入成功！")
-                            print("💡 现在可以选择'开始做题'或'重新作答'使用导入的题库")
+                            print("\n[OK] 题库导入成功！")
+                            print("[INFO] 现在可以选择'开始做题'或'重新作答'使用导入的题库")
                             # 重新显示操作菜单
                             show_operation_menu()
                         else:
-                            print("\n❌ 题库导入失败")
+                            print("\n[ERROR] 题库导入失败")
                             # 重新显示操作菜单
                             show_operation_menu()
                     elif choice == "0":
@@ -1212,14 +1212,14 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
                         should_exit = True
                         break
                     else:
-                        print("\n❌ 无效的选择，请输入 1-5 或 0")
+                        print("\n[ERROR] 无效的选择，请输入 1-5 或 0")
                         # 重新显示操作菜单
                         show_operation_menu()
 
     except KeyboardInterrupt:
-        print("\n\n⚠️ 用户中断")
+        print("\n\n[WARNING] 用户中断")
     except Exception as e:
-        print(f"❌ 跳转页面异常: {str(e)}")
+        print(f"[ERROR] 跳转页面异常: {str(e)}")
         import traceback
         traceback.print_exc()
 
@@ -1254,13 +1254,13 @@ class CourseAutoAnswer:
                         self.api_question_ids = [
                             q.get('questionID') for q in body.get('data', [])
                         ]
-                        print(f"✅ 监听到API，获取到 {len(self.api_question_ids)} 个题目ID")
+                        print(f"[OK] 监听到API，获取到 {len(self.api_question_ids)} 个题目ID")
                         # 打印前3个题目ID用于调试
                         if self.api_question_ids:
                             print(f"   题目ID: {self.api_question_ids[0]}...")
 
                 except Exception as e:
-                    print(f"⚠️ API监听异常: {str(e)}")
+                    print(f"[WARNING] API监听异常: {str(e)}")
 
                 return route.continue_()
 
@@ -1274,12 +1274,12 @@ class CourseAutoAnswer:
         if not self.api_listener_active:
             self.api_listener_active = True
             self._setup_api_listener()
-            print("✅ API监听器已启动")
+            print("[OK] API监听器已启动")
 
     def _stop_api_listener(self):
         """停止API监听"""
         self.api_listener_active = False
-        print("✅ API监听器已停止")
+        print("[OK] API监听器已停止")
 
     def _normalize_text(self, text: str) -> str:
         """
@@ -1335,7 +1335,7 @@ class CourseAutoAnswer:
             return "single", "单选/判断"
 
         except Exception as e:
-            print(f"❌ 解析题目类型失败: {str(e)}")
+            print(f"[ERROR] 解析题目类型失败: {str(e)}")
             return "single", "单选/判断"
 
     def _parse_current_question(self) -> Optional[Dict]:
@@ -1366,7 +1366,7 @@ class CourseAutoAnswer:
             # 获取题目标题
             title_element = self.page.query_selector(".question-title")
             if not title_element:
-                print("❌ 未找到题目标题元素")
+                print("[ERROR] 未找到题目标题元素")
                 return None
 
             title_text = title_element.inner_text().strip()
@@ -1435,7 +1435,7 @@ class CourseAutoAnswer:
             }
 
         except Exception as e:
-            print(f"❌ 解析当前题目失败: {str(e)}")
+            print(f"[ERROR] 解析当前题目失败: {str(e)}")
             return None
 
     def _get_current_question_number(self) -> int:
@@ -1460,7 +1460,7 @@ class CourseAutoAnswer:
             return 0
 
         except Exception as e:
-            print(f"❌ 获取当前题目序号失败: {str(e)}")
+            print(f"[ERROR] 获取当前题目序号失败: {str(e)}")
             return 0
 
     def _select_single_answer(self, question: Dict, correct_values: List[str]) -> bool:
@@ -1476,7 +1476,7 @@ class CourseAutoAnswer:
         """
         try:
             if not correct_values:
-                print("❌ 没有正确答案")
+                print("[ERROR] 没有正确答案")
                 return False
 
             correct_value = correct_values[0]  # 单选题只有一个正确答案
@@ -1494,11 +1494,11 @@ class CourseAutoAnswer:
                     time.sleep(0.5)  # 等待选择完成
                     return True
 
-            print(f"❌ 未找到value为 {correct_value} 的选项")
+            print(f"[ERROR] 未找到value为 {correct_value} 的选项")
             return False
 
         except Exception as e:
-            print(f"❌ 选择单选答案失败: {str(e)}")
+            print(f"[ERROR] 选择单选答案失败: {str(e)}")
             return False
 
     def _select_multiple_answers(self, question: Dict, correct_values: List[str]) -> bool:
@@ -1514,7 +1514,7 @@ class CourseAutoAnswer:
         """
         try:
             if not correct_values:
-                print("❌ 没有正确答案")
+                print("[ERROR] 没有正确答案")
                 return False
 
             selected_count = 0
@@ -1538,14 +1538,14 @@ class CourseAutoAnswer:
                         break
 
             if selected_count == len(correct_values):
-                print(f"✅ 成功选择 {selected_count} 个答案")
+                print(f"[OK] 成功选择 {selected_count} 个答案")
                 return True
             else:
-                print(f"⚠️ 只选择了 {selected_count}/{len(correct_values)} 个答案")
+                print(f"[WARNING] 只选择了 {selected_count}/{len(correct_values)} 个答案")
                 return False
 
         except Exception as e:
-            print(f"❌ 选择多选答案失败: {str(e)}")
+            print(f"[ERROR] 选择多选答案失败: {str(e)}")
             return False
 
     def click_next_button(self) -> bool:
@@ -1561,15 +1561,15 @@ class CourseAutoAnswer:
 
             if next_button:
                 next_button.click()
-                print("✅ 已点击下一题按钮")
+                print("[OK] 已点击下一题按钮")
                 time.sleep(1)  # 等待下一题加载
                 return True
             else:
-                print("❌ 未找到下一题按钮")
+                print("[ERROR] 未找到下一题按钮")
                 return False
 
         except Exception as e:
-            print(f"❌ 点击下一题按钮失败: {str(e)}")
+            print(f"[ERROR] 点击下一题按钮失败: {str(e)}")
             return False
 
     def _find_answer_from_bank(self, question: Dict, question_bank: Dict) -> Optional[List[str]]:
@@ -1584,7 +1584,7 @@ class CourseAutoAnswer:
             Optional[List[str]]: 正确选项的字母列表（如 ['A'] 或 ['A', 'B', 'C']），如果未找到则返回None
         """
         if not question_bank:
-            print("⚠️ 题库未加载")
+            print("[WARNING] 题库未加载")
             return None
 
         try:
@@ -1608,7 +1608,7 @@ class CourseAutoAnswer:
                         for bank_question in knowledge.get("questions", []):
                             if bank_question.get("QuestionID") == current_question_id:
                                 knowledge_name = knowledge.get("Knowledge", "")
-                                print(f"✅ API模式匹配成功（知识点: {knowledge_name}）")
+                                print(f"[OK] API模式匹配成功（知识点: {knowledge_name}）")
 
                                 # 获取正确答案的选项内容
                                 bank_options = bank_question.get("options", [])
@@ -1624,10 +1624,10 @@ class CourseAutoAnswer:
                                     print(f"   正确答案: {', '.join(correct_answer_contents)}")
                                     return correct_answer_contents
 
-                print("⚠️ API模式未找到匹配题目，降级到题库匹配")
+                print("[WARNING] API模式未找到匹配题目，降级到题库匹配")
 
             # 方式2：备用 - 多维度匹配（标题 + 选项评分）
-            print("🔍 使用题库匹配模式...")
+            print("[DEBUG] 使用题库匹配模式...")
 
             # 标准化当前题目标题
             current_title_normalized = self._normalize_text(question_title)
@@ -1701,7 +1701,7 @@ class CourseAutoAnswer:
 
             # 如果没有找到任何匹配的题目
             if not candidates:
-                print("⚠️ 在题库中未找到匹配的题目")
+                print("[WARNING] 在题库中未找到匹配的题目")
                 return None
 
             # 按匹配评分排序，选择最佳匹配
@@ -1711,13 +1711,13 @@ class CourseAutoAnswer:
 
             if best_match['match_score'] >= 0.8:
                 # 高匹配度（≥80%）
-                print(f"✅ 高匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+                print(f"[OK] 高匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
             elif best_match['match_score'] >= 0.5:
                 # 中等匹配度（50%-80%）
-                print(f"⚠️ 中等匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+                print(f"[WARNING] 中等匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
             else:
                 # 低匹配度（<50%）
-                print(f"⚠️ 低匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
+                print(f"[WARNING] 低匹配度题目（{best_match['match_score']:.1%}，知识点: {best_match['knowledge_name']}）")
 
             print(f"   选项匹配: {best_match['matched_count']}/{best_match['total_count']}")
 
@@ -1735,11 +1735,11 @@ class CourseAutoAnswer:
                 print(f"   正确答案: {', '.join(correct_answer_contents)}")
                 return correct_answer_contents
             else:
-                print("⚠️ 题库中未标记正确答案")
+                print("[WARNING] 题库中未标记正确答案")
                 return None
 
         except Exception as e:
-            print(f"❌ 从题库查找答案失败: {str(e)}")
+            print(f"[ERROR] 从题库查找答案失败: {str(e)}")
             import traceback
             traceback.print_exc()
             return None
@@ -1771,7 +1771,7 @@ class CourseAutoAnswer:
             # 获取题目总数
             question_items = self.page.query_selector_all(".question-item")
             total_questions = len(question_items)
-            print(f"📋 总共 {total_questions} 道题")
+            print(f"[INFO] 总共 {total_questions} 道题")
             print("=" * 60)
 
             # 重置当前题目索引
@@ -1783,7 +1783,7 @@ class CourseAutoAnswer:
                 current_num = self._get_current_question_number()
 
                 if current_num == 0:
-                    print("⚠️ 无法获取当前题目序号，可能已完成")
+                    print("[WARNING] 无法获取当前题目序号，可能已完成")
                     break
 
                 print(f"\n📌 第 {current_num}/{total_questions} 题")
@@ -1791,7 +1791,7 @@ class CourseAutoAnswer:
                 # 解析当前题目
                 question = self._parse_current_question()
                 if not question:
-                    print("❌ 解析题目失败")
+                    print("[ERROR] 解析题目失败")
                     result['failed'] += 1
                     # 点击下一题
                     if not self.click_next_button():
@@ -1803,11 +1803,11 @@ class CourseAutoAnswer:
                 print(f"   选项数量: {len(question['options'])}")
 
                 # 从题库中查找答案（优先API模式）
-                print("🔍 正在题库中查找答案...")
+                print("[DEBUG] 正在题库中查找答案...")
                 answer_letters = self._find_answer_from_bank(question, question_bank)
 
                 if not answer_letters:
-                    print("⚠️ 未在题库中找到答案，跳过该题")
+                    print("[WARNING] 未在题库中找到答案，跳过该题")
                     result['skipped'] += 1
                     # 点击下一题
                     if not self.click_next_button():
@@ -1830,7 +1830,7 @@ class CourseAutoAnswer:
                             break
 
                 if not correct_values:
-                    print(f"❌ 未找到匹配的选项")
+                    print(f"[ERROR] 未找到匹配的选项")
                     print(f"   题库答案: {answer_letters}")
                     print(f"   当前选项: {[opt['content'][:30] for opt in question['options']]}")
                     result['failed'] += 1
@@ -1846,21 +1846,21 @@ class CourseAutoAnswer:
                 elif question['type'] == "multiple":
                     success = self._select_multiple_answers(question, correct_values)
                 else:
-                    print(f"❌ 未知的题目类型: {question['type']}")
+                    print(f"[ERROR] 未知的题目类型: {question['type']}")
                     success = False
 
                 result['total'] += 1
 
                 if success:
                     result['success'] += 1
-                    print("✅ 题目回答完成")
+                    print("[OK] 题目回答完成")
                 else:
                     result['failed'] += 1
-                    print("❌ 题目回答失败")
+                    print("[ERROR] 题目回答失败")
 
                 # 点击下一题
                 if not self.click_next_button():
-                    print("⚠️ 未找到下一题按钮，可能已是最后一题")
+                    print("[WARNING] 未找到下一题按钮，可能已是最后一题")
                     break
 
                 # 更新题目索引
@@ -1870,14 +1870,14 @@ class CourseAutoAnswer:
             self._stop_api_listener()
 
             print("\n" + "=" * 60)
-            print("✅ 做题完成")
+            print("[OK] 做题完成")
             print(f"📊 统计: 总计 {result['total']} 题, 成功 {result['success']} 题, 失败 {result['failed']} 题, 跳过 {result['skipped']} 题")
             print("=" * 60)
 
             return result
 
         except Exception as e:
-            print(f"❌ 做题流程失败: {str(e)}")
+            print(f"[ERROR] 做题流程失败: {str(e)}")
             import traceback
             traceback.print_exc()
             # 确保停止API监听器
@@ -1917,7 +1917,7 @@ class CourseAutoAnswer:
             # 获取题目总数
             question_items = self.page.query_selector_all(".question-item")
             total_questions = len(question_items)
-            print(f"📋 总共 {total_questions} 道题")
+            print(f"[INFO] 总共 {total_questions} 道题")
             print("=" * 60)
 
             # 循环做题
@@ -1926,12 +1926,12 @@ class CourseAutoAnswer:
                 current_num = self._get_current_question_number()
 
                 if current_num == 0:
-                    print("⚠️ 无法获取当前题目序号，可能已完成")
+                    print("[WARNING] 无法获取当前题目序号，可能已完成")
                     break
 
                 # 检查是否超出答案字典范围
                 if current_num not in answers_dict:
-                    print(f"⚠️ 第{current_num}题没有提供答案，跳过")
+                    print(f"[WARNING] 第{current_num}题没有提供答案，跳过")
                     # 点击下一题
                     if not self.click_next_button():
                         break
@@ -1942,7 +1942,7 @@ class CourseAutoAnswer:
                 # 解析当前题目
                 question = self._parse_current_question()
                 if not question:
-                    print("❌ 解析题目失败")
+                    print("[ERROR] 解析题目失败")
                     result['failed'] += 1
                     # 点击下一题
                     if not self.click_next_button():
@@ -1966,7 +1966,7 @@ class CourseAutoAnswer:
                             break
 
                 if not correct_values:
-                    print(f"❌ 未找到匹配的选项: {answer_letters}")
+                    print(f"[ERROR] 未找到匹配的选项: {answer_letters}")
                     result['failed'] += 1
                     # 点击下一题
                     if not self.click_next_button():
@@ -1979,32 +1979,32 @@ class CourseAutoAnswer:
                 elif question['type'] == "multiple":
                     success = self._select_multiple_answers(question, correct_values)
                 else:
-                    print(f"❌ 未知的题目类型: {question['type']}")
+                    print(f"[ERROR] 未知的题目类型: {question['type']}")
                     success = False
 
                 result['total'] += 1
 
                 if success:
                     result['success'] += 1
-                    print("✅ 题目回答完成")
+                    print("[OK] 题目回答完成")
                 else:
                     result['failed'] += 1
-                    print("❌ 题目回答失败")
+                    print("[ERROR] 题目回答失败")
 
                 # 点击下一题
                 if not self.click_next_button():
-                    print("⚠️ 未找到下一题按钮，可能已是最后一题")
+                    print("[WARNING] 未找到下一题按钮，可能已是最后一题")
                     break
 
             print("\n" + "=" * 60)
-            print("✅ 做题完成")
+            print("[OK] 做题完成")
             print(f"📊 统计: 总计 {result['total']} 题, 成功 {result['success']} 题, 失败 {result['failed']} 题")
             print("=" * 60)
 
             return result
 
         except Exception as e:
-            print(f"❌ 做题流程失败: {str(e)}")
+            print(f"[ERROR] 做题流程失败: {str(e)}")
             import traceback
             traceback.print_exc()
             return result
