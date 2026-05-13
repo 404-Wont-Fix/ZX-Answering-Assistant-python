@@ -15,6 +15,7 @@ class APIRateLevel(Enum):
     MEDIUM = "medium"     # 中: 2000ms延迟
     MEDIUM_HIGH = "medium_high"  # 中高: 3000ms延迟
     HIGH = "high"         # 高: 5000ms延迟
+    VERY_HIGH = "very_high"  # 极高: 10000ms延迟（应对服务器过载）
 
     @classmethod
     def from_name(cls, name: str) -> 'APIRateLevel':
@@ -22,7 +23,7 @@ class APIRateLevel(Enum):
         for level in cls:
             if level.value == name.lower():
                 return level
-        return cls.MEDIUM  # 默认中速
+        return cls.HIGH  # 默认高速（更保守）
 
     def get_delay_ms(self) -> int:
         """获取延迟毫秒数"""
@@ -30,7 +31,8 @@ class APIRateLevel(Enum):
             APIRateLevel.LOW: 1000,
             APIRateLevel.MEDIUM: 2000,
             APIRateLevel.MEDIUM_HIGH: 3000,
-            APIRateLevel.HIGH: 5000
+            APIRateLevel.HIGH: 5000,
+            APIRateLevel.VERY_HIGH: 10000
         }
         return delays[self]
 
@@ -40,7 +42,8 @@ class APIRateLevel(Enum):
             APIRateLevel.LOW: "低（1000ms）",
             APIRateLevel.MEDIUM: "中（2000ms）",
             APIRateLevel.MEDIUM_HIGH: "中高（3000ms）",
-            APIRateLevel.HIGH: "高（5000ms）"
+            APIRateLevel.HIGH: "高（5000ms）",
+            APIRateLevel.VERY_HIGH: "极高（10000ms）"
         }
         return names[self]
 
@@ -68,7 +71,28 @@ class SettingsManager:
         if self.config_file.exists():
             try:
                 with open(self.config_file, 'r', encoding='utf-8') as f:
-                    return json.load(f)
+                    config = json.load(f)
+
+                # 自动升级旧配置
+                updated = False
+                if "api_settings" in config:
+                    # 升级速率限制：如果使用high级别，升级到very_high
+                    if config["api_settings"].get("rate_level") == "high":
+                        config["api_settings"]["rate_level"] = "very_high"
+                        updated = True
+                        print("ℹ️  检测到旧配置，已自动升级速率限制到 very_high 级别")
+
+                    # 升级重试次数：如果少于5次，升级到5次
+                    if config["api_settings"].get("max_retries", 3) < 5:
+                        config["api_settings"]["max_retries"] = 5
+                        updated = True
+                        print("ℹ️  检测到旧配置，已自动升级最大重试次数到 5 次")
+
+                # 如果配置被升级，保存新配置
+                if updated:
+                    self._save_config(config)
+
+                return config
             except Exception as e:
                 print(f"⚠️ 加载配置文件失败: {e}")
                 return self._get_default_config()
@@ -110,8 +134,8 @@ class SettingsManager:
                 }
             },
             "api_settings": {
-                "max_retries": 3,
-                "rate_level": "high"
+                "max_retries": 5,
+                "rate_level": "very_high"
             },
             "browser_settings": {
                 "headless": False,  # 默认显示浏览器窗口（无头模式关闭）

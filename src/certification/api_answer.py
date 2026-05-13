@@ -156,7 +156,8 @@ class APICourseAnswer:
                     logger.error(f"❌ 获取课程树失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+                # response为None时说明请求失败（已由api_client记录错误）
+                logger.error(f"❌ 请求失败：响应为None")
                 return None
 
         except Exception as e:
@@ -205,7 +206,8 @@ class APICourseAnswer:
                     logger.error(f"❌ 获取题目列表失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+                # response为None时说明请求失败（已由api_client记录错误）
+                logger.error(f"❌ 请求失败：响应为None")
                 return None
 
         except Exception as e:
@@ -264,7 +266,8 @@ class APICourseAnswer:
                     logger.error(f"❌ 提交答案失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                logger.error(f"❌ 请求失败，状态码: {response.status_code}")
+                # response为None时说明请求失败（已由api_client记录错误）
+                logger.error(f"❌ 请求失败：响应为None")
                 return None
 
         except Exception as e:
