@@ -5,9 +5,9 @@ certifi>=2024.0.0
 # Browser automation
 playwright>=1.57.0
 
-# GUI framework
-flet>=0.82.0
-flet-desktop>=0.21.0
+# GUI framework - 
+flet==0.82.2
+flet-desktop==0.82.2
 
 # WeBan plugin dependencies
 pycryptodome>=3.19.0

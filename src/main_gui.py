@@ -87,18 +87,55 @@ class MainApp:
         self._setup_page()
         self._build_ui()
 
+        # 在页面加载完成后居中窗口
+        self._center_window_async()
+
     def _setup_page(self):
         """配置页面属性"""
         self.page.title = "ZX Answering Assistant"
         self.page.theme_mode = ft.ThemeMode.LIGHT
         self.page.window.width = 1000
         self.page.window.height = 700
-        self.page.window_center = True  # 使用属性而不是方法调用
+        # 不使用异步center()方法，而是在页面加载后手动居中
         self.page.padding = 0
         self.page.bgcolor = ft.Colors.GREY_50
 
         # 注册窗口关闭时的清理函数
         self.page.on_close = self._on_window_close
+
+    def _center_window_async(self):
+        """在页面加载完成后异步居中窗口"""
+        import threading
+        import time
+
+        def center_after_delay():
+            time.sleep(0.1)  # 等待页面完全加载
+            try:
+                # 使用线程安全的方式更新UI状态
+                if hasattr(self.page, 'window') and hasattr(self.page.window, 'center'):
+                    # 调用异步center方法
+                    import asyncio
+                    try:
+                        loop = asyncio.get_running_loop()
+                        # 如果已有事件循环，在线程中创建新循环
+                        def run_center():
+                            new_loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(new_loop)
+                            new_loop.run_until_complete(self.page.window.center())
+                            new_loop.close()
+
+                        thread = threading.Thread(target=run_center)
+                        thread.start()
+                    except RuntimeError:
+                        # 没有事件循环，直接运行
+                        import asyncio
+                        asyncio.run(self.page.window.center())
+            except Exception as e:
+                print(f"窗口居中失败（不影响功能）: {e}")
+
+        thread = threading.Thread(target=center_after_delay)
+        thread.daemon = True
+        thread.start()
 
     def _initialize_plugins(self):
         """初始化插件系统"""
@@ -163,7 +200,7 @@ class MainApp:
                     horizontal_alignment=ft.CrossAxisAlignment.CENTER,
                     spacing=5,
                 ),
-                padding=ft.padding.symmetric(vertical=20),
+                padding=ft.Padding.symmetric(vertical=20),
             ),
             destinations=[
                 ft.NavigationRailDestination(
@@ -451,7 +488,7 @@ def run_app():
     """
     try:
         # 尝试使用桌面可执行文件
-        ft.app(target=main)
+        ft.run(main)
     except Exception as e:
         # 如果桌面可执行文件不可用，尝试使用内置 WebView
         error_msg = str(e)
@@ -465,7 +502,7 @@ def run_app():
 
             # 重新尝试启动
             try:
-                ft.app(target=main, view=ft.AppView.WEB_BROWSER)
+                ft.run(main, view=ft.AppView.WEB_BROWSER)
             except Exception as e2:
                 print(f"❌ 启动 Flet 失败: {e2}")
                 print("\n💡 可能的解决方案:")
