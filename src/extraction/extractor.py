@@ -9,16 +9,20 @@ import time
 import requests
 import asyncio
 
+# 导入浏览器管理器
+from src.core.browser import get_browser_manager, BrowserType
+
 
 class Extractor:
     """题目提取器"""
-    
+
     def __init__(self):
         self.access_token = None
         self.playwright = None
         self.browser = None
         self.context = None
         self.page = None
+        self.browser_manager = None  # 浏览器管理器实例
         
     def login(self, username: str = None, password: str = None) -> bool:
         """
@@ -33,6 +37,10 @@ class Extractor:
         """
         try:
             print("正在启动浏览器进行登录...")
+
+            # 初始化浏览器管理器
+            if self.browser_manager is None:
+                self.browser_manager = get_browser_manager()
 
             # 尝试从配置文件读取凭据
             if username is None or password is None:
@@ -62,13 +70,6 @@ class Extractor:
                     if password is None:
                         password = input("请输入密码：").strip()
 
-            # 检查是否有正在运行的asyncio事件循环
-            try:
-                loop = asyncio.get_running_loop()
-                has_loop = True
-            except RuntimeError:
-                has_loop = False
-            
             # 从配置文件读取无头模式设置
             try:
                 from src.core.config import get_settings_manager
@@ -79,61 +80,53 @@ class Extractor:
                 headless = False  # 默认显示浏览器
                 print("⚠️ 无法读取配置文件，使用默认设置（显示浏览器）")
 
-            # 使用playwright启动浏览器
-            self.playwright = sync_playwright().start()
+            # 使用浏览器管理器启动浏览器（会自动使用系统浏览器）
+            self.browser_manager.start_browser(headless=headless)
 
-            # Playwright 1.57.0+ 使用 chromium_headless_shell
-            # 为了兼容打包的完整 Chromium，使用 args 参数替代 headless
-            launch_args = {
-                'headless': headless,
-            }
-            # 如果需要 headless 模式，使用 args 参数以确保使用完整 Chromium
-            if headless:
-                launch_args['args'] = ['--headless=new']
+            # 获取或创建教师端上下文
+            self.context = self.browser_manager.get_context(BrowserType.TEACHER)
+            if self.context is None:
+                self.context = self.browser_manager.create_context(
+                    BrowserType.TEACHER,
+                    viewport={'width': 1920, 'height': 1080},
+                    user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
+                )
 
-            self.browser = self.playwright.chromium.launch(**launch_args)
-            
-            # 创建浏览器上下文
-            self.context = self.browser.new_context(
-                viewport={'width': 1920, 'height': 1080},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
-            )
-            
             # 创建页面
             self.page = self.context.new_page()
-            
+
             # 打开登录页面
             login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
             self.page.goto(login_url)
-            
+
             # 等待页面加载完成
             self.page.wait_for_selector("input[placeholder='请输入账户']", timeout=10000)
-            
+
             # 输入用户名
             self.page.fill("input[placeholder='请输入账户']", username)
-            
+
             # 输入密码
             self.page.fill("input[placeholder='请输入密码']", password)
-            
+
             # 点击登录按钮
             self.page.click("button:has-text('登录')")
-            
+
             # 等待登录成功
             try:
                 self.page.wait_for_url("**/", timeout=15000)
-                
+
                 # 等待页面加载完成，确保cookies已经设置
                 time.sleep(2)
-                
+
                 # 获取所有cookies
                 cookies = self.context.cookies()
-                
+
                 # 查找包含access_token的cookie
                 for cookie in cookies:
                     if cookie["name"] == "smartedu.admin.token":
                         self.access_token = cookie["value"]
                         break
-                
+
                 if self.access_token:
                     print("✅ 登录成功！")
                     return True
@@ -143,7 +136,7 @@ class Extractor:
             except Exception as e:
                 print(f"❌ 登录过程中发生错误：{str(e)}")
                 return False
-                
+
         except Exception as e:
             print(f"❌ Playwright登录异常：{str(e)}")
             return False

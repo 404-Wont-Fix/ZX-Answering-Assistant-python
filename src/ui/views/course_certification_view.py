@@ -280,7 +280,7 @@ class CourseCertificationView:
         )
 
         # 计算可用高度（视口高度减去导航栏和边距）
-        available_height = (self.page.window.height - 100) if hasattr(self.page, 'window') else 600
+        available_height = 600  # 使用固定高度，避免Flet版本兼容性问题
 
         return ft.Row(
             [
