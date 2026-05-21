@@ -548,13 +548,26 @@ class WeBanAdapter:
         """
         应用 Monkey Patch 添加 GUI 输入支持
 
-        将 WeBan 模块中的 input() 调用替换为回调函数
+        将 WeBan 模块中的 input() 调用和 _prompt() 方法替换为回调函数
         """
         if not WEBAN_AVAILABLE:
             return
 
         # 使用类级别标志确保 Monkey Patch 只应用一次
         if not hasattr(WeBanClient, '_weban_input_patch_applied'):
+            # 保存原始 _prompt 方法
+            WeBanClient._original_prompt = WeBanClient._prompt
+
+            # 创建支持 GUI 的 _prompt 方法
+            def _prompt_with_gui(self, message: str) -> str:
+                """支持 GUI 输入的 _prompt 方法"""
+                if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
+                    return self._adapter.input_callback(message).strip()
+                else:
+                    return self._original_prompt(message)
+
+            # 替换 _prompt 方法
+            WeBanClient._prompt = _prompt_with_gui
             def login_with_gui_input(self) -> Dict | None:
                 """支持 GUI 输入的登录方法"""
                 if self.api.user.get("userId"):
