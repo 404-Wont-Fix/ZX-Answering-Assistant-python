@@ -10,6 +10,9 @@
 # WeBan 插件依赖
 # WeBan Plugin Dependencies
 
+# 浏览器自动化（WeBan v3.7.0+必需）
+DrissionPage>=4.1.0
+
 # 验证码识别
 ddddocr==1.6.1
 
