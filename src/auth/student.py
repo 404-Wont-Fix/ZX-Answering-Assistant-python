@@ -84,7 +84,7 @@ def _get_browser_manager():
     return get_browser_manager()
 
 
-def _ensure_context_and_page() -> Tuple[Optional[BrowserContext], Optional[Page]]:
+def _ensure_context_and_page(browser_type: BrowserType = BrowserType.STUDENT) -> Tuple[Optional[BrowserContext], Optional[Page]]:
     """
     确保学生端上下文和页面存在
 
@@ -92,14 +92,14 @@ def _ensure_context_and_page() -> Tuple[Optional[BrowserContext], Optional[Page]
         Tuple[Optional[BrowserContext], Optional[Page]]: (上下文, 页面)
     """
     manager = _get_browser_manager()
-    context, page = manager.get_context_and_page(BrowserType.STUDENT)
+    context, page = manager.get_context_and_page(browser_type)
 
     if context is None or page is None:
         # 创建新的上下文和页面
-        context = manager.create_context(BrowserType.STUDENT)
+        context = manager.create_context(browser_type)
         # 使用 manager.create_page() 而不是 context.new_page()
-        page = manager.create_page(BrowserType.STUDENT)
-        logger.info("已创建学生端浏览器上下文和页面")
+        page = manager.create_page(browser_type)
+        logger.info(f"已创建浏览器上下文和页面: {browser_type.value}")
 
     return context, page
 
@@ -117,7 +117,12 @@ def _get_student_browser() -> Tuple[Optional[Browser], Optional[Page]]:
     return browser, page
 
 
-def get_student_access_token(username: str = None, password: str = None, keep_browser: bool = True) -> Optional[str]:
+def get_student_access_token(
+    username: str = None,
+    password: str = None,
+    keep_browser: bool = True,
+    browser_type: BrowserType = BrowserType.STUDENT
+) -> Optional[str]:
     """
     使用Playwright模拟浏览器登录获取学生端access_token
 
@@ -130,10 +135,15 @@ def get_student_access_token(username: str = None, password: str = None, keep_br
         Optional[str]: 获取到的access_token，如果失败则返回None
     """
     # 使用浏览器管理器的 AsyncIO 兼容函数
-    return run_in_thread_if_asyncio(_get_student_access_token_impl, username, password, keep_browser)
+    return run_in_thread_if_asyncio(_get_student_access_token_impl, username, password, keep_browser, browser_type)
 
 
-def _get_student_access_token_impl(username: str = None, password: str = None, keep_browser: bool = True) -> Optional[str]:
+def _get_student_access_token_impl(
+    username: str = None,
+    password: str = None,
+    keep_browser: bool = True,
+    browser_type: BrowserType = BrowserType.STUDENT
+) -> Optional[str]:
     """
     学生端登录的实际实现（内部方法）
 
@@ -209,17 +219,17 @@ def _get_student_access_token_impl(username: str = None, password: str = None, k
         manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
 
         # 获取或创建学生端上下文
-        context = manager.get_context(BrowserType.STUDENT)
+        context = manager.get_context(browser_type)
         if context is None:
             context = manager.create_context(
-                BrowserType.STUDENT,
+                browser_type,
                 viewport={'width': 1920, 'height': 1080},
                 user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36"
             )
 
         # 创建页面并保存到 browser_manager
-        page = manager.create_page(BrowserType.STUDENT)
-        logger.debug("学生端页面已创建并保存到浏览器管理器")
+        page = manager.create_page(browser_type)
+        logger.debug(f"学生端页面已创建并保存到浏览器管理器: {browser_type.value}")
 
         try:
             # 设置请求拦截器，监听网络请求
