@@ -129,7 +129,8 @@ def _ensure_context_and_page() -> tuple:
             viewport={'width': 1920, 'height': 1080},
             user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
         )
-        page = context.new_page()
+        # 使用 manager.create_page() 而不是 context.new_page()
+        page = manager.create_page(BrowserType.COURSE_CERTIFICATION)
         print("[OK] 已创建课程认证浏览器上下文和页面")
 
     return context, page
@@ -291,7 +292,8 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
 
         # 创建页面
         logger.info("正在创建新页面...")
-        page = context.new_page()
+        # 使用 manager.create_page() 而不是 context.new_page()
+        page = manager.create_page(BrowserType.COURSE_CERTIFICATION)
         captured_data = None
 
         try:
