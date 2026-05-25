@@ -194,6 +194,10 @@ class CloudExamWorkflow:
             from src.auth.student import get_cached_access_token
             from src.core.browser import get_browser_manager, BrowserType
 
+            manager = get_browser_manager()
+            if not manager.is_worker_thread():
+                return manager.submit_task(self.get_student_access_token, skip_prompt)
+
             # 尝试获取缓存的token
             self._log("🔑 检查缓存的access_token...")
             access_token = get_cached_access_token()
@@ -203,8 +207,7 @@ class CloudExamWorkflow:
                 self.access_token = access_token
 
                 # 启动网络监听器
-                manager = get_browser_manager()
-                page = manager.get_page(BrowserType.STUDENT)
+                page = manager.get_page(BrowserType.CLOUD_EXAM)
 
                 if page:
                     self.network_monitor = NetworkMonitor(log_callback=self._log)

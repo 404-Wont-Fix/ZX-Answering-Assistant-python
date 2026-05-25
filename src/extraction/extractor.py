@@ -35,12 +35,16 @@ class Extractor:
         Returns:
             bool: 登录是否成功
         """
+        manager = get_browser_manager()
+        if not manager.is_worker_thread():
+            return manager.submit_task(self.login, username, password)
+
         try:
             print("正在启动浏览器进行登录...")
 
             # 初始化浏览器管理器
             if self.browser_manager is None:
-                self.browser_manager = get_browser_manager()
+                self.browser_manager = manager
 
             # 尝试从配置文件读取凭据
             if username is None or password is None:

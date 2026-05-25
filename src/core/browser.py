@@ -2,7 +2,7 @@
 浏览器管理器模块
 
 统一管理项目中所有 Playwright 浏览器实例，使用单浏览器 + 多上下文模式，
-确保不同模块（学生端、教师端、课程认证）可以同时运行而互不干扰。
+确保不同模块（学生端、教师端、课程认证、云考试）可以同时运行而互不干扰。
 
 设计原理：
 - 单个浏览器实例（Browser）共享，减少资源占用
@@ -28,6 +28,7 @@ import shutil
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+_NO_DISPATCH = object()
 
 
 class BrowserChannel(Enum):
@@ -63,6 +64,7 @@ class BrowserType(Enum):
     STUDENT = "student"                      # 学生端
     TEACHER = "teacher"                      # 教师端（答案提取）
     COURSE_CERTIFICATION = "course_cert"     # 课程认证
+    CLOUD_EXAM = "cloud_exam"                # 云考试
 
 
 class BrowserManager:
@@ -96,14 +98,68 @@ class BrowserManager:
             self._pages: Dict[BrowserType, Page] = {}
             self._headless = False
             self._worker_thread = None
+            self._worker_lock = threading.Lock()
             self._task_queue = queue.Queue()
             self._result_futures = {}
             self._task_id = 0
             self._task_id_lock = threading.Lock()
+            self._result_futures_lock = threading.Lock()
             self._thread_local = threading.local()
             self.initialized = True
             self._browser_checked = False  # 标记是否已检查过浏览器
             logger.info("浏览器管理器初始化完成")
+
+    def is_worker_thread(self) -> bool:
+        """判断当前代码是否运行在 Playwright 专用工作线程。"""
+        return getattr(self._thread_local, 'is_worker', False)
+
+    def _dispatch_to_worker_if_needed(self, func: Callable, *args, **kwargs):
+        """将 Playwright 操作统一调度到专用工作线程，避免跨线程冲突。"""
+        if self.is_worker_thread():
+            return _NO_DISPATCH
+        return self.submit_task(func, *args, **kwargs)
+
+    def _discard_dead_browser_if_needed(self):
+        """清理已断开的浏览器引用，下一次调用会重新启动。"""
+        if self._browser is None:
+            return
+
+        try:
+            if self._browser.is_connected():
+                return
+        except Exception:
+            pass
+
+        logger.warning("检测到浏览器实例已断开，清理旧引用")
+        self._contexts.clear()
+        self._pages.clear()
+        self._browser = None
+        if self._playwright:
+            try:
+                self._playwright.stop()
+            except Exception as e:
+                logger.debug(f"清理断开 Playwright 实例失败: {e}")
+            finally:
+                self._playwright = None
+
+    def _is_page_usable(self, page: Optional[Page]) -> bool:
+        """检查页面对象是否仍可用。"""
+        if page is None:
+            return False
+        try:
+            return not page.is_closed()
+        except Exception:
+            return False
+
+    def _is_context_usable(self, context: Optional[BrowserContext]) -> bool:
+        """检查上下文对象是否仍可用。"""
+        if context is None:
+            return False
+        try:
+            _ = context.pages
+            return True
+        except Exception:
+            return False
 
     def _check_playwright_browser(self) -> Tuple[bool, str]:
         """
@@ -436,14 +492,16 @@ class BrowserManager:
         Raises:
             RuntimeError: 如果浏览器安装失败且auto_install为True
         """
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程启动浏览器")
-                return self.submit_task(self.start_browser, headless, local_browser_path, auto_install)
+        dispatched = self._dispatch_to_worker_if_needed(
+            self.start_browser,
+            headless,
+            local_browser_path,
+            auto_install
+        )
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
+
+        self._discard_dead_browser_if_needed()
 
         if self._browser is None:
             # 获取浏览器通道（系统浏览器或内置浏览器）
@@ -533,24 +591,25 @@ class BrowserManager:
         创建或获取指定类型的浏览器上下文
 
         Args:
-            browser_type: 浏览器类型（STUDENT/TEACHER/COURSE_CERTIFICATION）
+            browser_type: 浏览器类型（STUDENT/TEACHER/COURSE_CERTIFICATION/CLOUD_EXAM）
             **kwargs: 传递给 new_context() 的额外参数
 
         Returns:
             BrowserContext: 浏览器上下文实例
         """
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程创建上下文")
-                return self.submit_task(self.create_context, browser_type, **kwargs)
+        dispatched = self._dispatch_to_worker_if_needed(self.create_context, browser_type, **kwargs)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
 
-        if browser_type in self._contexts:
+        self._discard_dead_browser_if_needed()
+
+        if browser_type in self._contexts and self._is_context_usable(self._contexts[browser_type]):
             logger.debug(f"使用已存在的上下文: {browser_type.value}")
             return self._contexts[browser_type]
+        elif browser_type in self._contexts:
+            logger.warning(f"上下文不可用，重新创建: {browser_type.value}")
+            self._contexts.pop(browser_type, None)
+            self._pages.pop(browser_type, None)
 
         if self._browser is None:
             self.start_browser()
@@ -591,18 +650,24 @@ class BrowserManager:
         Returns:
             Page: 页面实例
         """
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程创建页面")
-                return self.submit_task(self.create_page, browser_type)
+        dispatched = self._dispatch_to_worker_if_needed(self.create_page, browser_type)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
+
+        self._discard_dead_browser_if_needed()
 
         context = self.get_context(browser_type)
-        if context is None:
+        if not self._is_context_usable(context):
             context = self.create_context(browser_type)
+
+        old_page = self._pages.get(browser_type)
+        if old_page is not None:
+            try:
+                if not old_page.is_closed():
+                    old_page.close()
+                    logger.debug(f"已关闭旧页面: {browser_type.value}")
+            except Exception as e:
+                logger.debug(f"关闭旧页面失败 ({browser_type.value}): {e}")
 
         page = context.new_page()
         self._pages[browser_type] = page
@@ -642,16 +707,18 @@ class BrowserManager:
         Args:
             browser_type: 浏览器类型（STUDENT, TEACHER, COURSE_CERTIFICATION）
         """
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程关闭上下文")
-                return self.submit_task(self.close_context, browser_type)
+        dispatched = self._dispatch_to_worker_if_needed(self.close_context, browser_type)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
 
         if browser_type not in self._contexts:
+            old_page = self._pages.pop(browser_type, None)
+            if old_page is not None:
+                try:
+                    if not old_page.is_closed():
+                        old_page.close()
+                except Exception as e:
+                    logger.debug(f"关闭孤立页面失败 ({browser_type.value}): {e}")
             logger.debug(f"上下文 {browser_type.value} 不存在")
             return
 
@@ -700,16 +767,11 @@ class BrowserManager:
 
     def close_all_contexts(self):
         """关闭所有上下文和页面"""
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程关闭所有上下文")
-                return self.submit_task(self.close_all_contexts)
+        dispatched = self._dispatch_to_worker_if_needed(self.close_all_contexts)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
 
-        for browser_type in list(self._pages.keys()):
+        for browser_type in list(set(self._contexts.keys()) | set(self._pages.keys())):
             self.close_context(browser_type)
         logger.info("已关闭所有上下文")
 
@@ -720,14 +782,9 @@ class BrowserManager:
         注意：此方法会尝试优雅地关闭所有资源。
         如果遇到 greenlet 线程切换错误，会强制清理引用。
         """
-        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
-        if self._is_in_asyncio_context():
-            is_worker = getattr(self._thread_local, 'is_worker', False)
-            if not is_worker:
-                # **关键修复**：先确保工作线程已启动，再提交任务
-                self._ensure_worker_thread()
-                logger.info("检测到 AsyncIO 环境，使用工作线程关闭浏览器")
-                return self.submit_task(self.close_browser)
+        dispatched = self._dispatch_to_worker_if_needed(self.close_browser)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
 
         logger.info("开始关闭浏览器和 Playwright 实例...")
 
@@ -794,11 +851,12 @@ class BrowserManager:
 
     def _ensure_worker_thread(self):
         """确保工作线程已启动"""
-        if self._worker_thread is None or not self._worker_thread.is_alive():
-            logger.info("启动 Playwright 工作线程")
-            self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
-            self._worker_thread.start()
-            logger.info("Playwright 工作线程已启动")
+        with self._worker_lock:
+            if self._worker_thread is None or not self._worker_thread.is_alive():
+                logger.info("启动 Playwright 工作线程")
+                self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
+                self._worker_thread.start()
+                logger.info("Playwright 工作线程已启动")
 
     def _worker_loop(self):
         """工作线程的主循环，处理任务队列"""
@@ -824,18 +882,16 @@ class BrowserManager:
                     result = func(*args, **kwargs)
                     logger.debug(f"[工作线程] 任务 {task_id} 执行成功")
                     # 将结果保存到 Future
-                    if task_id in self._result_futures:
-                        future = self._result_futures[task_id]
-                        if not future.done():
-                            future.set_result(result)
-                        del self._result_futures[task_id]
+                    with self._result_futures_lock:
+                        future = self._result_futures.pop(task_id, None)
+                    if future and not future.done():
+                        future.set_result(result)
                 except Exception as e:
                     logger.error(f"任务 {task_id} 执行失败: {e}", exc_info=True)
-                    if task_id in self._result_futures:
-                        future = self._result_futures[task_id]
-                        if not future.done():
-                            future.set_exception(e)
-                        del self._result_futures[task_id]
+                    with self._result_futures_lock:
+                        future = self._result_futures.pop(task_id, None)
+                    if future and not future.done():
+                        future.set_exception(e)
 
                 self._task_queue.task_done()
 
@@ -874,7 +930,8 @@ class BrowserManager:
 
         # 创建 Future 用于获取结果
         future = concurrent.futures.Future()
-        self._result_futures[task_id] = future
+        with self._result_futures_lock:
+            self._result_futures[task_id] = future
 
         # 提交任务到队列
         self._task_queue.put((task_id, func, args, kwargs))
@@ -886,6 +943,8 @@ class BrowserManager:
             return result
         except concurrent.futures.TimeoutError:
             logger.error(f"任务 {task_id} 超时")
+            with self._result_futures_lock:
+                self._result_futures.pop(task_id, None)
             raise TimeoutError(f"任务执行超时: {func.__name__}")
 
     def is_browser_alive(self) -> bool:
@@ -895,6 +954,10 @@ class BrowserManager:
         Returns:
             bool: 浏览器是否连接正常
         """
+        dispatched = self._dispatch_to_worker_if_needed(self.is_browser_alive)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
+
         if self._browser is None:
             logger.debug("浏览器实例为 None")
             return False
@@ -924,6 +987,10 @@ class BrowserManager:
         Returns:
             bool: 上下文是否存活
         """
+        dispatched = self._dispatch_to_worker_if_needed(self.is_context_alive, browser_type)
+        if dispatched is not _NO_DISPATCH:
+            return dispatched
+
         # 先检查浏览器是否存活
         if not self.is_browser_alive():
             logger.debug(f"浏览器未存活，跳过上下文检查 ({browser_type.value})")
