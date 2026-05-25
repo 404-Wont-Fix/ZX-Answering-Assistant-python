@@ -236,9 +236,11 @@ class WeBanAdapter:
                                 continue
 
                             progress = self.get_progress(task["userProjectId"], project_prefix, False)
-                            if not restudy_time and progress[choose_type[3]] >= progress[choose_type[2]]:
-                                self.log.info(f"{category_prefix} 已达到要求，跳过")
-                                break
+                            if progress.get("code", -1) == "0":
+                                data = progress.get("data", {})
+                                if not restudy_time and data.get(choose_type[3], 0) >= data.get(choose_type[2], 0):
+                                    self.log.info(f"{category_prefix} 已达到要求，跳过")
+                                    break
 
                             courses = self.api.list_course(task["userProjectId"], category["categoryCode"], choose_type[0])
                             for course in courses.get("data", []):
@@ -250,9 +252,11 @@ class WeBanAdapter:
 
                                 course_prefix = f"{category_prefix}/{course['resourceName']}"
                                 progress = self.get_progress(task["userProjectId"], category_prefix)
-                                if not restudy_time and progress[choose_type[3]] >= progress[choose_type[2]]:
-                                    self.log.info(f"{category_prefix} 已达到要求，跳过")
-                                    break
+                                if progress.get("code", -1) == "0":
+                                    data = progress.get("data", {})
+                                    if not restudy_time and data.get(choose_type[3], 0) >= data.get(choose_type[2], 0):
+                                        self.log.info(f"{category_prefix} 已达到要求，跳过")
+                                        break
 
                                 self.log.info(f"开始处理课程：{course_prefix}")
                                 if not restudy_time and course["finished"] == 1:
@@ -292,10 +296,22 @@ class WeBanAdapter:
 
                                 if query.get("lyra", [None])[0] == "lyra":
                                     res = self.api.finish_lyra(query.get("userActivityId", [None])[0])
+                                    if res.get("code", -1) != "0":
+                                        self.log.error(f"{course_prefix} LYRA课程完成失败：{res}")
+                                    else:
+                                        self.log.success(f"{course_prefix} LYRA课程完成成功")
                                 elif query.get("weiban", [None])[0] != "weiban":
                                     res = self.api.finish_by_token(course["userCourseId"], course_type="open")
+                                    if res.get("code", -1) != "0":
+                                        self.log.error(f"{course_prefix} OPEN课程完成失败：{res}")
+                                    else:
+                                        self.log.success(f"{course_prefix} OPEN课程完成成功")
                                 elif query.get("source", [None])[0] == "moon":
                                     res = self.api.finish_by_token(course["userCourseId"], course_type="moon")
+                                    if res.get("code", -1) != "0":
+                                        self.log.error(f"{course_prefix} MOON课程完成失败：{res}")
+                                    else:
+                                        self.log.success(f"{course_prefix} MOON课程完成成功")
                                 else:
                                     token = None
                                     if query.get("csCapt", [None])[0] == "true":
@@ -308,10 +324,10 @@ class WeBanAdapter:
                                         token = res.get("data", {}).get("methodToken", None)
 
                                     res = self.api.finish_by_token(course["userCourseId"], token)
-                                    if "ok" not in res:
+                                    if res.get("code", -1) != "0":
                                         self.log.error(f"{course_prefix} 完成失败：{res}")
-
-                                self.log.success(f"{course_prefix} 完成")
+                                    else:
+                                        self.log.success(f"{course_prefix} WEIBAN课程完成成功")
 
                     if need_capt:
                         self.log.warning(f"以下课程需要验证码，请手动完成：")
@@ -532,30 +548,45 @@ class WeBanAdapter:
         """
         应用 Monkey Patch 添加 GUI 输入支持
 
-        将 WeBan 模块中的 input() 调用替换为回调函数
+        将 WeBan 模块中的 input() 调用和 _prompt() 方法替换为回调函数
         """
         if not WEBAN_AVAILABLE:
             return
 
         # 使用类级别标志确保 Monkey Patch 只应用一次
         if not hasattr(WeBanClient, '_weban_input_patch_applied'):
+            # 保存原始 _prompt 方法
+            WeBanClient._original_prompt = WeBanClient._prompt
+
+            # 创建支持 GUI 的 _prompt 方法
+            def _prompt_with_gui(self, message: str) -> str:
+                """支持 GUI 输入的 _prompt 方法"""
+                if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
+                    return self._adapter.input_callback(message).strip()
+                else:
+                    return self._original_prompt(message)
+
+            # 替换 _prompt 方法
+            WeBanClient._prompt = _prompt_with_gui
             def login_with_gui_input(self) -> Dict | None:
                 """支持 GUI 输入的登录方法"""
                 if self.api.user.get("userId"):
                     return self.api.user
-                retry_limit = 3
-                for i in range(retry_limit + 2):
+                retry_limit = 10
+                # 前 10 次 OCR 自动识别，后 3 次手动输入
+                for i in range(retry_limit + 3):
                     if i > 0:
-                        self.log.warning(f"登录失败，正在重试 {i}/{retry_limit+2} 次")
+                        self.log.warning(f"登录失败，正在重试 {i}/{retry_limit + 2} 次")
                     verify_time = self.api.get_timestamp(13, 0)
                     verify_image = self.api.rand_letter_image(verify_time)
-                    if i < retry_limit and self.ocr:
+                    if i < retry_limit:
+                        # 使用新版 WeBan 的 LoginCaptchaSolver
                         try:
-                            verify_code = self.ocr.classification(verify_image)
-                            self.log.info(f"自动验证码识别结果: {verify_code}")
-                            if len(verify_code) != 4:
-                                self.log.warning(f"验证码识别失败，正在重试")
+                            from captcha import LoginCaptchaSolver
+                            verify_code = LoginCaptchaSolver.recognize(verify_image, self.log)
+                            if not verify_code:
                                 continue
+                            self.log.info(f"自动验证码识别结果: {verify_code}")
                         except Exception as e:
                             self.log.error(f"验证码识别异常: {e}")
                             continue
