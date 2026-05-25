@@ -9,6 +9,7 @@
   "entry_core": "core.WeBanPluginCore",
   "min_app_version": "3.0.0",
   "dependencies": [
+    "DrissionPage>=4.1.0",
     "ddddocr==1.6.1",
     "loguru==0.7.3",
     "pycryptodome==3.23.0",

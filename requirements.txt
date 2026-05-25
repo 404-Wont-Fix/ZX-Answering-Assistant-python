@@ -13,3 +13,4 @@ flet-desktop==0.82.2
 pycryptodome>=3.19.0
 loguru>=0.7.0
 ddddocr>=1.5.0
+DrissionPage>=4.1.0

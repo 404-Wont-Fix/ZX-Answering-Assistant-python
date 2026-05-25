@@ -97,7 +97,8 @@ def _ensure_context_and_page() -> Tuple[Optional[BrowserContext], Optional[Page]
     if context is None or page is None:
         # 创建新的上下文和页面
         context = manager.create_context(BrowserType.STUDENT)
-        page = context.new_page()
+        # 使用 manager.create_page() 而不是 context.new_page()
+        page = manager.create_page(BrowserType.STUDENT)
         logger.info("已创建学生端浏览器上下文和页面")
 
     return context, page

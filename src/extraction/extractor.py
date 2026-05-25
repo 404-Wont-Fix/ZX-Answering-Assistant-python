@@ -93,7 +93,8 @@ class Extractor:
                 )
 
             # 创建页面
-            self.page = self.context.new_page()
+            # 使用 manager.create_page() 而不是 context.new_page()
+            self.page = self.browser_manager.create_page(BrowserType.TEACHER)
 
             # 打开登录页面
             login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
