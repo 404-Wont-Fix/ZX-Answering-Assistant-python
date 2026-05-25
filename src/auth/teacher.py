@@ -108,7 +108,8 @@ def _get_access_token_impl() -> Optional[str]:
 
         # 创建页面
         logger.info("正在创建新页面...")
-        page = context.new_page()
+        # 使用 manager.create_page() 而不是 context.new_page()
+        page = manager.create_page(BrowserType.TEACHER)
 
         try:
             # 打开教师端登录页面

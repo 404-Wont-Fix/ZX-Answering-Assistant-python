@@ -436,6 +436,15 @@ class BrowserManager:
         Raises:
             RuntimeError: 如果浏览器安装失败且auto_install为True
         """
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程启动浏览器")
+                return self.submit_task(self.start_browser, headless, local_browser_path, auto_install)
+
         if self._browser is None:
             # 获取浏览器通道（系统浏览器或内置浏览器）
             browser_channel, channel_info = self.get_available_browser_channel()
@@ -530,6 +539,15 @@ class BrowserManager:
         Returns:
             BrowserContext: 浏览器上下文实例
         """
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程创建上下文")
+                return self.submit_task(self.create_context, browser_type, **kwargs)
+
         if browser_type in self._contexts:
             logger.debug(f"使用已存在的上下文: {browser_type.value}")
             return self._contexts[browser_type]
@@ -573,6 +591,15 @@ class BrowserManager:
         Returns:
             Page: 页面实例
         """
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程创建页面")
+                return self.submit_task(self.create_page, browser_type)
+
         context = self.get_context(browser_type)
         if context is None:
             context = self.create_context(browser_type)
@@ -615,6 +642,15 @@ class BrowserManager:
         Args:
             browser_type: 浏览器类型（STUDENT, TEACHER, COURSE_CERTIFICATION）
         """
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程关闭上下文")
+                return self.submit_task(self.close_context, browser_type)
+
         if browser_type not in self._contexts:
             logger.debug(f"上下文 {browser_type.value} 不存在")
             return
@@ -664,6 +700,15 @@ class BrowserManager:
 
     def close_all_contexts(self):
         """关闭所有上下文和页面"""
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程关闭所有上下文")
+                return self.submit_task(self.close_all_contexts)
+
         for browser_type in list(self._pages.keys()):
             self.close_context(browser_type)
         logger.info("已关闭所有上下文")
@@ -675,6 +720,15 @@ class BrowserManager:
         注意：此方法会尝试优雅地关闭所有资源。
         如果遇到 greenlet 线程切换错误，会强制清理引用。
         """
+        # 如果在 asyncio 环境中且不在工作线程，使用工作线程执行
+        if self._is_in_asyncio_context():
+            is_worker = getattr(self._thread_local, 'is_worker', False)
+            if not is_worker:
+                # **关键修复**：先确保工作线程已启动，再提交任务
+                self._ensure_worker_thread()
+                logger.info("检测到 AsyncIO 环境，使用工作线程关闭浏览器")
+                return self.submit_task(self.close_browser)
+
         logger.info("开始关闭浏览器和 Playwright 实例...")
 
         # 先关闭所有上下文和页面
@@ -730,6 +784,14 @@ class BrowserManager:
 
         logger.info("浏览器资源已完全清理")
 
+    def _is_in_asyncio_context(self) -> bool:
+        """检测是否在 asyncio 事件循环中运行"""
+        try:
+            asyncio.get_running_loop()
+            return True
+        except RuntimeError:
+            return False
+
     def _ensure_worker_thread(self):
         """确保工作线程已启动"""
         if self._worker_thread is None or not self._worker_thread.is_alive():
@@ -757,6 +819,8 @@ class BrowserManager:
                 # 执行任务
                 try:
                     logger.debug(f"[工作线程] 开始执行任务 {task_id}")
+                    # **关键保护**：确保在工作线程的 greenlet 中执行
+                    # 使用 try-finally 确保 greenlet 状态正确
                     result = func(*args, **kwargs)
                     logger.debug(f"[工作线程] 任务 {task_id} 执行成功")
                     # 将结果保存到 Future
