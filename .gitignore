@@ -60,6 +60,7 @@ htmlcov/
 .trae/
 output/
 .claude/
+plugins/warning_alert/warning_config.json
 账号密码
 签名
 sign
@@ -74,8 +75,8 @@ weban_config.json
 src/modules/WeBan/config.json
 src/modules/WeBan/weban.log
 
-# WeBan 插件目录（使用 Git Submodule 或自动配置）
-# 如果要提交 WeBan 代码，请删除下面这行
+# WeBan 可选外部模块目录（默认不纳入主仓库）
+# 如果维护者正式添加 Git Submodule，请调整对应忽略规则
 plugins/weban_plugin/modules/WeBan/
 plugins/weban_plugin/WeBan/
 

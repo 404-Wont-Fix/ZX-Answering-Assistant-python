@@ -4,6 +4,8 @@ CLI设置管理模块
 """
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Optional, Dict, Any
 from enum import Enum
@@ -51,26 +53,52 @@ class APIRateLevel(Enum):
 class SettingsManager:
     """设置管理器"""
 
-    def __init__(self, config_file: str = None):
+    @staticmethod
+    def default_config_file() -> Path:
+        """返回当前平台的用户配置文件路径。"""
+        override = os.environ.get("ZX_ASSISTANT_CONFIG_FILE")
+        if override:
+            return Path(override).expanduser()
+
+        if sys.platform == "win32":
+            base_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        elif sys.platform == "darwin":
+            base_dir = Path.home() / "Library" / "Application Support"
+        else:
+            base_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config"))
+
+        return base_dir / "ZX-Answering-Assistant" / "cli_config.json"
+
+    def __init__(self, config_file: Optional[str | Path] = None):
         """
         初始化设置管理器
 
         Args:
-            config_file: 配置文件路径，默认为项目根目录下的 cli_config.json
+            config_file: 配置文件路径，默认保存到当前用户的配置目录
         """
+        self._legacy_config_file: Optional[Path] = None
         if config_file is None:
-            # 获取项目根目录
-            project_root = Path(__file__).parent.parent
-            config_file = project_root / "cli_config.json"
+            self._legacy_config_file = Path(__file__).parent.parent / "cli_config.json"
+            config_file = self.default_config_file()
 
         self.config_file = Path(config_file)
         self.config = self._load_config()
 
     def _load_config(self) -> Dict[str, Any]:
         """加载配置文件"""
-        if self.config_file.exists():
+        source_file = self.config_file
+        migrating_legacy_config = False
+        if (
+            not source_file.exists()
+            and self._legacy_config_file is not None
+            and self._legacy_config_file.exists()
+        ):
+            source_file = self._legacy_config_file
+            migrating_legacy_config = True
+
+        if source_file.exists():
             try:
-                with open(self.config_file, 'r', encoding='utf-8') as f:
+                with open(source_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
 
                 # 自动升级旧配置
@@ -89,8 +117,14 @@ class SettingsManager:
                         print("ℹ️  检测到旧配置，已自动升级最大重试次数到 5 次")
 
                 # 如果配置被升级，保存新配置
-                if updated:
-                    self._save_config(config)
+                if updated or migrating_legacy_config:
+                    saved = self._save_config(config)
+                    if saved and migrating_legacy_config:
+                        try:
+                            source_file.unlink()
+                            print("ℹ️  已将旧配置迁移到用户配置目录")
+                        except OSError as e:
+                            print(f"⚠️ 旧配置已迁移，但无法删除原文件: {e}")
 
                 return config
             except Exception as e:
@@ -104,15 +138,24 @@ class SettingsManager:
 
     def _save_config(self, config: Dict[str, Any]) -> bool:
         """保存配置到文件"""
+        temporary_file = self.config_file.with_suffix(self.config_file.suffix + ".tmp")
         try:
-            # 确保目录存在
             self.config_file.parent.mkdir(parents=True, exist_ok=True)
 
-            with open(self.config_file, 'w', encoding='utf-8') as f:
+            with open(temporary_file, 'w', encoding='utf-8') as f:
                 json.dump(config, f, ensure_ascii=False, indent=2)
+            try:
+                temporary_file.chmod(0o600)
+            except OSError:
+                pass
+            temporary_file.replace(self.config_file)
             return True
         except Exception as e:
             print(f"❌ 保存配置文件失败: {e}")
+            try:
+                temporary_file.unlink(missing_ok=True)
+            except OSError:
+                pass
             return False
 
     def _get_default_config(self) -> Dict[str, Any]:
@@ -143,8 +186,8 @@ class SettingsManager:
                 "browser_channel": "chrome"  # 系统浏览器通道: chrome, msedge, chromium (空字符串使用 Playwright 内置浏览器)
             },
             "gui_settings": {
-                "minimize_to_tray": False,  # 最小化到系统托盘
-                "close_to_tray": False  # 关闭到系统托盘
+                "minimize_to_tray": False,
+                "close_to_tray": False
             }
         }
 
@@ -623,59 +666,29 @@ class SettingsManager:
         return self._save_config(self.config)
 
     # ========================================================================
-    # GUI设置相关方法
+    # GUI 设置相关方法
     # ========================================================================
 
     def get_minimize_to_tray(self) -> bool:
-        """
-        获取最小化到系统托盘设置
-
-        Returns:
-            bool: True 表示启用最小化到托盘，False 表示不启用
-        """
+        """获取最小化到系统托盘设置。"""
         return self.config.get("gui_settings", {}).get("minimize_to_tray", False)
 
     def set_minimize_to_tray(self, enabled: bool) -> bool:
-        """
-        设置最小化到系统托盘
-
-        Args:
-            enabled: True 启用最小化到托盘，False 禁用
-
-        Returns:
-            bool: 是否设置成功
-        """
-        if "gui_settings" not in self.config:
-            self.config["gui_settings"] = {}
-
-        self.config["gui_settings"]["minimize_to_tray"] = enabled
-
+        """设置最小化到系统托盘。"""
+        if not isinstance(enabled, bool):
+            return False
+        self.config.setdefault("gui_settings", {})["minimize_to_tray"] = enabled
         return self._save_config(self.config)
 
     def get_close_to_tray(self) -> bool:
-        """
-        获取关闭到系统托盘设置
-
-        Returns:
-            bool: True 表示启用关闭到托盘，False 表示不启用
-        """
+        """获取关闭到系统托盘设置。"""
         return self.config.get("gui_settings", {}).get("close_to_tray", False)
 
     def set_close_to_tray(self, enabled: bool) -> bool:
-        """
-        设置关闭到系统托盘
-
-        Args:
-            enabled: True 启用关闭到托盘，False 禁用
-
-        Returns:
-            bool: 是否设置成功
-        """
-        if "gui_settings" not in self.config:
-            self.config["gui_settings"] = {}
-
-        self.config["gui_settings"]["close_to_tray"] = enabled
-
+        """设置关闭到系统托盘。"""
+        if not isinstance(enabled, bool):
+            return False
+        self.config.setdefault("gui_settings", {})["close_to_tray"] = enabled
         return self._save_config(self.config)
 
 

@@ -25,6 +25,7 @@ from src.core.browser import (
 
 # 导入Token管理器
 from src.auth.token_manager import get_token_manager
+from src.core.constants import STUDENT_LOGIN_LOG_FILE, get_log_dir
 
 # 创建自定义的 StreamHandler 来处理 Unicode 编码
 class UTF8StreamHandler(logging.StreamHandler):
@@ -59,12 +60,14 @@ class UTF8StreamHandler(logging.StreamHandler):
             except Exception:
                 pass  # 静默忽略 handleError 中的错误
 
-# 配置日志记录
+# 配置日志记录；日志属于用户运行数据，不写入源码目录。
+log_dir = get_log_dir()
+log_dir.mkdir(parents=True, exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.FileHandler('student_login.log', encoding='utf-8'),
+        logging.FileHandler(log_dir / STUDENT_LOGIN_LOG_FILE, encoding='utf-8'),
         UTF8StreamHandler(sys.stdout)
     ]
 )
@@ -247,7 +250,7 @@ def _get_student_access_token_impl(
                         response_data = json.loads(response_body.decode('utf-8'))
                         if "access_token" in response_data:
                             access_token = response_data["access_token"]
-                            logger.info(f"成功获取access_token: {access_token[:20]}...")
+                            logger.info("成功获取access_token")
                     except Exception as e:
                         logger.error(f"解析token响应失败: {str(e)}")
 
@@ -486,7 +489,7 @@ def _get_access_token_from_browser_impl() -> Optional[str]:
         result = page.evaluate(js_code)
 
         if result and len(result) > 50:
-            logger.info(f"✅ 从localStorage提取到access_token: {result[:20]}...")
+            logger.info("✅ 从localStorage提取到access_token")
             return result
 
         # 方法2：刷新页面并监听网络请求
@@ -524,7 +527,7 @@ def _get_access_token_from_browser_impl() -> Optional[str]:
             time.sleep(0.3)
 
         if access_token:
-            logger.info(f"✅ 成功从浏览器提取access_token: {access_token[:20]}...")
+            logger.info("✅ 成功从浏览器提取access_token")
             return access_token
         else:
             logger.warning("⚠️ 浏览器中未找到有效的access_token")
@@ -882,7 +885,7 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     }
 
     logger.info(f"发送请求到: {url}")
-    logger.info(f"使用token: {access_token[:20]}...")
+    logger.info("使用已认证的学生端会话获取课程列表")
 
     # 使用APIClient发送GET请求
     api_client = get_api_client()
@@ -967,7 +970,7 @@ def get_student_courses(access_token: str, max_retries: Optional[int] = None, de
         }
 
         logger.info(f"发送请求到: {url}")
-        logger.info(f"使用token: {access_token[:20]}...")
+        logger.info("使用已认证的学生端会话获取课程列表")
 
         # 使用APIClient发送GET请求（带重试）
         api_client = get_api_client()
@@ -1042,7 +1045,7 @@ def get_cached_access_token() -> Optional[str]:
     # 先尝试从缓存获取
     cached_token = _token_manager.get_student_token()
     if cached_token:
-        logger.info(f"✅ 使用缓存的access_token: {cached_token[:20]}...")
+        logger.info("✅ 使用缓存的access_token")
         return cached_token
 
     # 缓存不存在或已过期，从浏览器获取

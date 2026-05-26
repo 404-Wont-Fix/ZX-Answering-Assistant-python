@@ -14,6 +14,17 @@ from typing import Optional, List, Dict
 from src.extraction.extractor import Extractor
 from src.extraction.exporter import DataExporter
 from src.core.config import get_settings_manager
+from src.ui.components import (
+    hero_panel,
+    page_heading,
+    primary_button,
+    secondary_button,
+    section_label,
+    status_chip,
+    surface_card,
+    workflow_step,
+)
+from src.ui.theme import Palette, Radius
 
 
 class ExtractionView:
@@ -106,64 +117,74 @@ class ExtractionView:
         Returns:
             ft.Column: 主界面组件
         """
+        start_button = ft.FilledButton(
+            "创建题库",
+            icon=ft.Icons.DOWNLOAD,
+            bgcolor=Palette.SURFACE,
+            color=Palette.PRIMARY,
+            on_click=lambda e: self._on_extract_click(e),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=16),
+                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+            ),
+        )
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "答案提取",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "从教师端课程生成结构化题库文件",
+                    ft.Icons.DOWNLOAD_DONE,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.PERSON, color=ft.Colors.PURPLE),
-                                    title=ft.Text("教师端登录", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("登录教师端管理平台"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.GROUPS, color=ft.Colors.RED),
-                                    title=ft.Text("选择班级", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("选择年级和目标班级"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.DOWNLOAD, color=ft.Colors.CYAN),
-                                    title=ft.Text("提取答案", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("从选中班级的课程中提取题目和答案"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.SAVE, color=ft.Colors.AMBER),
-                                    title=ft.Text("导出数据", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("将提取的答案导出为JSON格式文件"),
-                                ),
-                            ],
-                            spacing=10,
+                hero_panel(
+                    "为答题任务准备可靠题库",
+                    "从班级与课程数据提取题目答案，并导出为可复用 JSON 文件。",
+                    action=start_button,
+                    chips=[
+                        status_chip(
+                            "教师端认证",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),
-                        padding=20,
-                        width=600,
-                    ),
-                    elevation=2,
+                        status_chip(
+                            "JSON 导出",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "批量课程",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                    ],
+                    icon=ft.Icons.INVENTORY_2_OUTLINED,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.ElevatedButton(
-                    "提取答案",
-                    icon=ft.Icons.DOWNLOAD,
-                    bgcolor=ft.Colors.PURPLE,
-                    color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
-                        animation_duration=200,
-                    ),
-                    on_click=lambda e: self._on_extract_click(e),
-                    animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+                section_label("提取流程", "四步完成题库的生成与保存"),
+                ft.ResponsiveRow(
+                    [
+                        ft.Container(
+                            content=workflow_step("01", "教师登录", "连接课程管理端", ft.Icons.PERSON_OUTLINE),
+                            col={"xs": 12, "md": 3},
+                        ),
+                        ft.Container(
+                            content=workflow_step("02", "选择班级", "定位目标学生群组", ft.Icons.GROUPS_OUTLINED),
+                            col={"xs": 12, "md": 3},
+                        ),
+                        ft.Container(
+                            content=workflow_step("03", "提取数据", "读取课程题目答案", ft.Icons.DOWNLOAD_OUTLINED),
+                            col={"xs": 12, "md": 3},
+                        ),
+                        ft.Container(
+                            content=workflow_step("04", "导出文件", "保存标准 JSON 题库", ft.Icons.SAVE_OUTLINED),
+                            col={"xs": 12, "md": 3},
+                        ),
+                    ],
+                    spacing=12,
+                    run_spacing=12,
                 ),
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=22,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def _on_extract_click(self, e):
@@ -209,78 +230,49 @@ class ExtractionView:
         self.remember_password_checkbox = ft.Checkbox(
             label="记住我（自动保存账号和密码）",
             value=bool(saved_username and saved_password),  # 如果已保存凭据，默认勾选
-            fill_color=ft.Colors.PURPLE,
+            fill_color=Palette.PRIMARY,
         )
 
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "教师端登录",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "认证教师账号后选择需要提取的班级和课程",
+                    ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(
-                                    ft.Icons.PERSON,
-                                    size=64,
-                                    color=ft.Colors.PURPLE_400,
-                                ),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                self.username_field,
-                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                                self.password_field,
-                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                                self.remember_password_checkbox,
-                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                                ft.Row(
-                                    [
-                                        ft.OutlinedButton(
-                                            "返回",
-                                            icon=ft.Icons.ARROW_BACK,
-                                            style=ft.ButtonStyle(
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_back_click(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                        ft.ElevatedButton(
-                                            "登录",
-                                            icon=ft.Icons.LOGIN,
-                                            bgcolor=ft.Colors.PURPLE,
-                                            color=ft.Colors.WHITE,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.Padding.symmetric(
-                                                    horizontal=30, vertical=15
-                                                ),
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_login_click(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    spacing=20,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=30,
-                        width=500,
+                surface_card(
+                    ft.Column(
+                        [
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.PERSON_4, size=32, color=Palette.PRIMARY),
+                                width=64,
+                                height=64,
+                                alignment=ft.Alignment(0, 0),
+                                bgcolor=Palette.PRIMARY_SOFT,
+                                border_radius=Radius.CARD,
+                            ),
+                            ft.Text("登录教师端", size=20, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Text("登录后即可选择班级并导出题库", size=12, color=Palette.TEXT_MUTED),
+                            self.username_field,
+                            self.password_field,
+                            self.remember_password_checkbox,
+                            ft.Row(
+                                [
+                                    secondary_button("返回", ft.Icons.ARROW_BACK, lambda e: self._on_back_click(e)),
+                                    primary_button("登录并继续", ft.Icons.LOGIN, lambda e: self._on_login_click(e)),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=12,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=16,
                     ),
-                    elevation=5,
+                    padding=30,
+                    width=520,
                 ),
             ],
+            spacing=24,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -1198,8 +1190,17 @@ class ExtractionView:
 
     def _on_minimize_extract_dialog(self):
         """最小化提取对话框（后台运行）"""
-        # TODO: 实现最小化到托盘或状态栏
-        pass
+        if self.main_app is not None:
+            self.main_app.request_hide_to_tray()
+            return
+
+        snack = ft.SnackBar(
+            content=ft.Text("提取任务仍在后台运行；当前窗口无法接入系统托盘。"),
+            bgcolor=ft.Colors.ORANGE,
+        )
+        self.page.snack_bar = snack
+        snack.open = True
+        self.page.update()
 
     def _on_back_to_login_click(self, e):
         """返回登录界面"""

@@ -349,11 +349,11 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
 
             if captured_data and 'access_token' in captured_data:
                 access_token = captured_data['access_token']
-                logger.info(f"成功获取 access_token: {access_token[:20]}...")
+                logger.info("成功获取 access_token")
                 print("\n" + "=" * 50)
                 print("[OK] 登录成功！")
                 print("=" * 50)
-                print(f"access_token: {access_token}")
+                print("access_token: 已获取（内容已隐藏）")
                 print(f"token类型: Bearer")
                 print(f"有效期: 5小时 (18000秒)")
                 print("=" * 50)
@@ -374,8 +374,9 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
                 logger.error("未能在响应中捕获到 access_token")
                 print("[ERROR] 未能在响应中捕获到 access_token")
                 if captured_data:
-                    logger.warning(f"响应内容: {captured_data}")
-                    print(f"响应内容: {captured_data}")
+                    captured_fields = list(captured_data) if isinstance(captured_data, dict) else type(captured_data).__name__
+                    logger.warning("令牌响应缺少 access_token；响应字段: %s", captured_fields)
+                    print(f"响应字段: {captured_fields}")
                 return None
 
         except Exception as e:
@@ -528,6 +529,11 @@ def start_answering():
             # 使用 API 客户端以获得自动重试功能
             api_client = get_api_client()
             response = api_client.get(api_url, headers=headers)
+
+            if response is None:
+                print("[ERROR] 请求失败，未收到有效响应")
+                close_browser()
+                return
 
             if response.status_code == 200:
                 data = response.json()

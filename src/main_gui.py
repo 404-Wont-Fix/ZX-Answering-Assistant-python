@@ -36,14 +36,15 @@ from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
 from src.ui.views.plugin_center_view import PluginCenterView
 from src.ui.views.about_view import AboutView
+from src.ui.components import status_chip
+from src.ui.theme import Palette, Radius, configure_page
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
 from src.core.plugin_manager import get_plugin_manager
 from src.core.api_client import get_api_client
-from src.core.tray_manager import get_tray_manager
 from src.core.config import get_settings_manager
-from pathlib import Path
+from src.core.tray_manager import get_tray_manager
 
 
 class MainApp:
@@ -60,10 +61,30 @@ class MainApp:
         self.navigation_rail = None
         self.content_area = None
         self.current_destination = None
+        self.sidebar = None
+        self.sidebar_header = None
+        self.brand_logo = None
+        self.brand_text = None
+        self.sidebar_footer = None
+        self.collapse_button = None
+        self.header_title = None
+        self.header_subtitle = None
+        self.settings_manager = get_settings_manager()
+        self.tray_manager = get_tray_manager()
+        self._window_hidden_to_tray = False
+        self._manual_tray_session = False
+        self._quitting = False
 
         # 导航栏展开状态
         self.rail_expanded = True
-        self.rail_width = 200
+        self.rail_width = 252
+        self.destination_details = [
+            ("评估答题", "选择课程并执行智能答题任务"),
+            ("答案提取", "从教师端课程生成可复用题库"),
+            ("插件中心", "管理扩展能力与插件入口"),
+            ("系统设置", "账号、浏览器和后台行为配置"),
+            ("关于", "应用版本与项目说明"),
+        ]
 
         # 初始化插件管理器（在创建视图之前）
         self.plugin_manager = get_plugin_manager()
@@ -71,9 +92,9 @@ class MainApp:
 
         # 初始化视图模块（传递MainApp引用以便视图可以切换导航）
         self.answering_view = AnsweringView(page, main_app=self)
-        self.extraction_view = ExtractionView(page)
+        self.extraction_view = ExtractionView(page, main_app=self)
         self.plugin_center_view = PluginCenterView(page, main_app=self)
-        self.settings_view = SettingsView(page)
+        self.settings_view = SettingsView(page, main_app=self)
         self.about_view = AboutView(page)
 
         # 缓存每个视图的内容（保持状态）
@@ -89,32 +110,26 @@ class MainApp:
         self._setup_page()
         self._build_ui()
 
-        # 初始化系统托盘
+        # 根据设置启动系统托盘；设置稍后修改时也可即时重配
         self._initialize_tray()
 
         # 在页面加载完成后居中窗口
         self._center_window_async()
 
-        # 启动托盘事件处理
-        self._start_tray_event_loop()
-
     def _setup_page(self):
         """配置页面属性"""
         self.page.title = "ZX Answering Assistant"
-        self.page.theme_mode = ft.ThemeMode.LIGHT
-        self.page.window.width = 1000
-        self.page.window.height = 700
+        configure_page(self.page)
+        self.page.window.width = 1180
+        self.page.window.height = 780
+        self.page.window.min_width = 940
+        self.page.window.min_height = 620
         # 不使用异步center()方法，而是在页面加载后手动居中
         self.page.padding = 0
-        self.page.bgcolor = ft.Colors.GREY_50
 
-        # 注册窗口事件处理
+        # prevent_close 仅在托盘图标可用且关闭到托盘启用时开启。
+        self.page.window.prevent_close = False
         self.page.window.on_event = self._on_window_event
-
-        # 设置托盘相关属性
-        settings_manager = get_settings_manager()
-        if settings_manager.get_close_to_tray():
-            self.page.window.prevent_close = True  # 阻止默认关闭行为
 
     def _center_window_async(self):
         """在页面加载完成后异步居中窗口"""
@@ -179,355 +194,317 @@ class MainApp:
         self.cached_contents[3] = self.settings_view.get_content()  # 系统设置
         print("[MainApp] All views initialized")
 
-    def _on_window_event(self, e):
-        """
-        统一的窗口事件处理函数
-
-        Args:
-            e: WindowEvent 对象，包含事件类型信息
-        """
-        import flet as ft
-
-        settings_manager = get_settings_manager()
-        tray_manager = get_tray_manager()
-
-        if e.type == ft.WindowEventType.CLOSE:
-            # 窗口关闭事件
-            if settings_manager.get_close_to_tray() and tray_manager.is_available():
-                # 关闭到托盘
-                print("[MainApp] Close to tray enabled, hiding window...")
-                self._hide_to_tray()
-            else:
-                # 真正关闭应用
-                print("[MainApp] Closing window...")
-                print("[MainApp] Browser resources will be cleaned up on exit")
-                # 停止托盘图标
-                if tray_manager.is_running():
-                    tray_manager.stop()
-                # 销毁窗口
-                self.page.window.destroy()
-
-        elif e.type == ft.WindowEventType.MINIMIZE:
-            # 窗口最小化事件
-            if settings_manager.get_minimize_to_tray() and tray_manager.is_available():
-                # 最小化到托盘
-                print("[MainApp] Minimize to tray enabled, hiding window...")
-                self._hide_to_tray()
-
-    def _hide_to_tray(self):
-        """隐藏窗口到系统托盘"""
-        try:
-            print("[MainApp] _hide_to_tray called")
-            # 设置标志，让主循环处理
-            self._should_hide_window = True
-            # 直接执行（因为隐藏操作比较简单）
-            self.page.window.visible = False
-            self.page.window.skip_task_bar = True  # 从任务栏隐藏
-            self.page.update()
-            self._should_hide_window = False
-            print("[MainApp] Window hidden to tray successfully")
-        except Exception as e:
-            print(f"[MainApp] Error hiding window to tray: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _show_from_tray(self):
-        """从系统托盘显示窗口"""
-        try:
-            print("[MainApp] _show_from_tray called")
-
-            # 直接设置窗口属性
-            self.page.window.visible = True
-            self.page.window.skip_task_bar = False
-            self.page.update()
-            print("[MainApp] Window properties updated")
-
-            # 使用 Windows API 强制显示窗口
-            def force_show_window():
-                try:
-                    import time
-                    import ctypes.wintypes
-
-                    # 等待 Flet 更新生效
-                    time.sleep(0.3)
-
-                    # 定义 Windows API 函数
-                    EnumWindows = ctypes.windll.user32.EnumWindows
-                    EnumWindows.argtypes = [ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM), ctypes.wintypes.LPARAM]
-                    EnumWindows.restype = ctypes.wintypes.BOOL
-
-                    GetWindowText = ctypes.windll.user32.GetWindowTextW
-                    GetWindowText.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.LPWSTR, ctypes.wintypes.INT]
-                    GetWindowText.restype = ctypes.wintypes.INT
-
-                    GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
-                    GetWindowTextLength.argtypes = [ctypes.wintypes.HWND]
-                    GetWindowTextLength.restype = ctypes.wintypes.INT
-
-                    ShowWindow = ctypes.windll.user32.ShowWindow
-                    ShowWindow.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.INT]
-                    ShowWindow.restype = ctypes.wintypes.BOOL
-
-                    SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
-                    SetForegroundWindow.argtypes = [ctypes.wintypes.HWND]
-                    SetForegroundWindow.restype = ctypes.wintypes.BOOL
-
-                    # SW_RESTORE = 9, SW_SHOW = 5
-                    SW_RESTORE = 9
-                    SW_SHOW = 5
-
-                    found_windows = []
-
-                    def callback(hwnd, lParam):
-                        try:
-                            length = GetWindowTextLength(hwnd) + 1
-                            buffer = ctypes.create_unicode_buffer(length)
-                            GetWindowText(hwnd, buffer, length)
-                            title = buffer.value
-
-                            if "ZX" in title and ("Answering" in title or "答题" in title):
-                                found_windows.append(hwnd)
-                                print(f"[MainApp] Found window: {title}")
-
-                                # 显示并恢复窗口
-                                ShowWindow(hwnd, SW_RESTORE)
-                                time.sleep(0.1)
-                                # 设置为前台窗口
-                                SetForegroundWindow(hwnd)
-                                print("[MainApp] Window activated via Windows API")
-                        except:
-                            pass
-                        return True
-
-                    # 创建回调函数类型并枚举窗口
-                    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
-                    EnumWindows(WNDENUMPROC(callback), 0)
-
-                    if found_windows:
-                        print("[MainApp] Successfully showed window via Windows API")
-                    else:
-                        print("[MainApp] Window not found via Windows API, trying alternative method...")
-
-                        # 备用方法：查找所有包含 "ZX" 的窗口
-                        def callback_alternative(hwnd, lParam):
-                            try:
-                                length = GetWindowTextLength(hwnd) + 1
-                                if length > 1:
-                                    buffer = ctypes.create_unicode_buffer(length)
-                                    GetWindowText(hwnd, buffer, length)
-                                    title = buffer.value
-
-                                    if "ZX" in title:
-                                        ShowWindow(hwnd, SW_RESTORE)
-                                        SetForegroundWindow(hwnd)
-                                        print(f"[MainApp] Showed window via alternative method: {title}")
-                            except:
-                                pass
-                            return True
-
-                        EnumWindows(WNDENUMPROC(callback_alternative), 0)
-
-                except Exception as e:
-                    print(f"[MainApp] Windows API method failed: {e}")
-                    import traceback
-                    traceback.print_exc()
-
-            import threading
-            thread = threading.Thread(target=force_show_window, daemon=True)
-            thread.start()
-
-            print("[MainApp] Window show operations completed")
-
-        except Exception as e:
-            print(f"[MainApp] Error showing window from tray: {e}")
-            import traceback
-            traceback.print_exc()
-
-    def _quit_app(self):
-        """退出应用程序"""
-        print("[MainApp] Quitting application...")
-
-        # 停止托盘图标
-        tray_manager = get_tray_manager()
-        if tray_manager.is_running():
-            tray_manager.stop()
-
-        # 关闭窗口并强制退出程序
-        try:
-            print("[MainApp] Destroying Flet window...")
-            self.page.window.destroy()
-        except Exception as e:
-            print(f"[MainApp] Error destroying window: {e}")
-
-        # 无论窗口是否成功销毁，都强制退出程序
-        import sys
-        import time
-        import threading
-
-        def force_quit():
-            """强制退出程序的线程函数"""
-            try:
-                time.sleep(0.5)  # 等待清理完成
-                print("[MainApp] Force quitting application...")
-                # 使用多种方法确保程序退出
-                try:
-                    sys.exit(0)
-                except:
-                    # 如果 sys.exit() 不工作，使用 os._exit()
-                    import os
-                    os._exit(0)
-            except Exception as e:
-                print(f"[MainApp] Force quit failed: {e}")
-                import os
-                os._exit(0)
-
-        # 在单独线程中强制退出，避免阻塞当前操作
-        quit_thread = threading.Thread(target=force_quit, daemon=False)
-        quit_thread.start()
-
-        print("[MainApp] Quit sequence initiated")
-
     def _initialize_tray(self):
-        """初始化系统托盘功能"""
-        tray_manager = get_tray_manager()
+        """安装托盘菜单回调并应用当前设置。"""
+        self.tray_manager.set_callbacks(
+            on_show=lambda: self._dispatch_tray_action("show"),
+            on_hide=lambda: self._dispatch_tray_action("hide"),
+            on_quit=lambda: self._dispatch_tray_action("quit"),
+        )
+        self.apply_tray_settings()
 
-        if not tray_manager.is_available():
-            print("[MainApp] System tray not available (pystray not installed)")
+    def apply_tray_settings(self) -> bool:
+        """
+        立即应用托盘设置。
+
+        Returns:
+            bool: 请求托盘功能时，图标是否成功启动。
+        """
+        configured = (
+            self.settings_manager.get_minimize_to_tray()
+            or self.settings_manager.get_close_to_tray()
+        )
+        should_run = configured or self._manual_tray_session or self._window_hidden_to_tray
+
+        if should_run:
+            available = self.tray_manager.start("ZX 答题助手")
+        else:
+            self.tray_manager.stop()
+            available = False
+
+        self.page.window.prevent_close = bool(
+            self.settings_manager.get_close_to_tray() and available
+        )
+        self.page.update()
+
+        if configured and not available:
+            print("[MainApp] System tray unavailable; close/minimize interception disabled")
+        return not configured or available
+
+    def _dispatch_tray_action(self, action: str) -> None:
+        """将 pystray 线程中的动作调度回 Flet 事件循环。"""
+        async def handle_action():
+            if action == "show":
+                await self._show_from_tray()
+            elif action == "hide":
+                await self._hide_to_tray(manual=True)
+            elif action == "quit":
+                await self._quit_app()
+
+        try:
+            self.page.run_task(handle_action)
+        except Exception as exc:
+            print(f"[MainApp] Failed to dispatch tray action: {exc}")
+
+    def request_hide_to_tray(self) -> None:
+        """供页面操作请求隐藏到托盘，例如后台执行提取任务。"""
+        self._dispatch_tray_action("hide")
+
+    async def _on_window_event(self, e):
+        """处理窗口的最小化和关闭动作。"""
+        if self._quitting:
             return
 
-        # 设置托盘回调函数
-        tray_manager.set_callbacks(
-            on_show=self._show_from_tray,
-            on_hide=self._hide_to_tray,
-            on_quit=self._quit_app
-        )
-
-        # 启动托盘图标
-        settings_manager = get_settings_manager()
-        if settings_manager.get_minimize_to_tray() or settings_manager.get_close_to_tray():
-            if tray_manager.start("ZX答题助手"):
-                print("[MainApp] System tray started successfully")
+        if e.type == ft.WindowEventType.CLOSE:
+            if self.settings_manager.get_close_to_tray() and self.tray_manager.is_running():
+                await self._hide_to_tray()
             else:
-                print("[MainApp] Failed to start system tray")
+                await self._quit_app()
+        elif e.type == ft.WindowEventType.MINIMIZE:
+            if self.settings_manager.get_minimize_to_tray() and self.tray_manager.is_running():
+                await self._hide_to_tray()
 
-    def _start_tray_event_loop(self):
-        """启动托盘事件处理循环"""
-        import threading
-        import time
+    async def _hide_to_tray(self, manual: bool = False) -> bool:
+        """隐藏主窗口，保留可恢复的托盘入口。"""
+        if manual:
+            self._manual_tray_session = True
 
-        def process_tray_events():
-            """处理托盘事件的后台线程"""
-            while True:
-                try:
-                    tray_manager = get_tray_manager()
-                    if tray_manager.is_running():
-                        # 处理托盘事件，将操作放入队列
-                        tray_manager.process_pending_actions()
-                    time.sleep(0.1)  # 每100ms检查一次
-                except Exception as e:
-                    print(f"[MainApp] Error processing tray events: {e}")
-                    import traceback
-                    traceback.print_exc()
-                    time.sleep(1)  # 出错时等待1秒
+        if not self.tray_manager.start("ZX 答题助手"):
+            self._manual_tray_session = False
+            self._show_tray_error()
+            return False
 
-        # 启动后台线程处理托盘事件
-        tray_thread = threading.Thread(target=process_tray_events, daemon=True)
-        tray_thread.start()
-        print("[MainApp] Tray event loop started")
+        self.page.window.minimized = False
+        self.page.window.skip_task_bar = True
+        self.page.window.visible = False
+        self._window_hidden_to_tray = True
+        self.page.update()
+        return True
+
+    async def _show_from_tray(self) -> None:
+        """从托盘恢复并激活主窗口。"""
+        if self._quitting:
+            return
+
+        self.page.window.skip_task_bar = False
+        self.page.window.visible = True
+        self.page.window.minimized = False
+        self._window_hidden_to_tray = False
+        self.page.update()
+        try:
+            await self.page.window.to_front()
+        except Exception as exc:
+            print(f"[MainApp] Unable to focus restored window: {exc}")
+        finally:
+            self._manual_tray_session = False
+            self.apply_tray_settings()
+
+    async def _quit_app(self) -> None:
+        """从窗口或托盘菜单正常退出应用。"""
+        if self._quitting:
+            return
+
+        self._quitting = True
+        self.page.window.prevent_close = False
+        self.tray_manager.stop()
+        print("[MainApp] Closing window; browser resources will be cleaned up on exit")
+        try:
+            await self.page.window.destroy()
+        except Exception as exc:
+            print(f"[MainApp] Failed to destroy window: {exc}")
+
+    def _show_tray_error(self) -> None:
+        """在无法进入后台模式时向用户说明原因。"""
+        reason = self.tray_manager.get_unavailable_reason()
+        snack = ft.SnackBar(
+            content=ft.Text(f"系统托盘不可用，无法隐藏到后台；{reason}。"),
+            bgcolor=ft.Colors.ORANGE,
+        )
+        self.page.snack_bar = snack
+        snack.open = True
+        self.page.update()
 
     def _build_ui(self):
         """构建用户界面"""
-        # 创建导航栏
+        nav_icon_color = Palette.NAV_TEXT
+        selected_icon_color = Palette.SURFACE
         self.navigation_rail = ft.NavigationRail(
             selected_index=0,
-            label_type=ft.NavigationRailLabelType.ALL,
-            min_width=100,
-            min_extended_width=self.rail_width,
-            leading=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Icon(ft.Icons.SCHOOL, size=40, color=ft.Colors.BLUE),
-                        ft.Text(
-                            "ZX助手",
-                            size=16,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE,
-                        ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=5,
-                ),
-                padding=ft.Padding.symmetric(vertical=20),
+            extended=True,
+            min_width=72,
+            min_extended_width=220,
+            bgcolor=Palette.NAV,
+            indicator_color=Palette.NAV_SELECTED,
+            group_alignment=-0.8,
+            selected_label_text_style=ft.TextStyle(
+                color=Palette.SURFACE,
+                weight=ft.FontWeight.W_600,
             ),
+            unselected_label_text_style=ft.TextStyle(color=Palette.NAV_TEXT),
             destinations=[
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.CHECK_CIRCLE,
-                    selected_icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                    icon=ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.CHECK_CIRCLE, color=selected_icon_color),
                     label="评估答题",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.DOWNLOAD,
-                    selected_icon=ft.Icons.DOWNLOAD_DONE,
+                    icon=ft.Icon(ft.Icons.DOWNLOAD_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.DOWNLOAD_DONE, color=selected_icon_color),
                     label="答案提取",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.EXTENSION,
-                    selected_icon=ft.Icons.WIDGETS,
+                    icon=ft.Icon(ft.Icons.EXTENSION_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.EXTENSION, color=selected_icon_color),
                     label="插件中心",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.SETTINGS,
-                    selected_icon=ft.Icons.SETTINGS,
+                    icon=ft.Icon(ft.Icons.SETTINGS_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.SETTINGS, color=selected_icon_color),
                     label="系统设置",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.INFO,
-                    selected_icon=ft.Icons.INFO_OUTLINE,
+                    icon=ft.Icon(ft.Icons.INFO_OUTLINE, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.INFO, color=selected_icon_color),
                     label="关于",
                 ),
             ],
             on_change=self._on_destination_changed,
-            bgcolor=ft.Colors.BLUE_50,
+            expand=True,
         )
 
-        # 初始化第一个视图（评估答题）并缓存
         print("[MainApp] Initializing answering view...")
         initial_content = self.answering_view.get_content()
         self.cached_contents[0] = initial_content
         print("[MainApp] Answering view initialized")
 
-        # 创建内容区域（添加滚动支持）- 使用初始化的内容
         self.content_area = ft.Column(
             [
                 ft.Container(
-                    content=initial_content,  # 使用刚初始化的评估答题页面
+                    content=initial_content,
+                    padding=ft.Padding.only(left=30, top=24, right=30, bottom=30),
                     expand=True,
                 )
             ],
-            scroll=ft.ScrollMode.AUTO,  # 关键：内容区域需要滚动
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
-        # 主布局 - 完全按照 StackOverflow 的正确答案
-        # NavigationRail 直接放在 Row 中，不要用 Column 包裹！
-        main_row = ft.Row(
+        self.brand_text = ft.Column(
             [
-                # NavigationRail 直接放在这里
-                self.navigation_rail,
-                # 分隔线
-                ft.VerticalDivider(width=1),
-                # 右侧内容区域
-                self.content_area,
+                ft.Text("ZX Assistant", size=17, weight=ft.FontWeight.BOLD, color=Palette.SURFACE),
+                ft.Text("智能答题工作台", size=11, color=Palette.NAV_TEXT),
             ],
-            expand=True,  # Row 必须设置 expand=True
+            spacing=1,
+            tight=True,
+        )
+        self.collapse_button = ft.IconButton(
+            icon=ft.Icons.MENU_OPEN,
+            icon_color=Palette.NAV_TEXT,
+            tooltip="折叠导航栏",
+            on_click=self._toggle_rail,
+        )
+        self.sidebar_footer = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text("DESKTOP APP", size=10, color=Palette.NAV_TEXT),
+                    ft.Text(
+                        f"v{version.VERSION if hasattr(version, 'VERSION') else '--'}",
+                        size=12,
+                        color=Palette.SURFACE,
+                        weight=ft.FontWeight.W_600,
+                    ),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            padding=ft.Padding.symmetric(horizontal=18, vertical=16),
+            bgcolor="#182236",
+            border_radius=Radius.MEDIUM,
+        )
+        self.brand_logo = ft.Container(
+            content=ft.Icon(ft.Icons.SCHOOL, size=25, color=Palette.SURFACE),
+            width=43,
+            height=43,
+            bgcolor=Palette.PRIMARY,
+            border_radius=Radius.MEDIUM,
+            alignment=ft.Alignment(0, 0),
+        )
+        self.sidebar_header = ft.Container(
+            content=ft.Row(
+                [
+                    self.brand_logo,
+                    self.brand_text,
+                    ft.Container(expand=True),
+                    self.collapse_button,
+                ],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(left=13, top=18, right=9, bottom=12),
+        )
+        self.sidebar = ft.Container(
+            content=ft.Column(
+                [
+                    self.sidebar_header,
+                    self.navigation_rail,
+                    self.sidebar_footer,
+                ],
+                spacing=8,
+                expand=True,
+            ),
+            width=self.rail_width,
+            bgcolor=Palette.NAV,
+            padding=ft.Padding.only(left=8, right=8, bottom=15),
+            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
         )
 
-        # 添加到页面
+        self.header_title = ft.Text(
+            self.destination_details[0][0],
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            color=Palette.TEXT,
+        )
+        self.header_subtitle = ft.Text(
+            self.destination_details[0][1],
+            size=12,
+            color=Palette.TEXT_MUTED,
+        )
+        top_bar = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column([self.header_title, self.header_subtitle], spacing=2, tight=True),
+                    ft.Container(expand=True),
+                    status_chip("本地运行", color=Palette.ACCENT, bgcolor=Palette.ACCENT_SOFT),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=30, vertical=18),
+            bgcolor=Palette.SURFACE,
+            border=ft.border.only(bottom=ft.BorderSide(1, Palette.BORDER)),
+        )
+        workspace = ft.Column(
+            [top_bar, self.content_area],
+            spacing=0,
+            expand=True,
+        )
+
+        main_row = ft.Row(
+            [
+                self.sidebar,
+                workspace,
+            ],
+            spacing=0,
+            expand=True,
+        )
+
         self.page.add(main_row)
 
     def _on_destination_changed(self, e):
         """导航栏切换事件处理（使用缓存保持状态）"""
         self.current_destination = e.control.selected_index
+        title, subtitle = self.destination_details[self.current_destination]
+        self.header_title.value = title
+        self.header_subtitle.value = subtitle
 
         # 使用缓存的内容，而不是重新创建
         # 这样可以保持各个视图的状态（如输入框内容、滚动位置等）
@@ -561,15 +538,27 @@ class MainApp:
         self.rail_expanded = not self.rail_expanded
 
         if self.rail_expanded:
-            # 展开导航栏
-            self.navigation_rail.label_type = ft.NavigationRailLabelType.ALL
-            self.navigation_rail.min_extended_width = self.rail_width
+            self.navigation_rail.extended = True
+            self.navigation_rail.label_type = None
+            self.sidebar.width = self.rail_width
+            self.brand_logo.visible = True
+            self.brand_text.visible = True
+            self.sidebar_footer.visible = True
+            self.sidebar_header.content.spacing = 10
+            self.sidebar_header.padding = ft.Padding.only(left=13, top=18, right=9, bottom=12)
             self.collapse_button.icon = ft.Icons.MENU_OPEN
+            self.collapse_button.tooltip = "折叠导航栏"
         else:
-            # 折叠导航栏
+            self.navigation_rail.extended = False
             self.navigation_rail.label_type = ft.NavigationRailLabelType.SELECTED
-            self.navigation_rail.min_extended_width = 56
+            self.sidebar.width = 88
+            self.brand_logo.visible = False
+            self.brand_text.visible = False
+            self.sidebar_footer.visible = False
+            self.sidebar_header.content.spacing = 0
+            self.sidebar_header.padding = ft.Padding.only(left=12, top=18, right=12, bottom=12)
             self.collapse_button.icon = ft.Icons.MENU
+            self.collapse_button.tooltip = "展开导航栏"
 
         self.page.update()
 
@@ -666,7 +655,7 @@ def create_loading_view(page: ft.Page):
                 ft.Icon(
                     ft.Icons.SCHOOL,
                     size=80,
-                    color=ft.Colors.BLUE,
+                    color=Palette.PRIMARY,
                     animate_opacity=200,
                 ),
 
@@ -675,14 +664,14 @@ def create_loading_view(page: ft.Page):
                     "ZX 智能答题助手",
                     size=32,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_900,
+                    color=Palette.TEXT,
                     animate_opacity=200,
                 ),
 
                 ft.Text(
                     version.VERSION if hasattr(version, 'VERSION') else "v3.2.0",
                     size=16,
-                    color=ft.Colors.GREY_600,
+                    color=Palette.TEXT_MUTED,
                     opacity=0.7,
                 ),
 
@@ -691,8 +680,8 @@ def create_loading_view(page: ft.Page):
                 # 加载进度条（带动画）
                 ft.ProgressBar(
                     width=300,
-                    color=ft.Colors.BLUE,
-                    bgcolor=ft.Colors.BLUE_50,
+                    color=Palette.PRIMARY,
+                    bgcolor=Palette.PRIMARY_SOFT,
                     bar_height=20,
                 ),
 
@@ -702,7 +691,7 @@ def create_loading_view(page: ft.Page):
                 ft.Text(
                     "正在初始化组件...",
                     size=14,
-                    color=ft.Colors.GREY_600,
+                    color=Palette.TEXT_MUTED,
                     animate_opacity=300,
                 ),
             ],
@@ -717,8 +706,8 @@ def create_loading_view(page: ft.Page):
             begin=ft.Alignment(-1, -1),  # 使用 Alignment(-1, -1) 代替 alignment.top_center
             end=ft.Alignment(1, 1),      # 使用 Alignment(1, 1) 代替 alignment.bottom_center
             colors=[
-                "#ffffff",  # 白色
-                "#f0f4ff",  # 淡蓝色
+                Palette.SURFACE,
+                Palette.PRIMARY_SOFT,
             ],
         ),
     )

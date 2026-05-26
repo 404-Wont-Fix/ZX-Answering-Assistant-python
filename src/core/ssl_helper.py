@@ -12,7 +12,6 @@ SSL Certificate Configuration Helper
 """
 
 import os
-import sys
 import ssl
 import logging
 from pathlib import Path
@@ -125,36 +124,18 @@ def configure_requests_ssl():
 
 def install_certifi_if_missing() -> bool:
     """
-    如果 certifi 未安装，尝试安装它
+    检查 certifi 是否可用
 
     Returns:
-        bool: 是否成功安装或已存在
+        bool: 是否已安装
     """
     try:
         import certifi
         logger.info("✓ certifi 已安装")
         return True
     except ImportError:
-        logger.info("certifi 未安装，尝试安装...")
-        try:
-            import subprocess
-            result = subprocess.run(
-                [sys.executable, "-m", "pip", "install", "certifi"],
-                capture_output=True,
-                text=True,
-                timeout=120
-            )
-
-            if result.returncode == 0:
-                logger.info("✓ certifi 安装成功")
-                return True
-            else:
-                logger.error(f"✗ certifi 安装失败: {result.stderr}")
-                return False
-
-        except Exception as e:
-            logger.error(f"✗ 安装 certifi 时出错: {e}")
-            return False
+        logger.warning("⚠ certifi 未安装，将使用系统证书；可运行 pip install -r requirements.txt")
+        return False
 
 
 def verify_ssl_configuration() -> bool:
@@ -212,9 +193,9 @@ def setup_ssl_auto_config(silent: bool = False) -> bool:
     try:
         log("正在配置 SSL 证书...")
 
-        # 1. 确保 certifi 已安装
+        # 1. 检查 certifi；启动流程不修改 Python 环境。
         if not install_certifi_if_missing():
-            log("⚠ certifi 安装失败，将使用系统证书")
+            log("⚠ certifi 未安装，将使用系统证书")
 
         # 2. 配置全局 SSL 证书
         success, cert_path = configure_ssl_certificate()

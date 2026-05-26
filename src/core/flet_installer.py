@@ -5,7 +5,7 @@ Flet Library Installation Manager
 负责 Flet 库的检测、安装和版本管理
 
 注意：Flet 会在首次使用时自动下载桌面运行时文件，无需手动处理。
-如果遇到运行时下载问题，请查看：FLET_MANUAL_DOWNLOAD.md
+如果遇到运行时下载问题，请查看：docs/FLET_SETUP.md
 """
 
 import subprocess
@@ -226,14 +226,14 @@ class FletInstaller:
         except Exception as e:
             return False, f"从 requirements.txt 安装失败: {str(e)}"
 
-    def ensure_flet_installed(self, auto_install: bool = True) -> Tuple[bool, str]:
+    def ensure_flet_installed(self, auto_install: bool = False) -> Tuple[bool, str]:
         """
         确保 Flet 已安装，提供多种备选方案
 
         注意：Flet 会在首次使用时自动下载桌面运行时文件
 
         Args:
-            auto_install: 是否自动安装（默认True）
+            auto_install: 是否自动安装（默认False，需调用方明确选择）
 
         Returns:
             Tuple[bool, str]: (是否成功, 错误信息)
@@ -286,7 +286,7 @@ class FletInstaller:
             3. 使用方案3中的命令安装
 
             ⚠️ 重要提示: Flet 首次使用时会自动下载桌面运行时文件
-            如果运行时下载失败，请查看: FLET_MANUAL_DOWNLOAD.md
+            如果运行时下载失败，请查看: docs/FLET_SETUP.md
 
             详细文档: docs/FLET_SETUP.md
             ================================================
@@ -323,7 +323,7 @@ class FletInstaller:
         pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
 
         ⚠️ 重要提示: Flet 首次使用时会自动下载桌面运行时文件
-        如果运行时下载失败，请查看: FLET_MANUAL_DOWNLOAD.md
+        如果运行时下载失败，请查看: docs/FLET_SETUP.md
 
         详细文档: docs/FLET_SETUP.md
         ================================================
@@ -367,12 +367,12 @@ def get_flet_installer() -> FletInstaller:
     return _flet_installer
 
 
-def ensure_flet_installed(auto_install: bool = True) -> Tuple[bool, str]:
+def ensure_flet_installed(auto_install: bool = False) -> Tuple[bool, str]:
     """
     确保 Flet 已安装的快捷函数
 
     Args:
-        auto_install: 是否自动安装（默认True）
+        auto_install: 是否自动安装（默认False，需调用方明确选择）
 
     Returns:
         Tuple[bool, str]: (是否成功, 错误信息)

@@ -1,241 +1,227 @@
 """
-系统托盘管理器模块
+系统托盘管理器。
 
-提供系统托盘图标功能，允许应用程序最小化到系统托盘并在后台运行。
+pystray 的菜单回调在托盘线程中执行。本模块只负责发出用户动作，
+窗口更新由 MainApp 调度回 Flet 事件循环执行。
 """
 
-import threading
-import queue
-from typing import Optional, Callable
-from pathlib import Path
 import logging
+import sys
+import threading
+from pathlib import Path
+from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-# 可选依赖：pystray
-# 如果未安装，托盘功能将被禁用
-try:
-    import pystray
-    from PIL import Image, ImageDraw
-    PYSTRAY_AVAILABLE = True
-except ImportError:
+PLATFORM_TRAY_SUPPORTED = sys.platform == "win32"
+
+if PLATFORM_TRAY_SUPPORTED:
+    try:
+        import pystray
+        from PIL import Image, ImageDraw
+
+        PYSTRAY_AVAILABLE = True
+    except Exception as exc:
+        pystray = None
+        Image = None
+        ImageDraw = None
+        PYSTRAY_AVAILABLE = False
+        logger.debug("系统托盘依赖或运行后端不可用: %s", exc)
+else:
+    pystray = None
+    Image = None
+    ImageDraw = None
     PYSTRAY_AVAILABLE = False
-    logger.warning("pystray 未安装，系统托盘功能将被禁用。请运行: pip install pystray Pillow")
 
 
 class TrayManager:
-    """系统托盘管理器"""
+    """管理应用的单个系统托盘图标。"""
 
     def __init__(self):
-        self._icon: Optional['pystray.Icon'] = None
+        self._icon = None
         self._thread: Optional[threading.Thread] = None
-        self._enabled = False
-        self._running = False
-
-        # 回调函数
-        self._on_show: Optional[Callable] = None
-        self._on_hide: Optional[Callable] = None
-        self._on_quit: Optional[Callable] = None
-
-        # 线程安全的任务队列
-        self._task_queue = queue.Queue()
+        self._lock = threading.RLock()
+        self._ready: Optional[threading.Event] = None
+        self._startup_failed: Optional[threading.Event] = None
+        self._on_show: Optional[Callable[[], None]] = None
+        self._on_hide: Optional[Callable[[], None]] = None
+        self._on_quit: Optional[Callable[[], None]] = None
 
     def is_available(self) -> bool:
-        """检查托盘功能是否可用"""
-        return PYSTRAY_AVAILABLE
+        """返回当前环境是否具备托盘依赖。"""
+        return PLATFORM_TRAY_SUPPORTED and PYSTRAY_AVAILABLE
 
-    def set_callbacks(self, on_show: Callable = None, on_hide: Callable = None, on_quit: Callable = None):
-        """
-        设置托盘图标的回调函数
+    def get_unavailable_reason(self) -> str:
+        """返回无法启用托盘时可向用户显示的原因。"""
+        if not PLATFORM_TRAY_SUPPORTED:
+            return "当前托盘实现仅支持 Windows"
+        if not PYSTRAY_AVAILABLE:
+            return "请安装 pystray 和 Pillow"
+        return ""
 
-        Args:
-            on_show: 显示窗口的回调
-            on_hide: 隐藏窗口的回调
-            on_quit: 退出应用的回调
-        """
+    def set_callbacks(
+        self,
+        on_show: Optional[Callable[[], None]] = None,
+        on_hide: Optional[Callable[[], None]] = None,
+        on_quit: Optional[Callable[[], None]] = None,
+    ) -> None:
         self._on_show = on_show
         self._on_hide = on_hide
         self._on_quit = on_quit
 
-    def _create_icon_image(self) -> 'Image.Image':
-        """创建托盘图标图片"""
-        # 尝试使用项目图标文件
+    def _invoke(self, callback: Optional[Callable[[], None]]) -> None:
+        if callback is None:
+            return
         try:
-            from pathlib import Path
-            # 获取项目根目录
-            project_root = Path(__file__).parent.parent.parent
-            icon_path = project_root / "build" / "flutter" / "windows" / "runner" / "resources" / "app_icon.ico"
+            callback()
+        except Exception:
+            logger.exception("处理系统托盘动作失败")
 
+    def _show(self, icon, item) -> None:
+        self._invoke(self._on_show)
+
+    def _hide(self, icon, item) -> None:
+        self._invoke(self._on_hide)
+
+    def _quit(self, icon, item) -> None:
+        self._invoke(self._on_quit)
+
+    def _create_image(self):
+        project_root = Path(__file__).resolve().parents[2]
+        for icon_path in (
+            project_root / "assets" / "icon.ico",
+            project_root / "build" / "flutter" / "windows" / "runner" / "resources" / "app_icon.ico",
+        ):
             if icon_path.exists():
-                # 使用现有图标文件
-                return Image.open(icon_path)
-            else:
-                # 如果图标文件不存在，创建一个简单的图标
-                return self._create_default_icon()
-        except Exception as e:
-            logger.debug(f"加载图标文件失败: {e}，使用默认图标")
-            return self._create_default_icon()
+                try:
+                    with Image.open(icon_path) as source:
+                        return source.copy()
+                except Exception:
+                    logger.debug("无法读取托盘图标 %s", icon_path, exc_info=True)
 
-    def _create_default_icon(self) -> 'Image.Image':
-        """创建默认的托盘图标"""
-        # 创建一个简单的图标
-        width = 64
-        height = 64
-
-        # 创建蓝色背景
-        image = Image.new('RGB', (width, height), color='#1E88E5')
+        image = Image.new("RGBA", (64, 64), "#1976D2")
         draw = ImageDraw.Draw(image)
-
-        # 绘制"ZX"文字
-        draw.text((10, 15), "ZX", fill='white')
-
+        draw.rectangle((7, 7, 57, 57), outline="white", width=3)
+        draw.text((17, 24), "ZX", fill="white")
         return image
 
-    def _on_double_click(self, icon, item):
-        """双击托盘图标时的处理"""
-        if self._on_show:
-            self._task_queue.put(('show', None))
-
-    def _on_show_window(self, icon, item):
-        """显示窗口菜单项"""
-        if self._on_show:
-            self._task_queue.put(('show', None))
-
-    def _on_hide_window(self, icon, item):
-        """隐藏窗口菜单项"""
-        if self._on_hide:
-            self._task_queue.put(('hide', None))
-
-    def _on_quit_app(self, icon, item):
-        """退出应用菜单项"""
-        if self._on_quit:
-            self._task_queue.put(('quit', None))
-
-    def _run_icon(self):
-        """在单独线程中运行托盘图标"""
-        if not self._icon:
-            return
-
-        self._running = True
-        logger.info("系统托盘图标已启动")
+    def _run(
+        self,
+        icon,
+        ready: threading.Event,
+        startup_failed: threading.Event,
+    ) -> None:
+        def setup(active_icon) -> None:
+            try:
+                active_icon.visible = True
+            except Exception:
+                startup_failed.set()
+                logger.exception("显示系统托盘图标失败")
+            finally:
+                ready.set()
 
         try:
-            self._icon.run()
-        except Exception as e:
-            logger.error(f"托盘图标运行错误: {e}")
+            icon.run(setup=setup)
+        except Exception:
+            startup_failed.set()
+            ready.set()
+            logger.exception("系统托盘图标运行失败")
         finally:
-            self._running = False
-            logger.info("系统托盘图标已停止")
+            with self._lock:
+                if self._icon is icon:
+                    self._icon = None
+                    self._thread = None
+                    self._ready = None
+                    self._startup_failed = None
 
-    def start(self, title: str = "ZX答题助手"):
-        """
-        启动系统托盘图标
-
-        Args:
-            title: 托盘图标的提示文本
-        """
-        if not PYSTRAY_AVAILABLE:
-            logger.warning("无法启动系统托盘：pystray 未安装")
+    def start(self, title: str = "ZX 答题助手") -> bool:
+        """启动图标；已启动时保持幂等。"""
+        if not self.is_available():
+            logger.warning("系统托盘不可用：%s", self.get_unavailable_reason())
             return False
 
-        if self._icon is not None:
-            logger.warning("系统托盘已在运行")
-            return True
+        with self._lock:
+            if self._icon is not None:
+                ready = self._ready
+                startup_failed = self._startup_failed
+            else:
+                try:
+                    menu = pystray.Menu(
+                        pystray.MenuItem("显示窗口", self._show, default=True),
+                        pystray.MenuItem("隐藏窗口", self._hide),
+                        pystray.Menu.SEPARATOR,
+                        pystray.MenuItem("退出", self._quit),
+                    )
+                    icon = pystray.Icon(
+                        "zx_answering_assistant",
+                        self._create_image(),
+                        title,
+                        menu,
+                    )
+                    ready = threading.Event()
+                    startup_failed = threading.Event()
+                    thread = threading.Thread(
+                        target=self._run,
+                        args=(icon, ready, startup_failed),
+                        name="zx-system-tray",
+                        daemon=True,
+                    )
+                    self._icon = icon
+                    self._thread = thread
+                    self._ready = ready
+                    self._startup_failed = startup_failed
+                    thread.start()
+                except Exception:
+                    self._icon = None
+                    self._thread = None
+                    self._ready = None
+                    self._startup_failed = None
+                    logger.exception("创建系统托盘图标失败")
+                    return False
 
-        try:
-            # 创建图标
-            icon_image = self._create_icon_image()
-
-            # 创建菜单
-            menu = pystray.Menu(
-                pystray.MenuItem("显示窗口", self._on_show_window),
-                pystray.MenuItem("隐藏窗口", self._on_hide_window),
-                pystray.Menu.SEPARATOR,
-                pystray.MenuItem("退出", self._on_quit_app)
-            )
-
-            # 创建图标对象
-            self._icon = pystray.Icon(
-                "zx_answering_assistant",
-                icon_image,
-                title,
-                menu
-            )
-
-            # 设置双击事件
-            self._icon.on_double_click = self._on_double_click
-
-            # 在单独线程中运行托盘图标
-            self._thread = threading.Thread(target=self._run_icon, daemon=True)
-            self._thread.start()
-
-            self._enabled = True
-            logger.info(f"系统托盘图标已创建: {title}")
-            return True
-
-        except Exception as e:
-            logger.error(f"创建系统托盘图标失败: {e}")
-            self._icon = None
+        if ready is None or startup_failed is None:
             return False
+        if not ready.wait(timeout=2) or startup_failed.is_set():
+            logger.error("系统托盘未能及时启动，取消隐藏窗口操作")
+            self.stop()
+            return False
+        return self.is_running()
 
-    def stop(self):
-        """停止系统托盘图标"""
-        if not self._icon:
-            return
-
-        logger.info("正在停止系统托盘图标...")
-        self._enabled = False
-
-        try:
-            self._icon.stop()
-            logger.info("系统托盘图标已停止")
-        except Exception as e:
-            logger.error(f"停止托盘图标时出错: {e}")
-        finally:
+    def stop(self) -> None:
+        """停止并移除托盘图标。"""
+        with self._lock:
+            icon = self._icon
+            thread = self._thread
             self._icon = None
             self._thread = None
+            self._ready = None
+            self._startup_failed = None
+
+        if icon is None:
+            return
+
+        try:
+            icon.stop()
+        except Exception:
+            logger.exception("移除系统托盘图标失败")
+
+        if thread is not None and thread is not threading.current_thread():
+            thread.join(timeout=1)
 
     def is_running(self) -> bool:
-        """检查托盘图标是否正在运行"""
-        return self._icon is not None and self._running
-
-    def is_enabled(self) -> bool:
-        """检查托盘功能是否已启用"""
-        return self._enabled
-
-    def process_pending_actions(self):
-        """
-        处理托盘图标的待办操作
-
-        此方法应该在主线程中定期调用，以处理来自托盘图标的操作
-        """
-        try:
-            while not self._task_queue.empty():
-                action, data = self._task_queue.get_nowait()
-
-                if action == 'show' and self._on_show:
-                    self._on_show()
-                elif action == 'hide' and self._on_hide:
-                    self._on_hide()
-                elif action == 'quit' and self._on_quit:
-                    self._on_quit()
-
-        except queue.Empty:
-            pass
+        with self._lock:
+            return self._icon is not None
 
 
-# 全局托盘管理器实例
 _tray_manager: Optional[TrayManager] = None
+_manager_lock = threading.Lock()
 
 
 def get_tray_manager() -> TrayManager:
-    """
-    获取全局托盘管理器实例（单例模式）
-
-    Returns:
-        TrayManager: 托盘管理器实例
-    """
+    """获取进程内唯一的托盘管理器。"""
     global _tray_manager
     if _tray_manager is None:
-        _tray_manager = TrayManager()
+        with _manager_lock:
+            if _tray_manager is None:
+                _tray_manager = TrayManager()
     return _tray_manager

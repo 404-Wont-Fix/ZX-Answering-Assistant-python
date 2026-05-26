@@ -147,6 +147,10 @@ class APICourseAnswer:
             logger.info("📡 [API请求] 获取课程树...")
             response = self.api_client.get(url, headers=self.headers)
 
+            if response is None:
+                logger.error("❌ 获取课程树失败：未收到有效响应")
+                return None
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get('code') == 0:
@@ -156,8 +160,7 @@ class APICourseAnswer:
                     logger.error(f"❌ 获取课程树失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                # response为None时说明请求失败（已由api_client记录错误）
-                logger.error(f"❌ 请求失败：响应为None")
+                logger.error(f"❌ 获取课程树失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:
@@ -196,6 +199,10 @@ class APICourseAnswer:
             logger.info(f"📡 [API请求] 获取题目列表 (kpId: {kp_id[:8]}...)")
             response = self.api_client.get(url, headers=self.headers)
 
+            if response is None:
+                logger.error("❌ 获取题目列表失败：未收到有效响应")
+                return None
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get('code') == 0:
@@ -206,8 +213,7 @@ class APICourseAnswer:
                     logger.error(f"❌ 获取题目列表失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                # response为None时说明请求失败（已由api_client记录错误）
-                logger.error(f"❌ 请求失败：响应为None")
+                logger.error(f"❌ 获取题目列表失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:
@@ -252,6 +258,10 @@ class APICourseAnswer:
                 json=submit_data
             )
 
+            if response is None:
+                logger.error("❌ 提交答案失败：未收到有效响应")
+                return None
+
             if response.status_code == 200:
                 data = response.json()
                 if data.get('code') == 0:
@@ -266,8 +276,7 @@ class APICourseAnswer:
                     logger.error(f"❌ 提交答案失败: {data.get('msg', '未知错误')}")
                     return None
             else:
-                # response为None时说明请求失败（已由api_client记录错误）
-                logger.error(f"❌ 请求失败：响应为None")
+                logger.error(f"❌ 提交答案失败，状态码: {response.status_code}")
                 return None
 
         except Exception as e:

@@ -71,12 +71,20 @@ class WarningAlertPlugin:
 
     def load_config(self):
         """加载保存的警告配置"""
-        config_file = Path(__file__).parent / "warning_config.json"
-        if config_file.exists():
+        saved_config = self.context.get_plugin_config("settings", {})
+        if isinstance(saved_config, dict):
+            self.default_config.update(saved_config)
+
+        # 兼容旧版本在插件目录中写入的配置，并在读取后迁移到统一配置。
+        legacy_config_file = Path(__file__).parent / "warning_config.json"
+        if legacy_config_file.exists():
             try:
-                with open(config_file, 'r', encoding='utf-8') as f:
-                    saved_config = json.load(f)
-                    self.default_config.update(saved_config)
+                with open(legacy_config_file, 'r', encoding='utf-8') as f:
+                    legacy_config = json.load(f)
+                if isinstance(legacy_config, dict):
+                    self.default_config.update(legacy_config)
+                    if self.context.set_plugin_config("settings", legacy_config):
+                        legacy_config_file.unlink(missing_ok=True)
             except Exception as e:
                 print(f"[WarningAlert] 加载配置失败: {e}")
 
@@ -127,10 +135,9 @@ class WarningAlertPlugin:
 
     def save_config(self, new_config):
         """保存警告配置"""
-        config_file = Path(__file__).parent / "warning_config.json"
         try:
-            with open(config_file, 'w', encoding='utf-8') as f:
-                json.dump(new_config, f, ensure_ascii=False, indent=2)
+            if not self.context.set_plugin_config("settings", new_config):
+                raise OSError("统一配置写入失败")
             self.default_config.update(new_config)
             print(f"[WarningAlert] 配置已保存")
         except Exception as e:
@@ -898,10 +905,7 @@ class WarningAlertPlugin:
     def reset_config(self, e):
         """重置配置为默认值"""
         try:
-            # 删除配置文件
-            config_file = Path(__file__).parent / "warning_config.json"
-            if config_file.exists():
-                config_file.unlink()
+            self.context.set_plugin_config("settings", {})
 
             # 重置为默认配置
             self.default_config = {
@@ -928,7 +932,9 @@ class WarningAlertPlugin:
                 "window_opacity": 1.0,
                 "always_on_top": True,
                 "enable_escape": True,
-                "theme_preset": "default"
+                "theme_preset": "default",
+                "enable_loop": False,
+                "loop_interval": 60,
             }
 
             # 显示提示
