@@ -483,6 +483,10 @@ def start_answering():
     开始做题功能
     登录并获取课程列表
     """
+    manager = _get_browser_manager()
+    if not manager.is_worker_thread():
+        return manager.submit_task(start_answering)
+
     try:
         print("\n" + "=" * 60)
         print("🎓 课程认证 - 开始做题")
@@ -619,6 +623,9 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
         page: Playwright page实例
         access_token: 访问令牌
     """
+    manager = _get_browser_manager()
+    if not manager.is_worker_thread():
+        return manager.submit_task(navigate_to_course_page, ecourse_id, page, access_token)
 
     def show_operation_menu():
         """显示操作菜单"""

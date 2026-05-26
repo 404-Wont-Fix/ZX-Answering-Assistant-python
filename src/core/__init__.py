@@ -4,30 +4,40 @@
 包含应用的核心业务逻辑，如浏览器管理、API客户端、配置管理等。
 """
 
-# 状态管理
-from src.core.app_state import AppState, get_app_state
+from importlib import import_module
 
-# 常量定义
-from src.core import constants
 
-# 浏览器管理
-from src.core.browser import BrowserManager, get_browser_manager, BrowserType
-
-# API客户端
-from src.core.api_client import APIClient, get_api_client
-
-# 配置管理
-from src.core.config import SettingsManager, get_settings_manager, APIRateLevel
-
-__all__ = [
+_EXPORTS = {
     # 状态管理
-    'AppState', 'get_app_state',
-    # 常量
-    'constants',
+    'AppState': ('src.core.app_state', 'AppState'),
+    'get_app_state': ('src.core.app_state', 'get_app_state'),
     # 浏览器
-    'BrowserManager', 'get_browser_manager', 'BrowserType',
+    'BrowserManager': ('src.core.browser', 'BrowserManager'),
+    'get_browser_manager': ('src.core.browser', 'get_browser_manager'),
+    'BrowserType': ('src.core.browser', 'BrowserType'),
     # API客户端
-    'APIClient', 'get_api_client',
+    'APIClient': ('src.core.api_client', 'APIClient'),
+    'get_api_client': ('src.core.api_client', 'get_api_client'),
     # 配置
-    'SettingsManager', 'get_settings_manager', 'APIRateLevel',
-]
+    'SettingsManager': ('src.core.config', 'SettingsManager'),
+    'get_settings_manager': ('src.core.config', 'get_settings_manager'),
+    'APIRateLevel': ('src.core.config', 'APIRateLevel'),
+}
+
+__all__ = ['constants', *list(_EXPORTS)]
+
+
+def __getattr__(name):
+    """按需加载兼容导出，避免 import src.core 时触发重依赖导入。"""
+    if name == 'constants':
+        value = import_module('src.core.constants')
+        globals()[name] = value
+        return value
+
+    if name not in _EXPORTS:
+        raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+    module_name, attr_name = _EXPORTS[name]
+    value = getattr(import_module(module_name), attr_name)
+    globals()[name] = value
+    return value
