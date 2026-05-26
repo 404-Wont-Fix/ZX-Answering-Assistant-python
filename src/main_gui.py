@@ -41,7 +41,8 @@ from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
 from src.core.plugin_manager import get_plugin_manager
 from src.core.api_client import get_api_client
-from pathlib import Path
+from src.core.config import get_settings_manager
+from src.core.tray_manager import get_tray_manager
 
 
 class MainApp:
@@ -58,6 +59,11 @@ class MainApp:
         self.navigation_rail = None
         self.content_area = None
         self.current_destination = None
+        self.settings_manager = get_settings_manager()
+        self.tray_manager = get_tray_manager()
+        self._window_hidden_to_tray = False
+        self._manual_tray_session = False
+        self._quitting = False
 
         # 导航栏展开状态
         self.rail_expanded = True
@@ -69,9 +75,9 @@ class MainApp:
 
         # 初始化视图模块（传递MainApp引用以便视图可以切换导航）
         self.answering_view = AnsweringView(page, main_app=self)
-        self.extraction_view = ExtractionView(page)
+        self.extraction_view = ExtractionView(page, main_app=self)
         self.plugin_center_view = PluginCenterView(page, main_app=self)
-        self.settings_view = SettingsView(page)
+        self.settings_view = SettingsView(page, main_app=self)
         self.about_view = AboutView(page)
 
         # 缓存每个视图的内容（保持状态）
@@ -87,6 +93,9 @@ class MainApp:
         self._setup_page()
         self._build_ui()
 
+        # 根据设置启动系统托盘；设置稍后修改时也可即时重配
+        self._initialize_tray()
+
         # 在页面加载完成后居中窗口
         self._center_window_async()
 
@@ -100,8 +109,9 @@ class MainApp:
         self.page.padding = 0
         self.page.bgcolor = ft.Colors.GREY_50
 
-        # 注册窗口关闭时的清理函数
-        self.page.on_close = self._on_window_close
+        # prevent_close 仅在托盘图标可用且关闭到托盘启用时开启。
+        self.page.window.prevent_close = False
+        self.page.window.on_event = self._on_window_event
 
     def _center_window_async(self):
         """在页面加载完成后异步居中窗口"""
@@ -166,17 +176,134 @@ class MainApp:
         self.cached_contents[3] = self.settings_view.get_content()  # 系统设置
         print("[MainApp] All views initialized")
 
-    def _on_window_close(self):
-        """
-        窗口关闭时的清理函数
+    def _initialize_tray(self):
+        """安装托盘菜单回调并应用当前设置。"""
+        self.tray_manager.set_callbacks(
+            on_show=lambda: self._dispatch_tray_action("show"),
+            on_hide=lambda: self._dispatch_tray_action("hide"),
+            on_quit=lambda: self._dispatch_tray_action("quit"),
+        )
+        self.apply_tray_settings()
 
-        注意：不在此时直接关闭浏览器，避免 greenlet 线程切换问题
-        atexit 处理器会负责清理
+    def apply_tray_settings(self) -> bool:
         """
-        print("[MainApp] Closing window...")
-        print("[MainApp] Browser resources will be cleaned up on exit")
-        # 不在这里关闭浏览器，避免 greenlet 线程切换错误
-        # atexit 处理器会在 Python 退出时自动清理
+        立即应用托盘设置。
+
+        Returns:
+            bool: 请求托盘功能时，图标是否成功启动。
+        """
+        configured = (
+            self.settings_manager.get_minimize_to_tray()
+            or self.settings_manager.get_close_to_tray()
+        )
+        should_run = configured or self._manual_tray_session or self._window_hidden_to_tray
+
+        if should_run:
+            available = self.tray_manager.start("ZX 答题助手")
+        else:
+            self.tray_manager.stop()
+            available = False
+
+        self.page.window.prevent_close = bool(
+            self.settings_manager.get_close_to_tray() and available
+        )
+        self.page.update()
+
+        if configured and not available:
+            print("[MainApp] System tray unavailable; close/minimize interception disabled")
+        return not configured or available
+
+    def _dispatch_tray_action(self, action: str) -> None:
+        """将 pystray 线程中的动作调度回 Flet 事件循环。"""
+        async def handle_action():
+            if action == "show":
+                await self._show_from_tray()
+            elif action == "hide":
+                await self._hide_to_tray(manual=True)
+            elif action == "quit":
+                await self._quit_app()
+
+        try:
+            self.page.run_task(handle_action)
+        except Exception as exc:
+            print(f"[MainApp] Failed to dispatch tray action: {exc}")
+
+    def request_hide_to_tray(self) -> None:
+        """供页面操作请求隐藏到托盘，例如后台执行提取任务。"""
+        self._dispatch_tray_action("hide")
+
+    async def _on_window_event(self, e):
+        """处理窗口的最小化和关闭动作。"""
+        if self._quitting:
+            return
+
+        if e.type == ft.WindowEventType.CLOSE:
+            if self.settings_manager.get_close_to_tray() and self.tray_manager.is_running():
+                await self._hide_to_tray()
+            else:
+                await self._quit_app()
+        elif e.type == ft.WindowEventType.MINIMIZE:
+            if self.settings_manager.get_minimize_to_tray() and self.tray_manager.is_running():
+                await self._hide_to_tray()
+
+    async def _hide_to_tray(self, manual: bool = False) -> bool:
+        """隐藏主窗口，保留可恢复的托盘入口。"""
+        if manual:
+            self._manual_tray_session = True
+
+        if not self.tray_manager.start("ZX 答题助手"):
+            self._manual_tray_session = False
+            self._show_tray_error()
+            return False
+
+        self.page.window.minimized = False
+        self.page.window.skip_task_bar = True
+        self.page.window.visible = False
+        self._window_hidden_to_tray = True
+        self.page.update()
+        return True
+
+    async def _show_from_tray(self) -> None:
+        """从托盘恢复并激活主窗口。"""
+        if self._quitting:
+            return
+
+        self.page.window.skip_task_bar = False
+        self.page.window.visible = True
+        self.page.window.minimized = False
+        self._window_hidden_to_tray = False
+        self.page.update()
+        try:
+            await self.page.window.to_front()
+        except Exception as exc:
+            print(f"[MainApp] Unable to focus restored window: {exc}")
+        finally:
+            self._manual_tray_session = False
+            self.apply_tray_settings()
+
+    async def _quit_app(self) -> None:
+        """从窗口或托盘菜单正常退出应用。"""
+        if self._quitting:
+            return
+
+        self._quitting = True
+        self.page.window.prevent_close = False
+        self.tray_manager.stop()
+        print("[MainApp] Closing window; browser resources will be cleaned up on exit")
+        try:
+            await self.page.window.destroy()
+        except Exception as exc:
+            print(f"[MainApp] Failed to destroy window: {exc}")
+
+    def _show_tray_error(self) -> None:
+        """在无法进入后台模式时向用户说明原因。"""
+        snack = ft.SnackBar(
+            content=ft.Text("系统托盘不可用，无法隐藏到后台；请安装 pystray 和 Pillow。"),
+            bgcolor=ft.Colors.ORANGE,
+        )
+        self.page.snack_bar = snack
+        snack.open = True
+        self.page.update()
 
     def _build_ui(self):
         """构建用户界面"""

@@ -1198,8 +1198,17 @@ class ExtractionView:
 
     def _on_minimize_extract_dialog(self):
         """最小化提取对话框（后台运行）"""
-        # TODO: 实现最小化到托盘或状态栏
-        pass
+        if self.main_app is not None:
+            self.main_app.request_hide_to_tray()
+            return
+
+        snack = ft.SnackBar(
+            content=ft.Text("提取任务仍在后台运行；当前窗口无法接入系统托盘。"),
+            bgcolor=ft.Colors.ORANGE,
+        )
+        self.page.snack_bar = snack
+        snack.open = True
+        self.page.update()
 
     def _on_back_to_login_click(self, e):
         """返回登录界面"""
