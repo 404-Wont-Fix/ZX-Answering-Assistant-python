@@ -6,6 +6,8 @@ This module contains the UI components for the settings page.
 
 import flet as ft
 from src.core.config import get_settings_manager, APIRateLevel
+from src.ui.components import page_heading, primary_button, secondary_button
+from src.ui.theme import Palette, Radius
 
 
 class SettingsView:
@@ -88,81 +90,51 @@ class SettingsView:
 
         return ft.Column(
             [
-                # 页面标题
                 ft.Container(
-                    content=ft.Row(
-                        [
-                            ft.Icon(ft.Icons.SETTINGS, size=32, color=ft.Colors.BLUE_800),
-                            ft.Text(
-                                "系统设置",
-                                size=32,
-                                weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.BLUE_800,
-                            ),
-                        ],
-                        spacing=15,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    content=page_heading(
+                        "系统设置",
+                        "集中管理账号、请求策略、浏览器和后台运行方式",
+                        ft.Icons.SETTINGS_OUTLINED,
                     ),
-                    padding=ft.Padding.symmetric(vertical=10),
+                    width=900,
                 ),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
 
                 # 账号管理区域
                 self._create_accounts_section(student_has_config, teacher_has_config),
 
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
                 # API设置区域
                 self._create_api_settings_section(rate_level, max_retries),
-
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
                 # 浏览器设置区域
                 self._create_browser_settings_section(headless),
 
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
                 # 主窗口和系统托盘设置区域
                 self._create_tray_settings_section(),
 
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
                 # 保存和应用按钮
-                ft.Row(
-                    [
-                        ft.ElevatedButton(
-                            "保存设置",
-                            icon=ft.Icons.SAVE,
-                            bgcolor=ft.Colors.GREEN,
-                            color=ft.Colors.WHITE,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
-                                animation_duration=200,
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            secondary_button(
+                                "应用并重启浏览器",
+                                ft.Icons.AUTORENEW,
+                                lambda e: self._on_apply_click(e),
                             ),
-                            on_click=lambda e: self._on_save_click(e),
-                            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                        ),
-                        ft.ElevatedButton(
-                            "应用并重启浏览器",
-                            icon=ft.Icons.AUTORENEW,
-                            bgcolor=ft.Colors.BLUE,
-                            color=ft.Colors.WHITE,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
-                                animation_duration=200,
+                            primary_button(
+                                "保存设置",
+                                ft.Icons.SAVE,
+                                lambda e: self._on_save_click(e),
                             ),
-                            on_click=lambda e: self._on_apply_click(e),
-                            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                        ),
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=20,
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=12,
+                    ),
+                    width=900,
+                    padding=ft.Padding.symmetric(vertical=8),
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=0,
+            spacing=18,
         )
 
     def _create_accounts_section(
@@ -217,7 +189,7 @@ class SettingsView:
             icon_size=20,
             tooltip="使用账号后六位作为密码",
             on_click=lambda e: self._on_student_fill_password_click(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -229,7 +201,7 @@ class SettingsView:
             icon_size=20,
             tooltip="显示/隐藏密码",
             on_click=lambda e: self._on_student_toggle_password_visibility(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -246,8 +218,8 @@ class SettingsView:
                 spacing=0,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            border=ft.border.all(1, ft.Colors.BLACK),
-            border_radius=4,
+            border=ft.border.all(1, Palette.BORDER_STRONG),
+            border_radius=Radius.SMALL,
             padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
             width=310,
         )
@@ -258,7 +230,7 @@ class SettingsView:
                 ft.Container(
                     content=ft.Icon(
                         ft.Icons.LOCK,
-                        color=ft.Colors.BLACK,
+                        color=Palette.TEXT_MUTED,
                         size=22,
                     ),
                     width=40,
@@ -442,8 +414,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.BLUE_GREY_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _create_api_settings_section(
@@ -608,8 +581,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.BLUE_GREY_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _create_browser_settings_section(self, headless: bool) -> ft.Container:
@@ -728,8 +702,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.PURPLE_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _create_tray_settings_section(self) -> ft.Container:
@@ -804,8 +779,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.CYAN_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _on_save_click(self, e):
