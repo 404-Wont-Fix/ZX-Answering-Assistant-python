@@ -4,6 +4,10 @@
 集中定义项目中使用的所有常量，避免魔法数字。
 """
 
+import os
+import sys
+from pathlib import Path
+
 # ============================================================================
 # 时间相关常量
 # ============================================================================
@@ -58,6 +62,17 @@ DEFAULT_USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.
 LOG_DIR = "logs"  # 日志目录
 BROWSER_LOG_FILE = "browser.log"  # 浏览器日志文件
 STUDENT_LOGIN_LOG_FILE = "student_login.log"  # 学生登录日志文件
+
+
+def get_log_dir() -> Path:
+    """获取当前用户的应用日志目录。"""
+    if sys.platform == "win32":
+        base_dir = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return base_dir / "ZX-Answering-Assistant" / "Logs"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "ZX-Answering-Assistant"
+    base_dir = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    return base_dir / "ZX-Answering-Assistant" / "logs"
 
 # ============================================================================
 # 文件路径相关常量

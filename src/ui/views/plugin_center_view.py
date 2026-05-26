@@ -841,9 +841,12 @@ class PluginCenterView:
         new_state = e.control.value
 
         if new_state:
-            plugin_manager.enable_plugin(plugin_id)
+            success = plugin_manager.enable_plugin(plugin_id)
         else:
-            plugin_manager.disable_plugin(plugin_id)
+            success = plugin_manager.disable_plugin(plugin_id)
+
+        if not success:
+            e.control.value = not new_state
 
         # 清除缓存以强制重新构建
         self.cached_plugin_content.clear()
@@ -860,10 +863,14 @@ class PluginCenterView:
         # 显示操作反馈
         self.page.snack_bar = ft.SnackBar(
             ft.Text(
-                f"插件 {'已启用' if new_state else '已禁用'}: {plugin_id}",
-                color=ft.Colors.WHITE if new_state else ft.Colors.BLACK,
+                (
+                    f"插件 {'已启用' if new_state else '已禁用'}: {plugin_id}"
+                    if success
+                    else f"插件状态修改失败，请检查依赖: {plugin_id}"
+                ),
+                color=ft.Colors.WHITE if success and new_state else ft.Colors.BLACK,
             ),
-            bgcolor=ft.Colors.GREEN if new_state else ft.Colors.GREY,
+            bgcolor=ft.Colors.GREEN if success and new_state else ft.Colors.ORANGE if not success else ft.Colors.GREY,
             duration=2000,
         )
         self.page.snack_bar.open = True

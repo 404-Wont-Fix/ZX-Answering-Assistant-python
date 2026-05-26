@@ -200,8 +200,8 @@ ZX-Answering-Assistant-python/
 │   │   ├── manifest.json            # 插件元数据
 │   │   ├── __init__.py
 │   │   ├── ui.py                    # UI 入口
-│   │   ├── warning_window.py        # 独立警告窗口
-│   │   └── warning_config.json      # 配置文件
+│   │   └── warning_config.example.json # 配置示例（运行配置不入库）
+│   ├── weban_plugin/                # 安全微伴插件
 │   └── README.md                    # 插件开发指南
 │
 ├── src/
@@ -235,19 +235,14 @@ ZX-Answering-Assistant-python/
 │   │   ├── exporter.py
 │   │   └── importer.py
 │   │
+│   ├── main_gui.py                  # 主 GUI 入口
 │   ├── ui/                          # UI 层
-│   │   ├── main_gui.py              # 主 GUI 入口
 │   │   └── views/                   # 视图组件
 │   │       ├── answering_view.py
 │   │       ├── cloud_exam_view.py
 │   │       ├── course_certification_view.py
 │   │       ├── plugin_center_view.py
 │   │       └── settings_view.py
-│   │
-│   ├── modules/                     # 扩展模块
-│   │   ├── WeBan/                   # 安全微伴模块
-│   │   ├── weban_adapter.py
-│   │   └── weban_runner.py
 │   │
 │   └── utils/                       # 工具模块
 │       └── retry.py
@@ -317,7 +312,7 @@ python -m playwright install chromium
 
 **方法2: 使用本地浏览器**
 ```bash
-# 编辑 cli_config.json，添加本地浏览器路径
+# 在设置界面配置本地浏览器路径，或编辑用户配置目录中的 cli_config.json
 # "browser_settings": {"local_browser_path": "C:\\Path\\To\\chrome.exe"}
 ```
 
@@ -455,12 +450,12 @@ unable to get local issuer certificate (_ssl.c:1000)>
 
 **解决方案**:
 
-**✅ 自动配置 (v3.2.0+)**
+**✅ 启动配置**
 
 从 v3.2.0 开始，程序内置了自动 SSL 证书配置功能，无需手动干预。
 
 程序会在启动时：
-1. 自动检查并安装 `certifi` 根证书包
+1. 使用依赖中已安装的 `certifi` 根证书包；缺失时回退到系统证书
 2. 配置全局 SSL 证书设置
 3. 配置 urllib 和 requests 的 SSL 上下文
 
@@ -491,17 +486,16 @@ unable to get local issuer certificate (_ssl.c:1000)>
 
 **解决方案**:
 
-1. **自动安装**: 程序启动时会自动检测并安装 Flet
-2. **手动安装**:
+1. **安装项目依赖**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **仅安装 GUI 依赖**:
    ```bash
    pip install flet>=0.82.0
    pip install flet-desktop
    ```
-3. **使用项目依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **国内镜像加速**:
+3. **国内镜像加速**:
    ```bash
    pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
    pip install flet-desktop -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -534,7 +528,7 @@ pip install flet-desktop
    ```bash
    python -m playwright install chromium
    ```
-3. **使用本地浏览器**: 编辑 `cli_config.json`，添加浏览器路径
+3. **使用本地浏览器**: 在设置界面配置路径，或编辑用户配置目录中的 `cli_config.json`
    ```json
    {
      "browser_settings": {
@@ -601,7 +595,7 @@ pip install flet-desktop
 
 - 🔒 **新增**: 自动 SSL 证书配置功能
   - 解决 Windows 环境下的 SSL 验证失败问题
-  - 自动安装和配置 certifi 根证书包
+  - 检测和配置 certifi 根证书包
   - 配置 urllib、requests 的 SSL 上下文
   - 新增 SSL 测试工具 (`test_ssl.py`)
 - 📝 **文档**: 新增 SSL 证书配置指南 (`docs/SSL_SETUP.md`)

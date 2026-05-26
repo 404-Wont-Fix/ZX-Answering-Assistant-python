@@ -13,6 +13,8 @@
 
 ## 添加 WeBan 子模块
 
+在正式将模块作为子模块提交前，请先从项目根目录的 `.gitignore` 中移除 `plugins/weban_plugin/modules/WeBan/` 忽略规则。
+
 ### 方法 1: 使用现有的 WeBan 仓库
 
 ```bash
@@ -24,7 +26,7 @@ mkdir -p modules
 cd modules
 
 # 3. 添加 WeBan 作为子模块
-git submodule add https://github.com/TianJiaJi/WeBan.git WeBan
+git submodule add <WeBan仓库URL> WeBan
 
 # 4. 返回项目根目录
 cd ../../..
@@ -124,16 +126,6 @@ rm -rf .git/modules/plugins/weban_plugin/modules/WeBan
 git commit -m "chore(weban): 删除 WeBan 子模块"
 ```
 
-## 自动配置（备选方案）
-
-如果您不想使用 Git Submodule，插件支持自动配置：
-
-1. 将 WeBan 项目放在项目根目录的 `WeBan/` 文件夹
-2. 插件会在首次加载时自动创建符号链接或复制文件
-3. 无需手动配置
-
-**注意**：自动配置需要 WeBan 在版本控制中，或者每个开发者都需要单独设置。
-
 ## 常见问题
 
 ### Q: 子模块显示 "modified" 但没有改动？
@@ -157,14 +149,10 @@ A: 初始化并更新子模块：
 git submodule update --init --recursive
 ```
 
-### Q: 如何禁用自动配置，强制使用子模块？
-
-A: 删除项目根目录的 `WeBan/` 文件夹，只保留 `plugins/weban_plugin/modules/WeBan/` 子模块。
-
 ## 总结
 
 推荐配置：
 - ✅ **使用 Git Submodule**（推荐）
 - ✅ 子模块路径：`plugins/weban_plugin/modules/WeBan/`
-- ✅ 插件自动检测并使用子模块
+- ✅ 插件读取已初始化的子模块
 - ✅ 版本控制和更新更方便

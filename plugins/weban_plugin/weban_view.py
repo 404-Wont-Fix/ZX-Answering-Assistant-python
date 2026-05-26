@@ -32,7 +32,7 @@ from src.core.config import get_settings_manager
 class WeBanView:
     """WeBan 视图类"""
 
-    def __init__(self, page: ft.Page):
+    def __init__(self, page: ft.Page, settings_manager=None):
         """
         初始化视图
 
@@ -52,8 +52,8 @@ class WeBanView:
             input_callback=self._handle_input  # 传入输入回调
         )
 
-        # 设置管理器
-        self.settings_manager = get_settings_manager()
+        # 插件入口应传入共享配置服务；保留回退以支持独立预览。
+        self.settings_manager = settings_manager or get_settings_manager()
 
         # UI 控件
         self.current_content = None

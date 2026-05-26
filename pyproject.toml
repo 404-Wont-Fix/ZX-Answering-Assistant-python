@@ -1,6 +1,6 @@
 [project]
 name = "zx-answering-assistant"
-version = "3.5.0"
+version = "3.6.1"
 description = "Intelligent Answering Assistant System"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -17,6 +17,7 @@ dependencies = [
     "pycryptodome>=3.19.0",
     "loguru>=0.7.0",
     "ddddocr>=1.5.0",
+    "DrissionPage>=4.1.0",
     "pystray>=0.19.5",
     "Pillow>=10.0.0",
 ]

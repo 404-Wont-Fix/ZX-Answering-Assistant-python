@@ -556,7 +556,7 @@ class CourseCertificationView:
             if result and result[0]:  # result = (access_token, browser, page, playwright)
                 access_token = result[0]
                 self.access_token = access_token
-                print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+                print("✅ 成功获取 access_token")
 
                 # 获取课程列表
                 self.course_list = self._fetch_course_list(access_token)
@@ -631,6 +631,10 @@ class CourseCertificationView:
         try:
             api_client = get_api_client()
             response = api_client.get(api_url, headers=headers)
+
+            if response is None:
+                print("❌ 获取课程列表失败：未收到有效响应")
+                return []
 
             if response.status_code == 200:
                 data = response.json()
