@@ -32,6 +32,8 @@ class SettingsView:
         self.rate_level_dropdown = None
         self.max_retries_field = None
         self.headless_switch = None
+        self.minimize_to_tray_switch = None
+        self.close_to_tray_switch = None
 
         # 显示状态
         self.student_status_icon = None
@@ -117,6 +119,11 @@ class SettingsView:
 
                 # 浏览器设置区域
                 self._create_browser_settings_section(headless),
+
+                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+
+                # 主窗口和系统托盘设置区域
+                self._create_tray_settings_section(),
 
                 ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
@@ -725,6 +732,79 @@ class SettingsView:
             border_radius=15,
         )
 
+    def _create_tray_settings_section(self) -> ft.Container:
+        """创建主窗口的系统托盘设置区域。"""
+        try:
+            from src.core.tray_manager import get_tray_manager
+
+            available = get_tray_manager().is_available()
+        except Exception:
+            available = False
+
+        minimize_to_tray = self.settings_manager.get_minimize_to_tray()
+        close_to_tray = self.settings_manager.get_close_to_tray()
+        self.minimize_to_tray_switch = ft.Switch(
+            label="最小化窗口时隐藏到系统托盘",
+            value=minimize_to_tray,
+            active_color=ft.Colors.BLUE,
+            disabled=not available and not minimize_to_tray,
+        )
+        self.close_to_tray_switch = ft.Switch(
+            label="关闭窗口时隐藏到系统托盘",
+            value=close_to_tray,
+            active_color=ft.Colors.BLUE,
+            disabled=not available and not close_to_tray,
+        )
+        status = (
+            "系统托盘组件可用，保存后立即生效"
+            if available
+            else "系统托盘组件不可用；可关闭已有设置，启用前请安装 pystray 和 Pillow"
+        )
+        status_color = ft.Colors.GREEN if available else ft.Colors.ORANGE
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.DESKTOP_WINDOWS, size=28, color=ft.Colors.CYAN),
+                            ft.Text(
+                                "窗口与托盘",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=ft.Colors.BLUE_800,
+                            ),
+                        ],
+                        spacing=10,
+                    ),
+                    ft.Card(
+                        content=ft.Container(
+                            content=ft.Column(
+                                [
+                                    ft.Text(status, size=12, color=status_color),
+                                    self.minimize_to_tray_switch,
+                                    self.close_to_tray_switch,
+                                    ft.Text(
+                                        "隐藏后可通过托盘菜单的「显示窗口」恢复；「退出」会完全结束程序。",
+                                        size=11,
+                                        color=ft.Colors.GREY_700,
+                                    ),
+                                ],
+                                spacing=8,
+                            ),
+                            padding=20,
+                        ),
+                        elevation=3,
+                    ),
+                ],
+                spacing=15,
+            ),
+            width=900,
+            padding=20,
+            bgcolor=ft.Colors.CYAN_50,
+            border_radius=15,
+        )
+
     def _on_save_click(self, e):
         """处理保存设置按钮点击事件"""
         # 获取输入值
@@ -823,6 +903,22 @@ class SettingsView:
             save_errors.append("无头模式保存失败")
             success = False
 
+        if self.minimize_to_tray_switch and not self.settings_manager.set_minimize_to_tray(
+            self.minimize_to_tray_switch.value
+        ):
+            save_errors.append("最小化到托盘设置保存失败")
+            success = False
+
+        if self.close_to_tray_switch and not self.settings_manager.set_close_to_tray(
+            self.close_to_tray_switch.value
+        ):
+            save_errors.append("关闭到托盘设置保存失败")
+            success = False
+
+        if success and self.main_app and not self.main_app.apply_tray_settings():
+            save_errors.append("系统托盘启动失败，隐藏设置本次未启用")
+            success = False
+
         # 显示结果
         if success and not save_errors:
             # 成功对话框
@@ -853,6 +949,14 @@ class SettingsView:
                         ft.Text(f"• 最大重试：{max_retries} 次", size=12),
                         ft.Text(
                             f"• 无头模式：{'开启（隐藏浏览器）' if self.headless_switch.value else '关闭（显示浏览器）'}",
+                            size=12
+                        ),
+                        ft.Text(
+                            f"• 最小化到托盘：{'开启' if self.minimize_to_tray_switch.value else '关闭'}",
+                            size=12
+                        ),
+                        ft.Text(
+                            f"• 关闭到托盘：{'开启' if self.close_to_tray_switch.value else '关闭'}",
                             size=12
                         ),
                     ],

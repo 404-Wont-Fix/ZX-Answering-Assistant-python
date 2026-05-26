@@ -141,6 +141,10 @@ class SettingsManager:
                 "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
                 "local_browser_path": "",  # 本地浏览器路径（可选）
                 "browser_channel": "chrome"  # 系统浏览器通道: chrome, msedge, chromium (空字符串使用 Playwright 内置浏览器)
+            },
+            "gui_settings": {
+                "minimize_to_tray": False,
+                "close_to_tray": False
             }
         }
 
@@ -616,6 +620,32 @@ class SettingsManager:
 
         self.config["browser_settings"]["browser_channel"] = channel
 
+        return self._save_config(self.config)
+
+    # ========================================================================
+    # GUI 设置相关方法
+    # ========================================================================
+
+    def get_minimize_to_tray(self) -> bool:
+        """获取最小化到系统托盘设置。"""
+        return self.config.get("gui_settings", {}).get("minimize_to_tray", False)
+
+    def set_minimize_to_tray(self, enabled: bool) -> bool:
+        """设置最小化到系统托盘。"""
+        if not isinstance(enabled, bool):
+            return False
+        self.config.setdefault("gui_settings", {})["minimize_to_tray"] = enabled
+        return self._save_config(self.config)
+
+    def get_close_to_tray(self) -> bool:
+        """获取关闭到系统托盘设置。"""
+        return self.config.get("gui_settings", {}).get("close_to_tray", False)
+
+    def set_close_to_tray(self, enabled: bool) -> bool:
+        """设置关闭到系统托盘。"""
+        if not isinstance(enabled, bool):
+            return False
+        self.config.setdefault("gui_settings", {})["close_to_tray"] = enabled
         return self._save_config(self.config)
 
 
