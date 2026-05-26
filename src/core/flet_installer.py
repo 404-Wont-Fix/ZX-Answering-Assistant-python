@@ -5,7 +5,7 @@ Flet Library Installation Manager
 负责 Flet 库的检测、安装和版本管理
 
 注意：Flet 会在首次使用时自动下载桌面运行时文件，无需手动处理。
-如果遇到运行时下载问题，请查看：FLET_MANUAL_DOWNLOAD.md
+如果遇到运行时下载问题，请查看：docs/FLET_SETUP.md
 """
 
 import subprocess
@@ -286,7 +286,7 @@ class FletInstaller:
             3. 使用方案3中的命令安装
 
             ⚠️ 重要提示: Flet 首次使用时会自动下载桌面运行时文件
-            如果运行时下载失败，请查看: FLET_MANUAL_DOWNLOAD.md
+            如果运行时下载失败，请查看: docs/FLET_SETUP.md
 
             详细文档: docs/FLET_SETUP.md
             ================================================
@@ -323,7 +323,7 @@ class FletInstaller:
         pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
 
         ⚠️ 重要提示: Flet 首次使用时会自动下载桌面运行时文件
-        如果运行时下载失败，请查看: FLET_MANUAL_DOWNLOAD.md
+        如果运行时下载失败，请查看: docs/FLET_SETUP.md
 
         详细文档: docs/FLET_SETUP.md
         ================================================

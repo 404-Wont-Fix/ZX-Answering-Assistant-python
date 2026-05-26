@@ -50,6 +50,10 @@ pandas>=2.0.0
 
 详细的插件开发指南请参阅 [PLUGIN_DEVELOPMENT.md](../PLUGIN_DEVELOPMENT.md)。
 
+## 内置插件界面约定
+
+内置 Flet 插件使用主程序的共享设计系统：颜色与间距来自 `src/ui/theme.py`，常用标题、卡片和状态控件来自 `src/ui/components.py`。页面需要容纳动态列表时，应让列表区域独立滚动，避免内容数量改变主操作区域位置。
+
 ## 目录结构
 
 ```
