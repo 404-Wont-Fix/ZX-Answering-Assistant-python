@@ -37,6 +37,9 @@ from src.ui.theme import Palette, Radius
 class AnsweringView:
     """评估答题页面视图"""
 
+    DETAIL_MIN_HEIGHT = 620
+    DETAIL_MAX_HEIGHT = 860
+
     def __init__(self, page: ft.Page, main_app=None):
         """
         初始化评估答题视图
@@ -131,9 +134,21 @@ class AnsweringView:
                     "一次完成身份验证、课程选择与题库驱动的自动答题。",
                     action=start_button,
                     chips=[
-                        status_chip("学生端认证", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
-                        status_chip("题库支持", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
-                        status_chip("进度可见", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
+                        status_chip(
+                            "学生端认证",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "题库支持",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "进度可见",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
                     ],
                     icon=ft.Icons.AUTO_AWESOME,
                 ),
@@ -772,12 +787,14 @@ class AnsweringView:
         # 获取课程ID
         course_id = course.get('courseID')
         course_name = course.get('courseName', '未知课程')
+        detail_height = self._get_detail_workspace_height()
 
         # 生成进度信息卡片内容
         progress_card = self._create_progress_card(course_name)
 
         # 生成未完成知识点列表卡片内容
         knowledge_card = self._create_knowledge_list_card(course)
+        knowledge_card.height = detail_height
 
         # 答题选项菜单（移到左侧）
         option_menu = ft.Card(
@@ -874,46 +891,53 @@ class AnsweringView:
             [
                 progress_card,
                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                ft.Container(
-                    content=option_menu,
-                    expand=True,
-                ),
+                option_menu,
             ],
-            expand=True,
             spacing=0,
+            scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        # 右侧区域：未完成知识点列表（填充剩余区域）
+        # 右侧列表固定在工作区内滚动，不让条目数量拉伸整个页面。
         right_column = ft.Container(
             content=knowledge_card,
+            height=detail_height,
             expand=True,
         )
 
         # 左右分栏内容
         detail_row = ft.Row(
             [
-                # 左侧：进度信息 + 答题选项菜单（扩展填充）
                 ft.Container(
                     content=left_column,
+                    height=detail_height,
                     expand=True,
                 ),
                 ft.VerticalDivider(width=1, color=ft.Colors.GREY_300),
-                # 右侧：未完成知识点列表（填充剩余区域）
                 right_column,
             ],
-            expand=True,
+            height=detail_height,
             spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        # 包装在Column中，铺满窗口
         return ft.Column(
             [
                 detail_row,
             ],
-            expand=True,
             spacing=0,
         )
+
+    def _get_detail_workspace_height(self) -> int:
+        """Calculate a stable detail-panel height independent of list contents."""
+        viewport_height = getattr(self.page, "height", None)
+        if viewport_height:
+            available_height = int(viewport_height) - 185
+            return max(
+                self.DETAIL_MIN_HEIGHT,
+                min(self.DETAIL_MAX_HEIGHT, available_height),
+            )
+        return self.DETAIL_MAX_HEIGHT
 
     def _update_progress_info(self):
         """更新课程进度信息卡片（已弃用，使用 _perform_course_navigation_and_load 代替）"""

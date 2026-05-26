@@ -141,9 +141,21 @@ class ExtractionView:
                     "从班级与课程数据提取题目答案，并导出为可复用 JSON 文件。",
                     action=start_button,
                     chips=[
-                        status_chip("教师端认证", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
-                        status_chip("JSON 导出", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
-                        status_chip("批量课程", color=Palette.SURFACE, bgcolor="#FFFFFF1C"),
+                        status_chip(
+                            "教师端认证",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "JSON 导出",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "批量课程",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
                     ],
                     icon=ft.Icons.INVENTORY_2_OUTLINED,
                 ),

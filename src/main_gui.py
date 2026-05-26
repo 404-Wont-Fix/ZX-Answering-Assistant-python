@@ -62,6 +62,8 @@ class MainApp:
         self.content_area = None
         self.current_destination = None
         self.sidebar = None
+        self.sidebar_header = None
+        self.brand_logo = None
         self.brand_text = None
         self.sidebar_footer = None
         self.collapse_button = None
@@ -419,29 +421,31 @@ class MainApp:
             bgcolor="#182236",
             border_radius=Radius.MEDIUM,
         )
+        self.brand_logo = ft.Container(
+            content=ft.Icon(ft.Icons.SCHOOL, size=25, color=Palette.SURFACE),
+            width=43,
+            height=43,
+            bgcolor=Palette.PRIMARY,
+            border_radius=Radius.MEDIUM,
+            alignment=ft.Alignment(0, 0),
+        )
+        self.sidebar_header = ft.Container(
+            content=ft.Row(
+                [
+                    self.brand_logo,
+                    self.brand_text,
+                    ft.Container(expand=True),
+                    self.collapse_button,
+                ],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(left=13, top=18, right=9, bottom=12),
+        )
         self.sidebar = ft.Container(
             content=ft.Column(
                 [
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Icon(ft.Icons.SCHOOL, size=25, color=Palette.SURFACE),
-                                    width=43,
-                                    height=43,
-                                    bgcolor=Palette.PRIMARY,
-                                    border_radius=Radius.MEDIUM,
-                                    alignment=ft.Alignment(0, 0),
-                                ),
-                                self.brand_text,
-                                ft.Container(expand=True),
-                                self.collapse_button,
-                            ],
-                            spacing=10,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=ft.Padding.only(left=13, top=18, right=9, bottom=12),
-                    ),
+                    self.sidebar_header,
                     self.navigation_rail,
                     self.sidebar_footer,
                 ],
@@ -537,16 +541,22 @@ class MainApp:
             self.navigation_rail.extended = True
             self.navigation_rail.label_type = None
             self.sidebar.width = self.rail_width
+            self.brand_logo.visible = True
             self.brand_text.visible = True
             self.sidebar_footer.visible = True
+            self.sidebar_header.content.spacing = 10
+            self.sidebar_header.padding = ft.Padding.only(left=13, top=18, right=9, bottom=12)
             self.collapse_button.icon = ft.Icons.MENU_OPEN
             self.collapse_button.tooltip = "折叠导航栏"
         else:
             self.navigation_rail.extended = False
             self.navigation_rail.label_type = ft.NavigationRailLabelType.SELECTED
             self.sidebar.width = 88
+            self.brand_logo.visible = False
             self.brand_text.visible = False
             self.sidebar_footer.visible = False
+            self.sidebar_header.content.spacing = 0
+            self.sidebar_header.padding = ft.Padding.only(left=12, top=18, right=12, bottom=12)
             self.collapse_button.icon = ft.Icons.MENU
             self.collapse_button.tooltip = "展开导航栏"
 
