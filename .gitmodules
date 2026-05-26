@@ -1,3 +1,0 @@
-[submodule "plugins/weban_plugin/modules/WeBan"]
-	path = plugins/weban_plugin/modules/WeBan
-	url = https://github.com/hangone/WeBan.git

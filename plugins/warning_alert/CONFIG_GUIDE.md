@@ -1,10 +1,8 @@
 # 警告提示器插件 - 配置文件说明
 
-## 📁 配置文件位置
+## 📁 配置存储
 
-```
-plugins/warning_alert/warning_config.json
-```
+警告提示器设置通过应用的统一设置管理器保存，不在插件源码目录中写入运行配置。`warning_config.example.json` 仅作为可导入的安全示例。
 
 ## 🔧 配置项说明
 
@@ -96,18 +94,14 @@ plugins/warning_alert/warning_config.json
 
 ### 自动保存
 - 在插件设置界面修改配置后，点击"保存设置"按钮
-- 配置会自动保存到 `warning_config.json`
+- 配置会自动保存到应用的用户配置目录
 - 下次打开插件时自动加载
 
-### 手动编辑
-1. 关闭主应用程序
-2. 使用文本编辑器打开 `plugins/warning_alert/warning_config.json`
-3. 修改配置项
-4. 保存文件
-5. 重新启动应用程序
+### 导入导出
+使用插件界面中的导入/导出功能处理 JSON 配置；可从 `warning_config.example.json` 开始修改。
 
 ### 重置配置
-删除 `warning_config.json` 文件，插件会使用默认配置。
+点击插件设置中的重置操作，插件会恢复默认配置。
 
 ## 🎨 颜色方案
 

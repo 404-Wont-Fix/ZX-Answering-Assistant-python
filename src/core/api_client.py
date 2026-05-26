@@ -9,8 +9,9 @@ import logging
 import hashlib
 import json
 import threading
-from typing import Optional, Dict, Any, Callable
-from src.core.config import get_settings_manager, APIRateLevel
+from typing import Optional, Dict, Any
+
+from src.core.config import get_settings_manager
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +28,7 @@ class APIClient:
         """
         self.settings_manager = settings_manager or get_settings_manager()
         self._last_request_time = 0
+        self._rate_lock = threading.Lock()
         # 缓存存储: {cache_key: (data, expiry_time)}
         self._cache = {}
         self._cache_lock = threading.Lock()
@@ -49,11 +51,14 @@ class APIClient:
             'url': url,
             'params': kwargs.get('params', {}),
             'json': kwargs.get('json', {}),
-            'data': kwargs.get('data', {})
+            'data': kwargs.get('data', {}),
+            # 授权头和 Cookie 决定了响应归属，必须参与缓存隔离。
+            'headers': kwargs.get('headers', {}),
+            'cookies': kwargs.get('cookies', {}),
         }
         # 转换为JSON并哈希
-        cache_str = json.dumps(cache_data, sort_keys=True)
-        return hashlib.md5(cache_str.encode()).hexdigest()
+        cache_str = json.dumps(cache_data, sort_keys=True, default=str)
+        return hashlib.sha256(cache_str.encode()).hexdigest()
 
     def _get_cached(self, cache_key: str) -> Optional[Any]:
         """
@@ -104,22 +109,29 @@ class APIClient:
 
     def _apply_rate_limit(self):
         """应用速率限制"""
-        rate_level = self.settings_manager.get_rate_level()
-        delay_ms = rate_level.get_delay_ms()
+        with self._rate_lock:
+            rate_level = self.settings_manager.get_rate_level()
+            delay_ms = rate_level.get_delay_ms()
 
-        if delay_ms > 0:
-            current_time = time.time()
-            elapsed = (current_time - self._last_request_time) * 1000  # 转换为毫秒
+            if delay_ms > 0:
+                current_time = time.time()
+                elapsed = (current_time - self._last_request_time) * 1000
 
-            if elapsed < delay_ms:
-                sleep_time = (delay_ms - elapsed) / 1000  # 转换为秒
-                if sleep_time > 0.1:  # 只在等待时间超过100ms时显示提示
-                    print(f"⏳ 限速: 距上次请求{elapsed:.0f}ms，需等待{sleep_time:.2f}s", flush=True)
-                time.sleep(sleep_time)
+                if elapsed < delay_ms:
+                    sleep_time = (delay_ms - elapsed) / 1000
+                    if sleep_time > 0.1:
+                        print(f"⏳ 限速: 距上次请求{elapsed:.0f}ms，需等待{sleep_time:.2f}s", flush=True)
+                    time.sleep(sleep_time)
 
-        self._last_request_time = time.time()
+            self._last_request_time = time.time()
 
-    def _should_retry(self, response: Optional[requests.Response], error: Exception, attempt: int, max_retries: int) -> bool:
+    def _should_retry(
+        self,
+        response: Optional[requests.Response],
+        error: Optional[Exception],
+        attempt: int,
+        max_attempts: int,
+    ) -> bool:
         """
         判断是否应该重试
 
@@ -127,13 +139,13 @@ class APIClient:
             response: 响应对象
             error: 异常对象
             attempt: 当前尝试次数
-            max_retries: 最大重试次数
+            max_attempts: 最大请求尝试次数
 
         Returns:
             bool: 是否应该重试
         """
         # 如果已经达到最大重试次数，不再重试
-        if attempt >= max_retries - 1:
+        if attempt >= max_attempts - 1:
             return False
 
         # 检查特定错误类型
@@ -152,7 +164,7 @@ class APIClient:
             return is_network_error
 
         # 检查响应状态码
-        if response:
+        if response is not None:
             # 5xx服务器错误，应该重试
             if 500 <= response.status_code < 600:
                 return True
@@ -176,7 +188,7 @@ class APIClient:
         Args:
             method: 请求方法 (GET, POST, PUT, DELETE等)
             url: 请求URL
-            max_retries: 最大重试次数，如果不提供则从配置读取
+            max_retries: 最大请求尝试次数，如果不提供则从配置读取；0 仍会发起一次请求
             rate_limit: 是否应用速率限制
             use_cache: 是否使用缓存（仅对GET请求有效）
             cache_ttl: 缓存生存时间（秒），默认5分钟
@@ -197,12 +209,12 @@ class APIClient:
         if max_retries is None:
             max_retries = self.settings_manager.get_max_retries()
 
-        method = method.upper()
-        last_error = None
+        max_attempts = max(1, int(max_retries))
+        request_kwargs = dict(kwargs)
+        request_kwargs.setdefault("timeout", 30)
 
-        for attempt in range(max_retries):
+        for attempt in range(max_attempts):
             response = None
-            error = None
 
             try:
                 # 应用速率限制（每次请求前都应用，不仅仅是重试时）
@@ -210,10 +222,10 @@ class APIClient:
                     self._apply_rate_limit()
 
                 # 发送请求
-                response = requests.request(method, url, timeout=30, **kwargs)
+                response = requests.request(method, url, **request_kwargs)
 
                 # 检查响应状态
-                if response.status_code == 200:
+                if 200 <= response.status_code < 300:
                     # 对于GET请求，缓存响应
                     if use_cache and method == "GET":
                         cache_key = self._generate_cache_key(method, url, **kwargs)
@@ -221,18 +233,12 @@ class APIClient:
                     return response
 
                 # 判断是否需要重试（非200状态码也要检查是否重试）
-                if self._should_retry(response, error, attempt, max_retries):
-                    # 需要重试
-                    if attempt < max_retries - 1:
-                        delay = 2 ** attempt  # 指数退避: 1s, 2s, 4s...
-                        logger.warning(f"⚠️ 请求失败，{delay}秒后重试... ({attempt + 1}/{max_retries})")
-                        logger.warning(f"   状态码: {response.status_code}")
-                        time.sleep(delay)
-                        continue
-                    else:
-                        logger.error(f"❌ 请求失败，已达最大重试次数: {method} {url}")
-                        logger.error(f"   状态码: {response.status_code}")
-                        return None
+                if self._should_retry(response, None, attempt, max_attempts):
+                    delay = 2 ** attempt
+                    logger.warning(f"⚠️ 请求失败，{delay}秒后重试... ({attempt + 1}/{max_attempts})")
+                    logger.warning(f"   状态码: {response.status_code}")
+                    time.sleep(delay)
+                    continue
 
                 # 不需要重试，直接返回失败
                 logger.error(f"❌ 请求失败: {method} {url}")
@@ -240,37 +246,17 @@ class APIClient:
                 logger.error(f"   响应内容: {response.text[:500]}")
                 return None
 
-                # 需要重试
-                if attempt < max_retries - 1:
-                    delay = 2 ** attempt  # 指数退避: 1s, 2s, 4s...
-                    logger.warning(f"⚠️ 请求失败，{delay}秒后重试... ({attempt + 1}/{max_retries})")
-                    logger.warning(f"   状态码: {response.status_code}")
-                    time.sleep(delay)
-                else:
-                    logger.error(f"❌ 请求失败，已达最大重试次数: {method} {url}")
-                    logger.error(f"   状态码: {response.status_code}")
-                    return None
-
             except requests.exceptions.RequestException as e:
-                error = e
-                last_error = e
-
-                # 判断是否需要重试
-                if not self._should_retry(response, error, attempt, max_retries):
-                    logger.error(f"❌ 请求异常: {method} {url}")
-                    logger.error(f"   错误: {str(e)}")
-                    return None
-
-                # 需要重试
-                if attempt < max_retries - 1:
-                    delay = 2 ** attempt  # 指数退避: 1s, 2s, 4s...
-                    logger.warning(f"⚠️ 请求异常，{delay}秒后重试... ({attempt + 1}/{max_retries})")
+                if self._should_retry(response, e, attempt, max_attempts):
+                    delay = 2 ** attempt
+                    logger.warning(f"⚠️ 请求异常，{delay}秒后重试... ({attempt + 1}/{max_attempts})")
                     logger.warning(f"   错误: {str(e)}")
                     time.sleep(delay)
-                else:
-                    logger.error(f"❌ 请求异常，已达最大重试次数: {method} {url}")
-                    logger.error(f"   错误: {str(e)}")
-                    return None
+                    continue
+
+                logger.error(f"❌ 请求异常: {method} {url}")
+                logger.error(f"   错误: {str(e)}")
+                return None
 
             except Exception as e:
                 logger.error(f"❌ 未知异常: {method} {url}")
@@ -307,7 +293,7 @@ class APIClient:
             Optional[Dict]: 解析后的JSON数据，如果失败则返回None
         """
         response = self.get(url, **kwargs)
-        if response and response.status_code == 200:
+        if response is not None and 200 <= response.status_code < 300:
             try:
                 return response.json()
             except Exception as e:
@@ -328,13 +314,13 @@ class APIClient:
         Returns:
             Optional[Dict]: 解析后的JSON数据，如果失败则返回None
         """
-        if json_data:
+        if json_data is not None:
             kwargs['json'] = json_data
-        if data:
+        if data is not None:
             kwargs['data'] = data
 
         response = self.post(url, **kwargs)
-        if response and response.status_code == 200:
+        if response is not None and 200 <= response.status_code < 300:
             try:
                 return response.json()
             except Exception as e:

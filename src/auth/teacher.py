@@ -156,7 +156,7 @@ def _get_access_token_impl() -> Optional[str]:
                 for cookie in cookies:
                     if cookie["name"] == "smartedu.admin.token":
                         access_token = cookie["value"]
-                        logger.info(f"成功获取 access_token: {access_token[:20]}...")
+                        logger.info("成功获取 access_token")
                         break
 
                 if access_token:

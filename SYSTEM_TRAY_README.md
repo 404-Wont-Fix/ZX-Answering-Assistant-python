@@ -107,7 +107,11 @@ python test_tray.py
 
 ## 配置文件
 
-托盘相关设置保存在 `src/cli_config.json` 文件中：
+托盘相关设置随应用配置保存在用户配置目录：
+
+- Windows: `%APPDATA%\ZX-Answering-Assistant\cli_config.json`
+- macOS: `~/Library/Application Support/ZX-Answering-Assistant/cli_config.json`
+- Linux: `${XDG_CONFIG_HOME:-~/.config}/ZX-Answering-Assistant/cli_config.json`
 
 ```json
 {
@@ -118,4 +122,4 @@ python test_tray.py
 }
 ```
 
-可以直接修改配置文件或通过程序界面进行设置。
+建议通过程序界面进行设置。旧版 `src/cli_config.json` 会在首次启动时自动迁移。

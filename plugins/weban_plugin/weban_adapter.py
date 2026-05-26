@@ -33,7 +33,7 @@ def _find_weban_path() -> Optional[Path]:
     possible_paths = [
         # 1. 插件 modules 目录（推荐位置）
         current_dir / "modules" / "WeBan",
-        # 2. 插件目录（自动设置后的位置）
+        # 2. 插件目录（兼容旧部署）
         current_dir / "WeBan",
         # 3. 项目根目录（开发环境）
         current_dir.parent.parent / "WeBan",
