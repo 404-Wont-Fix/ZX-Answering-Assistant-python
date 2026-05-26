@@ -41,6 +41,8 @@ from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
 from src.core.plugin_manager import get_plugin_manager
 from src.core.api_client import get_api_client
+from src.core.tray_manager import get_tray_manager
+from src.core.config import get_settings_manager
 from pathlib import Path
 
 
@@ -87,8 +89,14 @@ class MainApp:
         self._setup_page()
         self._build_ui()
 
+        # 初始化系统托盘
+        self._initialize_tray()
+
         # 在页面加载完成后居中窗口
         self._center_window_async()
+
+        # 启动托盘事件处理
+        self._start_tray_event_loop()
 
     def _setup_page(self):
         """配置页面属性"""
@@ -100,8 +108,13 @@ class MainApp:
         self.page.padding = 0
         self.page.bgcolor = ft.Colors.GREY_50
 
-        # 注册窗口关闭时的清理函数
-        self.page.on_close = self._on_window_close
+        # 注册窗口事件处理
+        self.page.window.on_event = self._on_window_event
+
+        # 设置托盘相关属性
+        settings_manager = get_settings_manager()
+        if settings_manager.get_close_to_tray():
+            self.page.window.prevent_close = True  # 阻止默认关闭行为
 
     def _center_window_async(self):
         """在页面加载完成后异步居中窗口"""
@@ -166,17 +179,261 @@ class MainApp:
         self.cached_contents[3] = self.settings_view.get_content()  # 系统设置
         print("[MainApp] All views initialized")
 
-    def _on_window_close(self):
+    def _on_window_event(self, e):
         """
-        窗口关闭时的清理函数
+        统一的窗口事件处理函数
 
-        注意：不在此时直接关闭浏览器，避免 greenlet 线程切换问题
-        atexit 处理器会负责清理
+        Args:
+            e: WindowEvent 对象，包含事件类型信息
         """
-        print("[MainApp] Closing window...")
-        print("[MainApp] Browser resources will be cleaned up on exit")
-        # 不在这里关闭浏览器，避免 greenlet 线程切换错误
-        # atexit 处理器会在 Python 退出时自动清理
+        import flet as ft
+
+        settings_manager = get_settings_manager()
+        tray_manager = get_tray_manager()
+
+        if e.type == ft.WindowEventType.CLOSE:
+            # 窗口关闭事件
+            if settings_manager.get_close_to_tray() and tray_manager.is_available():
+                # 关闭到托盘
+                print("[MainApp] Close to tray enabled, hiding window...")
+                self._hide_to_tray()
+            else:
+                # 真正关闭应用
+                print("[MainApp] Closing window...")
+                print("[MainApp] Browser resources will be cleaned up on exit")
+                # 停止托盘图标
+                if tray_manager.is_running():
+                    tray_manager.stop()
+                # 销毁窗口
+                self.page.window.destroy()
+
+        elif e.type == ft.WindowEventType.MINIMIZE:
+            # 窗口最小化事件
+            if settings_manager.get_minimize_to_tray() and tray_manager.is_available():
+                # 最小化到托盘
+                print("[MainApp] Minimize to tray enabled, hiding window...")
+                self._hide_to_tray()
+
+    def _hide_to_tray(self):
+        """隐藏窗口到系统托盘"""
+        try:
+            print("[MainApp] _hide_to_tray called")
+            # 设置标志，让主循环处理
+            self._should_hide_window = True
+            # 直接执行（因为隐藏操作比较简单）
+            self.page.window.visible = False
+            self.page.window.skip_task_bar = True  # 从任务栏隐藏
+            self.page.update()
+            self._should_hide_window = False
+            print("[MainApp] Window hidden to tray successfully")
+        except Exception as e:
+            print(f"[MainApp] Error hiding window to tray: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _show_from_tray(self):
+        """从系统托盘显示窗口"""
+        try:
+            print("[MainApp] _show_from_tray called")
+
+            # 直接设置窗口属性
+            self.page.window.visible = True
+            self.page.window.skip_task_bar = False
+            self.page.update()
+            print("[MainApp] Window properties updated")
+
+            # 使用 Windows API 强制显示窗口
+            def force_show_window():
+                try:
+                    import time
+                    import ctypes.wintypes
+
+                    # 等待 Flet 更新生效
+                    time.sleep(0.3)
+
+                    # 定义 Windows API 函数
+                    EnumWindows = ctypes.windll.user32.EnumWindows
+                    EnumWindows.argtypes = [ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM), ctypes.wintypes.LPARAM]
+                    EnumWindows.restype = ctypes.wintypes.BOOL
+
+                    GetWindowText = ctypes.windll.user32.GetWindowTextW
+                    GetWindowText.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.LPWSTR, ctypes.wintypes.INT]
+                    GetWindowText.restype = ctypes.wintypes.INT
+
+                    GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
+                    GetWindowTextLength.argtypes = [ctypes.wintypes.HWND]
+                    GetWindowTextLength.restype = ctypes.wintypes.INT
+
+                    ShowWindow = ctypes.windll.user32.ShowWindow
+                    ShowWindow.argtypes = [ctypes.wintypes.HWND, ctypes.wintypes.INT]
+                    ShowWindow.restype = ctypes.wintypes.BOOL
+
+                    SetForegroundWindow = ctypes.windll.user32.SetForegroundWindow
+                    SetForegroundWindow.argtypes = [ctypes.wintypes.HWND]
+                    SetForegroundWindow.restype = ctypes.wintypes.BOOL
+
+                    # SW_RESTORE = 9, SW_SHOW = 5
+                    SW_RESTORE = 9
+                    SW_SHOW = 5
+
+                    found_windows = []
+
+                    def callback(hwnd, lParam):
+                        try:
+                            length = GetWindowTextLength(hwnd) + 1
+                            buffer = ctypes.create_unicode_buffer(length)
+                            GetWindowText(hwnd, buffer, length)
+                            title = buffer.value
+
+                            if "ZX" in title and ("Answering" in title or "答题" in title):
+                                found_windows.append(hwnd)
+                                print(f"[MainApp] Found window: {title}")
+
+                                # 显示并恢复窗口
+                                ShowWindow(hwnd, SW_RESTORE)
+                                time.sleep(0.1)
+                                # 设置为前台窗口
+                                SetForegroundWindow(hwnd)
+                                print("[MainApp] Window activated via Windows API")
+                        except:
+                            pass
+                        return True
+
+                    # 创建回调函数类型并枚举窗口
+                    WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.wintypes.BOOL, ctypes.wintypes.HWND, ctypes.wintypes.LPARAM)
+                    EnumWindows(WNDENUMPROC(callback), 0)
+
+                    if found_windows:
+                        print("[MainApp] Successfully showed window via Windows API")
+                    else:
+                        print("[MainApp] Window not found via Windows API, trying alternative method...")
+
+                        # 备用方法：查找所有包含 "ZX" 的窗口
+                        def callback_alternative(hwnd, lParam):
+                            try:
+                                length = GetWindowTextLength(hwnd) + 1
+                                if length > 1:
+                                    buffer = ctypes.create_unicode_buffer(length)
+                                    GetWindowText(hwnd, buffer, length)
+                                    title = buffer.value
+
+                                    if "ZX" in title:
+                                        ShowWindow(hwnd, SW_RESTORE)
+                                        SetForegroundWindow(hwnd)
+                                        print(f"[MainApp] Showed window via alternative method: {title}")
+                            except:
+                                pass
+                            return True
+
+                        EnumWindows(WNDENUMPROC(callback_alternative), 0)
+
+                except Exception as e:
+                    print(f"[MainApp] Windows API method failed: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+            import threading
+            thread = threading.Thread(target=force_show_window, daemon=True)
+            thread.start()
+
+            print("[MainApp] Window show operations completed")
+
+        except Exception as e:
+            print(f"[MainApp] Error showing window from tray: {e}")
+            import traceback
+            traceback.print_exc()
+
+    def _quit_app(self):
+        """退出应用程序"""
+        print("[MainApp] Quitting application...")
+
+        # 停止托盘图标
+        tray_manager = get_tray_manager()
+        if tray_manager.is_running():
+            tray_manager.stop()
+
+        # 关闭窗口并强制退出程序
+        try:
+            print("[MainApp] Destroying Flet window...")
+            self.page.window.destroy()
+        except Exception as e:
+            print(f"[MainApp] Error destroying window: {e}")
+
+        # 无论窗口是否成功销毁，都强制退出程序
+        import sys
+        import time
+        import threading
+
+        def force_quit():
+            """强制退出程序的线程函数"""
+            try:
+                time.sleep(0.5)  # 等待清理完成
+                print("[MainApp] Force quitting application...")
+                # 使用多种方法确保程序退出
+                try:
+                    sys.exit(0)
+                except:
+                    # 如果 sys.exit() 不工作，使用 os._exit()
+                    import os
+                    os._exit(0)
+            except Exception as e:
+                print(f"[MainApp] Force quit failed: {e}")
+                import os
+                os._exit(0)
+
+        # 在单独线程中强制退出，避免阻塞当前操作
+        quit_thread = threading.Thread(target=force_quit, daemon=False)
+        quit_thread.start()
+
+        print("[MainApp] Quit sequence initiated")
+
+    def _initialize_tray(self):
+        """初始化系统托盘功能"""
+        tray_manager = get_tray_manager()
+
+        if not tray_manager.is_available():
+            print("[MainApp] System tray not available (pystray not installed)")
+            return
+
+        # 设置托盘回调函数
+        tray_manager.set_callbacks(
+            on_show=self._show_from_tray,
+            on_hide=self._hide_to_tray,
+            on_quit=self._quit_app
+        )
+
+        # 启动托盘图标
+        settings_manager = get_settings_manager()
+        if settings_manager.get_minimize_to_tray() or settings_manager.get_close_to_tray():
+            if tray_manager.start("ZX答题助手"):
+                print("[MainApp] System tray started successfully")
+            else:
+                print("[MainApp] Failed to start system tray")
+
+    def _start_tray_event_loop(self):
+        """启动托盘事件处理循环"""
+        import threading
+        import time
+
+        def process_tray_events():
+            """处理托盘事件的后台线程"""
+            while True:
+                try:
+                    tray_manager = get_tray_manager()
+                    if tray_manager.is_running():
+                        # 处理托盘事件，将操作放入队列
+                        tray_manager.process_pending_actions()
+                    time.sleep(0.1)  # 每100ms检查一次
+                except Exception as e:
+                    print(f"[MainApp] Error processing tray events: {e}")
+                    import traceback
+                    traceback.print_exc()
+                    time.sleep(1)  # 出错时等待1秒
+
+        # 启动后台线程处理托盘事件
+        tray_thread = threading.Thread(target=process_tray_events, daemon=True)
+        tray_thread.start()
+        print("[MainApp] Tray event loop started")
 
     def _build_ui(self):
         """构建用户界面"""
