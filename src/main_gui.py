@@ -297,8 +297,9 @@ class MainApp:
 
     def _show_tray_error(self) -> None:
         """在无法进入后台模式时向用户说明原因。"""
+        reason = self.tray_manager.get_unavailable_reason()
         snack = ft.SnackBar(
-            content=ft.Text("系统托盘不可用，无法隐藏到后台；请安装 pystray 和 Pillow。"),
+            content=ft.Text(f"系统托盘不可用，无法隐藏到后台；{reason}。"),
             bgcolor=ft.Colors.ORANGE,
         )
         self.page.snack_bar = snack

@@ -17,8 +17,7 @@ def test_tray_manager():
 
         # 检查托盘功能是否可用
         if not tray_manager.is_available():
-            print("❌ 系统托盘功能不可用（需要安装 pystray 和 Pillow）")
-            print("   请运行: pip install pystray Pillow")
+            print(f"❌ 系统托盘功能不可用（{tray_manager.get_unavailable_reason()}）")
             return False
 
         print("✅ 系统托盘功能可用")

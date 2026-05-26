@@ -6,23 +6,32 @@ pystray 的菜单回调在托盘线程中执行。本模块只负责发出用户
 """
 
 import logging
+import sys
 import threading
 from pathlib import Path
 from typing import Callable, Optional
 
 logger = logging.getLogger(__name__)
 
-try:
-    import pystray
-    from PIL import Image, ImageDraw
+PLATFORM_TRAY_SUPPORTED = sys.platform == "win32"
 
-    PYSTRAY_AVAILABLE = True
-except Exception as exc:
+if PLATFORM_TRAY_SUPPORTED:
+    try:
+        import pystray
+        from PIL import Image, ImageDraw
+
+        PYSTRAY_AVAILABLE = True
+    except Exception as exc:
+        pystray = None
+        Image = None
+        ImageDraw = None
+        PYSTRAY_AVAILABLE = False
+        logger.debug("系统托盘依赖或运行后端不可用: %s", exc)
+else:
     pystray = None
     Image = None
     ImageDraw = None
     PYSTRAY_AVAILABLE = False
-    logger.debug("系统托盘依赖或运行后端不可用: %s", exc)
 
 
 class TrayManager:
@@ -40,7 +49,15 @@ class TrayManager:
 
     def is_available(self) -> bool:
         """返回当前环境是否具备托盘依赖。"""
-        return PYSTRAY_AVAILABLE
+        return PLATFORM_TRAY_SUPPORTED and PYSTRAY_AVAILABLE
+
+    def get_unavailable_reason(self) -> str:
+        """返回无法启用托盘时可向用户显示的原因。"""
+        if not PLATFORM_TRAY_SUPPORTED:
+            return "当前托盘实现仅支持 Windows"
+        if not PYSTRAY_AVAILABLE:
+            return "请安装 pystray 和 Pillow"
+        return ""
 
     def set_callbacks(
         self,
@@ -120,7 +137,7 @@ class TrayManager:
     def start(self, title: str = "ZX 答题助手") -> bool:
         """启动图标；已启动时保持幂等。"""
         if not self.is_available():
-            logger.warning("系统托盘不可用：请安装 pystray 和 Pillow")
+            logger.warning("系统托盘不可用：%s", self.get_unavailable_reason())
             return False
 
         with self._lock:
