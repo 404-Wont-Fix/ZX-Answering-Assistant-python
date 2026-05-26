@@ -180,7 +180,7 @@ def hero_panel(
                     width=128,
                     height=128,
                     alignment=ft.Alignment(0, 0),
-                    bgcolor="#FFFFFF12",
+                    bgcolor=ft.Colors.with_opacity(0.1, Palette.SURFACE),
                     border_radius=Radius.LARGE,
                 ),
             ],
