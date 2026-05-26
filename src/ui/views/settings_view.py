@@ -737,9 +737,12 @@ class SettingsView:
         try:
             from src.core.tray_manager import get_tray_manager
 
-            available = get_tray_manager().is_available()
+            tray_manager = get_tray_manager()
+            available = tray_manager.is_available()
+            unavailable_reason = tray_manager.get_unavailable_reason()
         except Exception:
             available = False
+            unavailable_reason = "组件初始化失败"
 
         minimize_to_tray = self.settings_manager.get_minimize_to_tray()
         close_to_tray = self.settings_manager.get_close_to_tray()
@@ -758,7 +761,7 @@ class SettingsView:
         status = (
             "系统托盘组件可用，保存后立即生效"
             if available
-            else "系统托盘组件不可用；可关闭已有设置，启用前请安装 pystray 和 Pillow"
+            else f"系统托盘组件不可用：{unavailable_reason}；可关闭已有设置"
         )
         status_color = ft.Colors.GREEN if available else ft.Colors.ORANGE
 
