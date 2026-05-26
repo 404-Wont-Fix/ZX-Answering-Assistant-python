@@ -205,8 +205,8 @@ class TrayManager:
         except Exception:
             logger.exception("移除系统托盘图标失败")
 
-        if thread is not None and thread is not threading.current_thread():
-            thread.join(timeout=1)
+        # 不等待线程结束，让托盘线程在后台自然结束
+        # 这样可以避免阻塞退出流程
 
     def is_running(self) -> bool:
         with self._lock:
