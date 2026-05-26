@@ -304,14 +304,26 @@ class MainApp:
         if self._quitting:
             return
 
+        print("[MainApp] Quitting application...")
+
+        # 停止托盘
+        self.tray_manager.stop()
+
+        # 设置退出标志
         self._quitting = True
         self.page.window.prevent_close = False
-        self.tray_manager.stop()
-        print("[MainApp] Closing window; browser resources will be cleaned up on exit")
+
+        # 关闭窗口
         try:
-            await self.page.window.destroy()
-        except Exception as exc:
-            print(f"[MainApp] Failed to destroy window: {exc}")
+            await self.page.window.close()
+        except Exception as e:
+            print(f"[MainApp] Error closing window: {e}")
+
+        # 退出应用
+        try:
+            self.page.destroy()
+        except Exception as e:
+            print(f"[MainApp] Error destroying page: {e}")
 
     def _show_tray_error(self) -> None:
         """在无法进入后台模式时向用户说明原因。"""
