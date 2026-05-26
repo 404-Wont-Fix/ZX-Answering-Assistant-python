@@ -36,6 +36,8 @@ from src.ui.views.extraction_view import ExtractionView
 from src.ui.views.settings_view import SettingsView
 from src.ui.views.plugin_center_view import PluginCenterView
 from src.ui.views.about_view import AboutView
+from src.ui.components import status_chip
+from src.ui.theme import Palette, Radius, configure_page
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
@@ -59,6 +61,12 @@ class MainApp:
         self.navigation_rail = None
         self.content_area = None
         self.current_destination = None
+        self.sidebar = None
+        self.brand_text = None
+        self.sidebar_footer = None
+        self.collapse_button = None
+        self.header_title = None
+        self.header_subtitle = None
         self.settings_manager = get_settings_manager()
         self.tray_manager = get_tray_manager()
         self._window_hidden_to_tray = False
@@ -67,7 +75,14 @@ class MainApp:
 
         # 导航栏展开状态
         self.rail_expanded = True
-        self.rail_width = 200
+        self.rail_width = 252
+        self.destination_details = [
+            ("评估答题", "选择课程并执行智能答题任务"),
+            ("答案提取", "从教师端课程生成可复用题库"),
+            ("插件中心", "管理扩展能力与插件入口"),
+            ("系统设置", "账号、浏览器和后台行为配置"),
+            ("关于", "应用版本与项目说明"),
+        ]
 
         # 初始化插件管理器（在创建视图之前）
         self.plugin_manager = get_plugin_manager()
@@ -102,12 +117,13 @@ class MainApp:
     def _setup_page(self):
         """配置页面属性"""
         self.page.title = "ZX Answering Assistant"
-        self.page.theme_mode = ft.ThemeMode.LIGHT
-        self.page.window.width = 1000
-        self.page.window.height = 700
+        configure_page(self.page)
+        self.page.window.width = 1180
+        self.page.window.height = 780
+        self.page.window.min_width = 940
+        self.page.window.min_height = 620
         # 不使用异步center()方法，而是在页面加载后手动居中
         self.page.padding = 0
-        self.page.bgcolor = ft.Colors.GREY_50
 
         # prevent_close 仅在托盘图标可用且关闭到托盘启用时开启。
         self.page.window.prevent_close = False
@@ -308,97 +324,183 @@ class MainApp:
 
     def _build_ui(self):
         """构建用户界面"""
-        # 创建导航栏
+        nav_icon_color = Palette.NAV_TEXT
+        selected_icon_color = Palette.SURFACE
         self.navigation_rail = ft.NavigationRail(
             selected_index=0,
-            label_type=ft.NavigationRailLabelType.ALL,
-            min_width=100,
-            min_extended_width=self.rail_width,
-            leading=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Icon(ft.Icons.SCHOOL, size=40, color=ft.Colors.BLUE),
-                        ft.Text(
-                            "ZX助手",
-                            size=16,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE,
-                        ),
-                    ],
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    spacing=5,
-                ),
-                padding=ft.Padding.symmetric(vertical=20),
+            extended=True,
+            min_width=72,
+            min_extended_width=220,
+            bgcolor=Palette.NAV,
+            indicator_color=Palette.NAV_SELECTED,
+            group_alignment=-0.8,
+            selected_label_text_style=ft.TextStyle(
+                color=Palette.SURFACE,
+                weight=ft.FontWeight.W_600,
             ),
+            unselected_label_text_style=ft.TextStyle(color=Palette.NAV_TEXT),
             destinations=[
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.CHECK_CIRCLE,
-                    selected_icon=ft.Icons.CHECK_CIRCLE_OUTLINE,
+                    icon=ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.CHECK_CIRCLE, color=selected_icon_color),
                     label="评估答题",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.DOWNLOAD,
-                    selected_icon=ft.Icons.DOWNLOAD_DONE,
+                    icon=ft.Icon(ft.Icons.DOWNLOAD_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.DOWNLOAD_DONE, color=selected_icon_color),
                     label="答案提取",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.EXTENSION,
-                    selected_icon=ft.Icons.WIDGETS,
+                    icon=ft.Icon(ft.Icons.EXTENSION_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.EXTENSION, color=selected_icon_color),
                     label="插件中心",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.SETTINGS,
-                    selected_icon=ft.Icons.SETTINGS,
+                    icon=ft.Icon(ft.Icons.SETTINGS_OUTLINED, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.SETTINGS, color=selected_icon_color),
                     label="系统设置",
                 ),
                 ft.NavigationRailDestination(
-                    icon=ft.Icons.INFO,
-                    selected_icon=ft.Icons.INFO_OUTLINE,
+                    icon=ft.Icon(ft.Icons.INFO_OUTLINE, color=nav_icon_color),
+                    selected_icon=ft.Icon(ft.Icons.INFO, color=selected_icon_color),
                     label="关于",
                 ),
             ],
             on_change=self._on_destination_changed,
-            bgcolor=ft.Colors.BLUE_50,
+            expand=True,
         )
 
-        # 初始化第一个视图（评估答题）并缓存
         print("[MainApp] Initializing answering view...")
         initial_content = self.answering_view.get_content()
         self.cached_contents[0] = initial_content
         print("[MainApp] Answering view initialized")
 
-        # 创建内容区域（添加滚动支持）- 使用初始化的内容
         self.content_area = ft.Column(
             [
                 ft.Container(
-                    content=initial_content,  # 使用刚初始化的评估答题页面
+                    content=initial_content,
+                    padding=ft.Padding.only(left=30, top=24, right=30, bottom=30),
                     expand=True,
                 )
             ],
-            scroll=ft.ScrollMode.AUTO,  # 关键：内容区域需要滚动
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
         )
 
-        # 主布局 - 完全按照 StackOverflow 的正确答案
-        # NavigationRail 直接放在 Row 中，不要用 Column 包裹！
-        main_row = ft.Row(
+        self.brand_text = ft.Column(
             [
-                # NavigationRail 直接放在这里
-                self.navigation_rail,
-                # 分隔线
-                ft.VerticalDivider(width=1),
-                # 右侧内容区域
-                self.content_area,
+                ft.Text("ZX Assistant", size=17, weight=ft.FontWeight.BOLD, color=Palette.SURFACE),
+                ft.Text("智能答题工作台", size=11, color=Palette.NAV_TEXT),
             ],
-            expand=True,  # Row 必须设置 expand=True
+            spacing=1,
+            tight=True,
+        )
+        self.collapse_button = ft.IconButton(
+            icon=ft.Icons.MENU_OPEN,
+            icon_color=Palette.NAV_TEXT,
+            tooltip="折叠导航栏",
+            on_click=self._toggle_rail,
+        )
+        self.sidebar_footer = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Text("DESKTOP APP", size=10, color=Palette.NAV_TEXT),
+                    ft.Text(
+                        f"v{version.VERSION if hasattr(version, 'VERSION') else '--'}",
+                        size=12,
+                        color=Palette.SURFACE,
+                        weight=ft.FontWeight.W_600,
+                    ),
+                ],
+                spacing=4,
+                tight=True,
+            ),
+            padding=ft.Padding.symmetric(horizontal=18, vertical=16),
+            bgcolor="#182236",
+            border_radius=Radius.MEDIUM,
+        )
+        self.sidebar = ft.Container(
+            content=ft.Column(
+                [
+                    ft.Container(
+                        content=ft.Row(
+                            [
+                                ft.Container(
+                                    content=ft.Icon(ft.Icons.SCHOOL, size=25, color=Palette.SURFACE),
+                                    width=43,
+                                    height=43,
+                                    bgcolor=Palette.PRIMARY,
+                                    border_radius=Radius.MEDIUM,
+                                    alignment=ft.Alignment(0, 0),
+                                ),
+                                self.brand_text,
+                                ft.Container(expand=True),
+                                self.collapse_button,
+                            ],
+                            spacing=10,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        padding=ft.Padding.only(left=13, top=18, right=9, bottom=12),
+                    ),
+                    self.navigation_rail,
+                    self.sidebar_footer,
+                ],
+                spacing=8,
+                expand=True,
+            ),
+            width=self.rail_width,
+            bgcolor=Palette.NAV,
+            padding=ft.Padding.only(left=8, right=8, bottom=15),
+            animate=ft.Animation(180, ft.AnimationCurve.EASE_OUT),
         )
 
-        # 添加到页面
+        self.header_title = ft.Text(
+            self.destination_details[0][0],
+            size=20,
+            weight=ft.FontWeight.BOLD,
+            color=Palette.TEXT,
+        )
+        self.header_subtitle = ft.Text(
+            self.destination_details[0][1],
+            size=12,
+            color=Palette.TEXT_MUTED,
+        )
+        top_bar = ft.Container(
+            content=ft.Row(
+                [
+                    ft.Column([self.header_title, self.header_subtitle], spacing=2, tight=True),
+                    ft.Container(expand=True),
+                    status_chip("本地运行", color=Palette.ACCENT, bgcolor=Palette.ACCENT_SOFT),
+                ],
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.symmetric(horizontal=30, vertical=18),
+            bgcolor=Palette.SURFACE,
+            border=ft.border.only(bottom=ft.BorderSide(1, Palette.BORDER)),
+        )
+        workspace = ft.Column(
+            [top_bar, self.content_area],
+            spacing=0,
+            expand=True,
+        )
+
+        main_row = ft.Row(
+            [
+                self.sidebar,
+                workspace,
+            ],
+            spacing=0,
+            expand=True,
+        )
+
         self.page.add(main_row)
 
     def _on_destination_changed(self, e):
         """导航栏切换事件处理（使用缓存保持状态）"""
         self.current_destination = e.control.selected_index
+        title, subtitle = self.destination_details[self.current_destination]
+        self.header_title.value = title
+        self.header_subtitle.value = subtitle
 
         # 使用缓存的内容，而不是重新创建
         # 这样可以保持各个视图的状态（如输入框内容、滚动位置等）
@@ -432,15 +534,21 @@ class MainApp:
         self.rail_expanded = not self.rail_expanded
 
         if self.rail_expanded:
-            # 展开导航栏
-            self.navigation_rail.label_type = ft.NavigationRailLabelType.ALL
-            self.navigation_rail.min_extended_width = self.rail_width
+            self.navigation_rail.extended = True
+            self.navigation_rail.label_type = None
+            self.sidebar.width = self.rail_width
+            self.brand_text.visible = True
+            self.sidebar_footer.visible = True
             self.collapse_button.icon = ft.Icons.MENU_OPEN
+            self.collapse_button.tooltip = "折叠导航栏"
         else:
-            # 折叠导航栏
+            self.navigation_rail.extended = False
             self.navigation_rail.label_type = ft.NavigationRailLabelType.SELECTED
-            self.navigation_rail.min_extended_width = 56
+            self.sidebar.width = 88
+            self.brand_text.visible = False
+            self.sidebar_footer.visible = False
             self.collapse_button.icon = ft.Icons.MENU
+            self.collapse_button.tooltip = "展开导航栏"
 
         self.page.update()
 
@@ -537,7 +645,7 @@ def create_loading_view(page: ft.Page):
                 ft.Icon(
                     ft.Icons.SCHOOL,
                     size=80,
-                    color=ft.Colors.BLUE,
+                    color=Palette.PRIMARY,
                     animate_opacity=200,
                 ),
 
@@ -546,14 +654,14 @@ def create_loading_view(page: ft.Page):
                     "ZX 智能答题助手",
                     size=32,
                     weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_900,
+                    color=Palette.TEXT,
                     animate_opacity=200,
                 ),
 
                 ft.Text(
                     version.VERSION if hasattr(version, 'VERSION') else "v3.2.0",
                     size=16,
-                    color=ft.Colors.GREY_600,
+                    color=Palette.TEXT_MUTED,
                     opacity=0.7,
                 ),
 
@@ -562,8 +670,8 @@ def create_loading_view(page: ft.Page):
                 # 加载进度条（带动画）
                 ft.ProgressBar(
                     width=300,
-                    color=ft.Colors.BLUE,
-                    bgcolor=ft.Colors.BLUE_50,
+                    color=Palette.PRIMARY,
+                    bgcolor=Palette.PRIMARY_SOFT,
                     bar_height=20,
                 ),
 
@@ -573,7 +681,7 @@ def create_loading_view(page: ft.Page):
                 ft.Text(
                     "正在初始化组件...",
                     size=14,
-                    color=ft.Colors.GREY_600,
+                    color=Palette.TEXT_MUTED,
                     animate_opacity=300,
                 ),
             ],
@@ -588,8 +696,8 @@ def create_loading_view(page: ft.Page):
             begin=ft.Alignment(-1, -1),  # 使用 Alignment(-1, -1) 代替 alignment.top_center
             end=ft.Alignment(1, 1),      # 使用 Alignment(1, 1) 代替 alignment.bottom_center
             colors=[
-                "#ffffff",  # 白色
-                "#f0f4ff",  # 淡蓝色
+                Palette.SURFACE,
+                Palette.PRIMARY_SOFT,
             ],
         ),
     )

@@ -6,6 +6,8 @@
 
 import flet as ft
 from typing import Optional
+from src.ui.components import page_heading, status_chip, surface_card
+from src.ui.theme import Palette, Radius
 
 
 class PluginCenterView:
@@ -53,21 +55,27 @@ class PluginCenterView:
         enabled_plugins = {pid: info for pid, info in plugins.items() if info.enabled}
         disabled_plugins = {pid: info for pid, info in plugins.items() if not info.enabled}
 
-        # 创建切换按钮
-        toggle_buttons = ft.Row(
-            [
-                ft.ElevatedButton(
-                    content=ft.Text(f"我的插件 ({len(enabled_plugins)})"),
-                    bgcolor=ft.Colors.BLUE_100 if self.current_view == "enabled" else None,
-                    on_click=self._show_enabled_view,
-                ),
-                ft.ElevatedButton(
-                    content=ft.Text(f"插件管理 ({len(plugins)})"),
-                    bgcolor=ft.Colors.BLUE_100 if self.current_view == "management" else None,
-                    on_click=self._show_management_view,
-                ),
-            ],
-            spacing=10,
+        toggle_buttons = ft.Container(
+            content=ft.Row(
+                [
+                    self._build_view_toggle(
+                        f"我的插件 ({len(enabled_plugins)})",
+                        self.current_view == "enabled",
+                        self._show_enabled_view,
+                    ),
+                    self._build_view_toggle(
+                        f"插件管理 ({len(plugins)})",
+                        self.current_view == "management",
+                        self._show_management_view,
+                    ),
+                ],
+                spacing=5,
+                tight=True,
+            ),
+            padding=5,
+            bgcolor=Palette.SURFACE_ALT,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.MEDIUM,
         )
 
         # 创建内容区域（根据当前选择显示不同内容）
@@ -85,20 +93,42 @@ class PluginCenterView:
 
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "插件中心",
-                    size=28,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
+                    "扩展工作流能力，管理已安装插件与状态",
+                    ft.Icons.EXTENSION_OUTLINED,
                 ),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                toggle_buttons,
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                ft.Row(
+                    [
+                        toggle_buttons,
+                        ft.Container(expand=True),
+                        status_chip(
+                            f"已启用 {len(enabled_plugins)} / {len(plugins)}",
+                            color=Palette.ACCENT,
+                            bgcolor=Palette.ACCENT_SOFT,
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
                 content_area,
             ],
             scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.START,
             expand=True,
+            spacing=20,
+        )
+
+    def _build_view_toggle(self, label: str, selected: bool, on_click) -> ft.TextButton:
+        """创建插件中心顶部的分段切换按钮。"""
+        return ft.TextButton(
+            label,
+            on_click=on_click,
+            style=ft.ButtonStyle(
+                color=Palette.SURFACE if selected else Palette.TEXT_MUTED,
+                bgcolor=Palette.PRIMARY if selected else Palette.SURFACE_ALT,
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=12),
+            ),
         )
 
     def _show_enabled_view(self, e):
@@ -136,27 +166,22 @@ class PluginCenterView:
     def _build_enabled_plugins_view(self, enabled_plugins: dict) -> ft.Control:
         """构建已启用插件视图"""
         if not enabled_plugins:
-            return ft.Column(
-                [
-                    ft.Icon(
-                        ft.Icons.POWER_OFF,
-                        size=80,
-                        color=ft.Colors.GREY_400,
-                    ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                    ft.Text(
-                        "暂无已启用的插件",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.GREY_600,
-                    ),
-                    ft.Text(
-                        "前往 \"插件管理\" 启用插件",
-                        size=14,
-                        color=ft.Colors.GREY_500,
-                    ),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            return surface_card(
+                ft.Column(
+                    [
+                        ft.Icon(ft.Icons.POWER_OFF, size=48, color=Palette.TEXT_SOFT),
+                        ft.Text(
+                            "暂无已启用的插件",
+                            size=18,
+                            weight=ft.FontWeight.W_600,
+                            color=Palette.TEXT,
+                        ),
+                        ft.Text("前往「插件管理」启用需要的能力", size=13, color=Palette.TEXT_MUTED),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=10,
+                ),
+                padding=36,
             )
 
         plugin_cards = []
@@ -354,57 +379,48 @@ class PluginCenterView:
             icon = ft.Icons.EXTENSION
 
         return ft.GestureDetector(
-            content=ft.Card(
-                content=ft.Container(
-                    content=ft.Column(
-                        [
-                            ft.Row(
-                                [
-                                    ft.Icon(
-                                        icon,
-                                        size=28,
-                                        color=ft.Colors.BLUE,
-                                    ),
-                                    ft.Container(
-                                        content=ft.Column(
-                                            [
-                                                ft.Text(
-                                                    plugin_info.name,
-                                                    size=14,
-                                                    weight=ft.FontWeight.BOLD,
-                                                ),
-                                                ft.Text(
-                                                    plugin_info.description,
-                                                    size=11,
-                                                    color=ft.Colors.GREY_600,
-                                                    max_lines=2,
-                                                    overflow=ft.TextOverflow.ELLIPSIS,
-                                                ),
-                                            ],
-                                            spacing=2,
-                                        ),
-                                        expand=True,
-                                    ),
-                                    ft.IconButton(
-                                        icon=ft.Icons.INFO_OUTLINE,
-                                        tooltip="查看详情",
-                                        icon_size=18,
-                                        on_click=lambda e, pid=plugin_info.id: self._on_plugin_info(pid),
-                                    ),
-                                    ft.IconButton(
-                                        icon=ft.Icons.LAUNCH,
-                                        tooltip="打开插件",
-                                        icon_size=18,
-                                        on_click=lambda e, pid=plugin_info.id: self._on_plugin_open(pid),
-                                    ),
-                                ],
-                            ),
-                        ],
-                        spacing=0,
-                    ),
-                    padding=12,
+            content=surface_card(
+                ft.Row(
+                    [
+                        ft.Container(
+                            content=ft.Icon(icon, size=25, color=Palette.PRIMARY),
+                            width=46,
+                            height=46,
+                            alignment=ft.Alignment(0, 0),
+                            bgcolor=Palette.PRIMARY_SOFT,
+                            border_radius=Radius.SMALL,
+                        ),
+                        ft.Column(
+                            [
+                                ft.Text(plugin_info.name, size=14, weight=ft.FontWeight.W_600),
+                                ft.Text(
+                                    plugin_info.description,
+                                    size=11,
+                                    color=Palette.TEXT_MUTED,
+                                    max_lines=2,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
+                                ),
+                            ],
+                            spacing=3,
+                            expand=True,
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.INFO_OUTLINE,
+                            tooltip="查看详情",
+                            icon_size=18,
+                            on_click=lambda e, pid=plugin_info.id: self._on_plugin_info(pid),
+                        ),
+                        ft.IconButton(
+                            icon=ft.Icons.LAUNCH,
+                            tooltip="打开插件",
+                            icon_size=18,
+                            on_click=lambda e, pid=plugin_info.id: self._on_plugin_open(pid),
+                        ),
+                    ],
+                    spacing=12,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-                elevation=1,
+                padding=14,
             ),
             on_tap=lambda e, pid=plugin_info.id: self._on_plugin_open(pid),
             mouse_cursor=ft.MouseCursor.CLICK,
@@ -423,9 +439,8 @@ class PluginCenterView:
             icon = ft.Icons.EXTENSION
 
         # 构建卡片内容
-        card_content = ft.Card(
-            content=ft.Container(
-                content=ft.Column(
+        card_content = surface_card(
+            ft.Column(
                     [
                         ft.Row(
                             [
@@ -501,10 +516,8 @@ class PluginCenterView:
                         ),
                     ],
                     spacing=0,
-                ),
-                padding=12,
             ),
-            elevation=1,
+            padding=14,
         )
 
         # 如果插件已启用，添加点击事件打开插件
@@ -521,41 +534,28 @@ class PluginCenterView:
         """构建占位符内容"""
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "插件中心",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
+                    "扩展工作流能力，管理已安装插件与状态",
+                    ft.Icons.EXTENSION_OUTLINED,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(ft.Icons.EXTENSION, size=80, color=ft.Colors.BLUE),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                ft.Text(
-                                    "暂无可用插件",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                ),
-                                ft.Text(
-                                    "请将插件放在 plugins/ 目录下",
-                                    size=16,
-                                    color=ft.Colors.GREY_600,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            spacing=5,
-                        ),
-                        padding=30,
-                        width=500,
+                surface_card(
+                    ft.Column(
+                        [
+                            ft.Icon(ft.Icons.EXTENSION_OUTLINED, size=54, color=Palette.PRIMARY),
+                            ft.Text("暂无可用插件", size=22, weight=ft.FontWeight.BOLD, color=Palette.TEXT),
+                            ft.Text("请将插件放在 plugins/ 目录下", size=14, color=Palette.TEXT_MUTED),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=12,
                     ),
-                    elevation=2,
+                    padding=38,
+                    width=520,
                 ),
             ],
             scroll=ft.ScrollMode.AUTO,
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            horizontal_alignment=ft.CrossAxisAlignment.START,
+            spacing=24,
         )
 
     def _open_plugin_directory(self, e):
