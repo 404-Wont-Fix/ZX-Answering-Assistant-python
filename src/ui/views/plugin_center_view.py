@@ -6,7 +6,7 @@
 
 import flet as ft
 from typing import Optional
-from src.ui.components import page_heading, status_chip, surface_card
+from src.ui.components import page_heading, secondary_button, status_chip, surface_card
 from src.ui.theme import Palette, Radius
 
 
@@ -658,6 +658,9 @@ class PluginCenterView:
 
                 # 更新显示
                 if hasattr(self.main_app, 'content_area'):
+                    if hasattr(self.main_app, "header_title"):
+                        self.main_app.header_title.value = plugin_info.name
+                        self.main_app.header_subtitle.value = plugin_info.description
                     self.main_app.content_area.controls[0].content = plugin_page
                     self.page.update()
 
@@ -693,21 +696,14 @@ class PluginCenterView:
             [
                 ft.Row(
                     [
-                        ft.IconButton(
-                            icon=ft.Icons.ARROW_BACK,
-                            tooltip="返回插件中心",
-                            on_click=self._back_to_plugin_center,
-                        ),
-                        ft.Text(
-                            plugin_info.name,
-                            size=24,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_800,
+                        secondary_button(
+                            "返回插件中心",
+                            ft.Icons.ARROW_BACK,
+                            self._back_to_plugin_center,
                         ),
                     ],
                     alignment=ft.MainAxisAlignment.START,
                 ),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                 ft.Container(
                     content=plugin_ui,
                     expand=True,
@@ -715,6 +711,7 @@ class PluginCenterView:
             ],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
+            spacing=18,
         )
 
     def _back_to_plugin_center(self, e):
@@ -730,6 +727,9 @@ class PluginCenterView:
 
         # 更新显示
         if hasattr(self.main_app, 'content_area'):
+            if hasattr(self.main_app, "header_title"):
+                self.main_app.header_title.value = "插件中心"
+                self.main_app.header_subtitle.value = "管理扩展能力与插件入口"
             self.main_app.content_area.controls[0].content = plugin_center_content
             self.page.update()
 
