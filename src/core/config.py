@@ -141,6 +141,10 @@ class SettingsManager:
                 "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
                 "local_browser_path": "",  # 本地浏览器路径（可选）
                 "browser_channel": "chrome"  # 系统浏览器通道: chrome, msedge, chromium (空字符串使用 Playwright 内置浏览器)
+            },
+            "gui_settings": {
+                "minimize_to_tray": False,  # 最小化到系统托盘
+                "close_to_tray": False  # 关闭到系统托盘
             }
         }
 
@@ -615,6 +619,62 @@ class SettingsManager:
             self.config["browser_settings"] = {}
 
         self.config["browser_settings"]["browser_channel"] = channel
+
+        return self._save_config(self.config)
+
+    # ========================================================================
+    # GUI设置相关方法
+    # ========================================================================
+
+    def get_minimize_to_tray(self) -> bool:
+        """
+        获取最小化到系统托盘设置
+
+        Returns:
+            bool: True 表示启用最小化到托盘，False 表示不启用
+        """
+        return self.config.get("gui_settings", {}).get("minimize_to_tray", False)
+
+    def set_minimize_to_tray(self, enabled: bool) -> bool:
+        """
+        设置最小化到系统托盘
+
+        Args:
+            enabled: True 启用最小化到托盘，False 禁用
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "gui_settings" not in self.config:
+            self.config["gui_settings"] = {}
+
+        self.config["gui_settings"]["minimize_to_tray"] = enabled
+
+        return self._save_config(self.config)
+
+    def get_close_to_tray(self) -> bool:
+        """
+        获取关闭到系统托盘设置
+
+        Returns:
+            bool: True 表示启用关闭到托盘，False 表示不启用
+        """
+        return self.config.get("gui_settings", {}).get("close_to_tray", False)
+
+    def set_close_to_tray(self, enabled: bool) -> bool:
+        """
+        设置关闭到系统托盘
+
+        Args:
+            enabled: True 启用关闭到托盘，False 禁用
+
+        Returns:
+            bool: 是否设置成功
+        """
+        if "gui_settings" not in self.config:
+            self.config["gui_settings"] = {}
+
+        self.config["gui_settings"]["close_to_tray"] = enabled
 
         return self._save_config(self.config)
 
