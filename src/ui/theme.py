@@ -1,6 +1,29 @@
 """Shared visual tokens and Flet theme configuration for the desktop app."""
 
 import flet as ft
+import platform
+
+
+class Fonts:
+    """Font family tokens for clear text rendering across platforms."""
+
+    # Windows: 使用微软雅黑和Segoe UI，更清晰
+    WINDOWS = "Microsoft YaHei UI, Segoe UI, sans-serif"
+    # macOS: 使用系统字体
+    MACOS = "-apple-system, BlinkMacSystemFont, sans-serif"
+    # Linux: 使用常见开源字体
+    LINUX = "Ubuntu, Noto Sans, sans-serif"
+
+    @staticmethod
+    def get_system_font() -> str:
+        """获取适合当前系统的清晰字体"""
+        system = platform.system()
+        if system == "Windows":
+            return Fonts.WINDOWS
+        elif system == "Darwin":
+            return Fonts.MACOS
+        else:
+            return Fonts.LINUX
 
 
 class Palette:
@@ -36,6 +59,8 @@ class Radius:
 
 def build_theme() -> ft.Theme:
     """Return the Material 3 theme shared by all application pages."""
+    system_font = Fonts.get_system_font()
+
     return ft.Theme(
         use_material3=True,
         color_scheme_seed=Palette.PRIMARY,
@@ -56,19 +81,30 @@ def build_theme() -> ft.Theme:
         scaffold_bgcolor=Palette.CANVAS,
         card_bgcolor=Palette.SURFACE,
         divider_color=Palette.BORDER,
+        font_family=system_font,
         text_theme=ft.TextTheme(
             title_large=ft.TextStyle(
                 size=24,
                 weight=ft.FontWeight.BOLD,
                 color=Palette.TEXT,
+                font_family=system_font,
             ),
             title_medium=ft.TextStyle(
                 size=16,
                 weight=ft.FontWeight.W_600,
                 color=Palette.TEXT,
+                font_family=system_font,
             ),
-            body_medium=ft.TextStyle(size=14, color=Palette.TEXT),
-            body_small=ft.TextStyle(size=12, color=Palette.TEXT_MUTED),
+            body_medium=ft.TextStyle(
+                size=14,
+                color=Palette.TEXT,
+                font_family=system_font,
+            ),
+            body_small=ft.TextStyle(
+                size=12,
+                color=Palette.TEXT_MUTED,
+                font_family=system_font,
+            ),
         ),
         card_theme=ft.CardTheme(
             color=Palette.SURFACE,
@@ -83,8 +119,12 @@ def build_theme() -> ft.Theme:
             selected_label_text_style=ft.TextStyle(
                 color=Palette.SURFACE,
                 weight=ft.FontWeight.W_600,
+                font_family=system_font,
             ),
-            unselected_label_text_style=ft.TextStyle(color=Palette.NAV_TEXT),
+            unselected_label_text_style=ft.TextStyle(
+                color=Palette.NAV_TEXT,
+                font_family=system_font,
+            ),
             min_width=72,
             min_extended_width=232,
             use_indicator=True,
@@ -97,3 +137,6 @@ def configure_page(page: ft.Page) -> None:
     page.theme = build_theme()
     page.theme_mode = ft.ThemeMode.LIGHT
     page.bgcolor = Palette.CANVAS
+    page.font_family = Fonts.get_system_font()
+    # 启用更清晰的字体渲染
+    page.theme.text_style = ft.TextStyle(font_family=Fonts.get_system_font())
