@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 from src.cloud_exam.workflow import CloudExamWorkflow, NetworkMonitor
 from src.core.config import get_settings_manager
+from src.core.browser import BrowserType
 from src.auth.student import get_student_access_token
 
 
@@ -489,7 +490,12 @@ class CloudExamView:
         """
         try:
             # 调用学生登录函数
-            access_token = get_student_access_token(username, password, keep_browser=True)
+            access_token = get_student_access_token(
+                username,
+                password,
+                keep_browser=True,
+                browser_type=BrowserType.CLOUD_EXAM
+            )
 
             if access_token:
                 self.access_token = access_token

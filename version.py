@@ -9,8 +9,6 @@ import os
 from datetime import datetime
 from pathlib import Path
 
-from plugins.weban_plugin.modules.WeBan.main import VERSION
-
 # 设置控制台编码为 UTF-8（修复 Windows GBK 编码问题）
 if sys.platform == 'win32':
     try:
@@ -62,6 +60,22 @@ def _get_version() -> str:
 # VERSION = _get_version()
 
 VERSION = "3.6.1"
+
+
+def _get_weban_version() -> str:
+    """获取可选 WeBan 子模块版本号，子模块缺失时不影响主程序启动。"""
+    weban_main = Path(__file__).parent / "plugins" / "weban_plugin" / "modules" / "WeBan" / "main.py"
+    if not weban_main.exists():
+        return "Unavailable"
+
+    try:
+        from plugins.weban_plugin.modules.WeBan.main import VERSION as weban_version
+        return weban_version
+    except Exception:
+        return "Unavailable"
+
+
+WEBAN_VERSION = _get_weban_version()
 
 # 构建信息（会在打包时自动更新，开发时自动获取）
 def _get_build_info():
