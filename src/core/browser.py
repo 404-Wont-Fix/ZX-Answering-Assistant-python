@@ -13,7 +13,13 @@
 - 支持系统浏览器（Chrome/Edge）和 Playwright 内置浏览器
 """
 
-from playwright.sync_api import sync_playwright, Browser, BrowserContext, Page
+from playwright.sync_api import (
+    sync_playwright,
+    Browser,
+    BrowserContext,
+    Page,
+    Error as PlaywrightError,
+)
 from typing import Optional, Dict, Tuple, Callable, Any
 from enum import Enum
 import threading
@@ -99,8 +105,10 @@ class BrowserManager:
             self._headless = False
             self._worker_thread = None
             self._worker_lock = threading.Lock()
+            self._worker_ready_event = threading.Event()
             self._task_queue = queue.Queue()
             self._result_futures = {}
+            self._cancelled_task_ids = set()
             self._task_id = 0
             self._task_id_lock = threading.Lock()
             self._result_futures_lock = threading.Lock()
@@ -127,8 +135,8 @@ class BrowserManager:
         try:
             if self._browser.is_connected():
                 return
-        except Exception:
-            pass
+        except (PlaywrightError, RuntimeError) as e:
+            logger.debug(f"检查浏览器连接状态失败: {e}")
 
         logger.warning("检测到浏览器实例已断开，清理旧引用")
         self._contexts.clear()
@@ -137,7 +145,7 @@ class BrowserManager:
         if self._playwright:
             try:
                 self._playwright.stop()
-            except Exception as e:
+            except (PlaywrightError, RuntimeError) as e:
                 logger.debug(f"清理断开 Playwright 实例失败: {e}")
             finally:
                 self._playwright = None
@@ -148,7 +156,7 @@ class BrowserManager:
             return False
         try:
             return not page.is_closed()
-        except Exception:
+        except (PlaywrightError, RuntimeError):
             return False
 
     def _is_context_usable(self, context: Optional[BrowserContext]) -> bool:
@@ -158,7 +166,7 @@ class BrowserManager:
         try:
             _ = context.pages
             return True
-        except Exception:
+        except (PlaywrightError, RuntimeError):
             return False
 
     def _check_playwright_browser(self) -> Tuple[bool, str]:
@@ -179,9 +187,9 @@ class BrowserManager:
                         return True, ""
                     else:
                         return False, f"浏览器可执行文件不存在: {executable_path}"
-                except Exception as e:
+                except (PlaywrightError, RuntimeError, OSError) as e:
                     return False, f"无法获取浏览器路径: {str(e)}"
-        except Exception as e:
+        except (PlaywrightError, RuntimeError, OSError) as e:
             return False, f"Playwright 浏览器检查失败: {str(e)}"
 
     def _install_playwright_browser(self, show_progress: bool = True) -> Tuple[bool, str]:
@@ -221,7 +229,7 @@ class BrowserManager:
             if show_progress:
                 logger.error(f"✗ {error_msg}")
             return False, error_msg
-        except Exception as e:
+        except OSError as e:
             error_msg = f"安装过程出错: {str(e)}"
             if show_progress:
                 logger.error(f"✗ {error_msg}")
@@ -277,7 +285,7 @@ class BrowserManager:
 
             return False, f"无效的路径类型: {local_path}"
 
-        except Exception as e:
+        except (OSError, TypeError) as e:
             return False, f"从本地目录安装失败: {str(e)}"
 
     @staticmethod
@@ -346,7 +354,7 @@ class BrowserManager:
             if not browsers:
                 logger.warning("未检测到系统浏览器（Chrome 或 Edge）")
 
-        except Exception as e:
+        except (OSError, TypeError) as e:
             logger.error(f"检测系统浏览器时出错: {e}")
 
         return browsers
@@ -396,7 +404,7 @@ class BrowserManager:
             logger.info("[OK] 使用 Playwright 内置浏览器")
             return '', "使用 Playwright 内置浏览器"
 
-        except Exception as e:
+        except (ImportError, AttributeError, KeyError, TypeError, ValueError, OSError) as e:
             logger.warning(f"获取浏览器通道配置时出错: {e}，使用默认配置")
             return '', "使用 Playwright 内置浏览器（配置读取失败）"
 
@@ -522,8 +530,8 @@ class BrowserManager:
                         local_browser_path = settings.get_local_browser_path()
                         if local_browser_path:
                             logger.info(f"从配置文件读取本地浏览器路径: {local_browser_path}")
-                    except Exception:
-                        pass
+                    except (ImportError, AttributeError, KeyError, TypeError, ValueError, OSError) as e:
+                        logger.debug(f"读取本地浏览器路径配置失败: {e}")
 
                 # 确保浏览器已安装
                 if auto_install:
@@ -541,9 +549,9 @@ class BrowserManager:
                     settings = get_settings_manager()
                     headless = settings.get_browser_headless()
                     logger.info(f"从配置文件读取无头模式设置: headless={headless}")
-                except Exception:
+                except (ImportError, AttributeError, KeyError, TypeError, ValueError, OSError) as e:
                     headless = False  # 默认显示浏览器
-                    logger.debug("无法读取配置文件，使用默认设置（显示浏览器）")
+                    logger.debug(f"无法读取配置文件，使用默认设置（显示浏览器）: {e}")
 
             self._headless = headless
             self._playwright = sync_playwright().start()
@@ -666,7 +674,7 @@ class BrowserManager:
                 if not old_page.is_closed():
                     old_page.close()
                     logger.debug(f"已关闭旧页面: {browser_type.value}")
-            except Exception as e:
+            except (PlaywrightError, RuntimeError) as e:
                 logger.debug(f"关闭旧页面失败 ({browser_type.value}): {e}")
 
         page = context.new_page()
@@ -717,7 +725,7 @@ class BrowserManager:
                 try:
                     if not old_page.is_closed():
                         old_page.close()
-                except Exception as e:
+                except (PlaywrightError, RuntimeError) as e:
                     logger.debug(f"关闭孤立页面失败 ({browser_type.value}): {e}")
             logger.debug(f"上下文 {browser_type.value} 不存在")
             return
@@ -731,7 +739,7 @@ class BrowserManager:
                 try:
                     pages_to_close = context.pages
                     logger.debug(f"找到 {len(pages_to_close)} 个页面需要关闭")
-                except Exception as e:
+                except (PlaywrightError, RuntimeError) as e:
                     logger.debug(f"获取页面列表失败: {e}")
 
                 for page in pages_to_close:
@@ -739,19 +747,13 @@ class BrowserManager:
                         if not page.is_closed():
                             page.close()
                             logger.debug(f"页面已关闭")
-                    except Exception as e:
+                    except (PlaywrightError, RuntimeError) as e:
                         logger.debug(f"关闭页面失败: {e}")
-
-                # 移除上下文监听器
-                try:
-                    context._impl_obj._channels = []
-                except Exception as e:
-                    logger.debug(f"移除上下文监听器失败: {e}")
 
                 # 关闭上下文
                 context.close()
                 logger.debug(f"上下文已关闭 ({browser_type.value})")
-        except Exception as e:
+        except (PlaywrightError, RuntimeError, OSError) as e:
             # 忽略 EPIPE 和连接错误
             if "EPIPE" not in str(e) and "broken pipe" not in str(e).lower():
                 logger.warning(f"关闭上下文失败 ({browser_type.value}): {e}")
@@ -794,14 +796,6 @@ class BrowserManager:
         # 关闭浏览器
         if self._browser:
             try:
-                # 先移除所有监听器，避免关闭时触发事件
-                try:
-                    if hasattr(self._browser, '_impl_obj') and self._browser._impl_obj:
-                        self._browser._impl_obj._channels = []
-                        logger.debug("浏览器监听器已移除")
-                except Exception as e:
-                    logger.debug(f"移除浏览器监听器失败: {e}")
-
                 # 关闭浏览器
                 try:
                     if self._browser.is_connected():
@@ -809,7 +803,7 @@ class BrowserManager:
                         logger.info("浏览器已关闭")
                     else:
                         logger.info("浏览器已断开连接，跳过关闭操作")
-                except Exception as e:
+                except (PlaywrightError, RuntimeError, OSError) as e:
                     # 检查是否是 greenlet 线程切换错误
                     if "greenlet" in str(e) or "Cannot switch" in str(e):
                         logger.warning("检测到 greenlet 线程切换错误，强制清理浏览器引用")
@@ -827,7 +821,7 @@ class BrowserManager:
             try:
                 self._playwright.stop()
                 logger.info("Playwright 已停止")
-            except Exception as e:
+            except (PlaywrightError, RuntimeError, OSError) as e:
                 # 检查是否是 greenlet 线程切换错误
                 if "greenlet" in str(e) or "Cannot switch" in str(e):
                     logger.warning("检测到 greenlet 线程切换错误，强制清理 Playwright 引用")
@@ -854,9 +848,13 @@ class BrowserManager:
         with self._worker_lock:
             if self._worker_thread is None or not self._worker_thread.is_alive():
                 logger.info("启动 Playwright 工作线程")
+                self._worker_ready_event.clear()
                 self._worker_thread = threading.Thread(target=self._worker_loop, daemon=True)
                 self._worker_thread.start()
-                logger.info("Playwright 工作线程已启动")
+                logger.info("Playwright 工作线程已创建，等待就绪信号")
+
+        if not self._worker_ready_event.wait(timeout=5):
+            raise RuntimeError("Playwright 工作线程启动超时")
 
     def _worker_loop(self):
         """工作线程的主循环，处理任务队列"""
@@ -864,6 +862,7 @@ class BrowserManager:
         logger.info(f"Playwright 工作线程开始运行，线程ID: {worker_thread_id}")
         # 标记这是工作线程
         self._thread_local.is_worker = True
+        self._worker_ready_event.set()
 
         while True:
             try:
@@ -872,6 +871,17 @@ class BrowserManager:
                     task_id, func, args, kwargs = self._task_queue.get(timeout=1.0)
                     logger.info(f"[工作线程 {worker_thread_id}] 收到任务 {task_id}: {func.__name__}")
                 except queue.Empty:
+                    continue
+
+                with self._result_futures_lock:
+                    is_cancelled = task_id in self._cancelled_task_ids
+                    if is_cancelled:
+                        self._cancelled_task_ids.discard(task_id)
+                        self._result_futures.pop(task_id, None)
+
+                if is_cancelled:
+                    logger.warning(f"[工作线程] 跳过已超时取消的任务 {task_id}: {func.__name__}")
+                    self._task_queue.task_done()
                     continue
 
                 # 执行任务
@@ -883,12 +893,15 @@ class BrowserManager:
                     logger.debug(f"[工作线程] 任务 {task_id} 执行成功")
                     # 将结果保存到 Future
                     with self._result_futures_lock:
+                        self._cancelled_task_ids.discard(task_id)
                         future = self._result_futures.pop(task_id, None)
                     if future and not future.done():
                         future.set_result(result)
                 except Exception as e:
+                    # 任务函数来自各业务模块，必须兜底捕获并回传给调用方，避免工作线程退出。
                     logger.error(f"任务 {task_id} 执行失败: {e}", exc_info=True)
                     with self._result_futures_lock:
+                        self._cancelled_task_ids.discard(task_id)
                         future = self._result_futures.pop(task_id, None)
                     if future and not future.done():
                         future.set_exception(e)
@@ -896,6 +909,7 @@ class BrowserManager:
                 self._task_queue.task_done()
 
             except Exception as e:
+                # 工作线程是 Playwright 的唯一执行通道，主循环必须自恢复。
                 logger.error(f"工作线程主循环异常: {e}", exc_info=True)
 
     def submit_task(self, func: Callable, *args, **kwargs) -> Any:
@@ -944,7 +958,10 @@ class BrowserManager:
         except concurrent.futures.TimeoutError:
             logger.error(f"任务 {task_id} 超时")
             with self._result_futures_lock:
-                self._result_futures.pop(task_id, None)
+                timed_out_future = self._result_futures.pop(task_id, None)
+                self._cancelled_task_ids.add(task_id)
+            if timed_out_future and not timed_out_future.done():
+                timed_out_future.cancel()
             raise TimeoutError(f"任务执行超时: {func.__name__}")
 
     def is_browser_alive(self) -> bool:
@@ -962,18 +979,14 @@ class BrowserManager:
             logger.debug("浏览器实例为 None")
             return False
         try:
-            # 多重检查确保浏览器真正存活
-            # 1. 检查是否已连接
             if not self._browser.is_connected():
                 logger.warning("浏览器已断开连接")
                 return False
-            # 2. 尝试访问上下文列表
             _ = self._browser.contexts
-            # 3. 尝试访问版本信息
             _ = self._browser.version
             logger.debug("浏览器健康检查通过")
             return True
-        except Exception as e:
+        except (PlaywrightError, RuntimeError) as e:
             logger.warning(f"浏览器健康检查失败: {e}")
             return False
 
@@ -1003,14 +1016,10 @@ class BrowserManager:
             return False
 
         try:
-            # 多重检查确保上下文真正存活
-            # 1. 尝试访问页面列表
             _ = context.pages
-            # 2. 尝试访问上下文 URL
-            _ = context._impl_obj
             logger.debug(f"上下文健康检查通过 ({browser_type.value})")
             return True
-        except Exception as e:
+        except (PlaywrightError, RuntimeError) as e:
             logger.warning(f"上下文健康检查失败 ({browser_type.value}): {e}")
             return False
 
