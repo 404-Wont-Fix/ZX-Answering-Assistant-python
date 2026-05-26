@@ -57,7 +57,7 @@ python main.py
 
 ### 方法 2：手动配置
 
-编辑 `cli_config.json` 文件：
+编辑用户配置目录中的 `cli_config.json` 文件（也可直接通过应用设置界面修改）：
 
 ```json
 {

@@ -31,7 +31,7 @@ python3 -m playwright install chromium
 #### Windows 系统
 
 ```json
-// 编辑 cli_config.json，添加本地浏览器路径
+// 通过应用设置界面，或编辑用户配置目录中的 cli_config.json
 {
   "browser_settings": {
     "headless": false,
@@ -132,7 +132,7 @@ mkdir -p ~/Library/Caches/ms-playwright/chromium-1234
 
 1. 下载便携版 Chromium 浏览器
 2. 解压到任意目录（如 `C:\Chromium\`）
-3. 在 `cli_config.json` 中配置路径：
+3. 在设置界面或用户配置目录中的 `cli_config.json` 中配置路径：
 
 ```json
 {
@@ -223,7 +223,7 @@ python -c "from playwright.sync_api import sync_playwright; p = sync_playwright(
 
 ## 配置示例
 
-完整的 `cli_config.json` 配置示例：
+用户配置目录中的 `cli_config.json` 配置示例：
 
 ```json
 {

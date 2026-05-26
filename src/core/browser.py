@@ -467,7 +467,7 @@ class BrowserManager:
         方案2: 使用本地浏览器
         ------------------------
         如果您已经有 Chromium 浏览器，可以指定路径:
-        1. 编辑配置文件 cli_config.json
+        1. 在应用设置中配置，或编辑用户配置目录中的 cli_config.json
         2. 添加: "local_browser_path": "浏览器路径"
         3. Windows 示例: "C:\\Program Files\\Chromium\\chrome.exe"
         4. Linux/Mac 示例: "/usr/bin/chromium"

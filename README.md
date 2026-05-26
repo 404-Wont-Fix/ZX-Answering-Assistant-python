@@ -7,11 +7,11 @@
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v3.6.1-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v3.7.2-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
 
 **一个基于 Playwright 的在线学习平台自动化答题助手系统**
 
-支持 **插件化架构**，提供浏览器兼容模式和 API 暴力模式两种答题方式。
+支持 **插件化架构** 和统一的现代桌面工作台界面，提供浏览器兼容模式和 API 暴力模式两种答题方式。
 
 [功能特性](#功能特性) • [技术架构](#技术架构) • [快速开始](#快速开始) • [插件开发](#插件开发) • [常见问题](#常见问题)
 
@@ -71,10 +71,18 @@
 |------|------|------|
 | **云考试助手** | 云考试答题、题库匹配 | ✅ 可用 |
 | **课程认证助手** | 教师课程认证答题 | ✅ 可用 |
-| **评估出题助手** | 评估出题功能 | ✅ 可用 |
+| **评估出题助手** | 智能出题入口 | 开发中 |
 | **警告提示器** | 弹出自定义警告提示窗口，支持循环提醒 | ✅ 可用 |
+| **安全微伴** | 微伴课程学习与考试辅助 | ✅ 可用 |
 
 ### 核心功能
+
+#### 现代工作台界面
+
+- **统一设计系统**: 核心页面和内置插件共享色彩、卡片、按钮及状态标签样式
+- **工作台导航**: 深色侧边栏可折叠，并始终保留可恢复展开的入口
+- **稳定布局**: 评估答题详情区使用独立滚动容器，列表长度不会挤压操作区布局
+- **页面一致性**: 评估答题、答案提取、插件中心和课程认证采用一致的信息层级与交互反馈
 
 #### 🌐 系统浏览器支持
 
@@ -200,8 +208,8 @@ ZX-Answering-Assistant-python/
 │   │   ├── manifest.json            # 插件元数据
 │   │   ├── __init__.py
 │   │   ├── ui.py                    # UI 入口
-│   │   ├── warning_window.py        # 独立警告窗口
-│   │   └── warning_config.json      # 配置文件
+│   │   └── warning_config.example.json # 配置示例（运行配置不入库）
+│   ├── weban_plugin/                # 安全微伴插件
 │   └── README.md                    # 插件开发指南
 │
 ├── src/
@@ -235,19 +243,16 @@ ZX-Answering-Assistant-python/
 │   │   ├── exporter.py
 │   │   └── importer.py
 │   │
+│   ├── main_gui.py                  # 主 GUI 入口
 │   ├── ui/                          # UI 层
-│   │   ├── main_gui.py              # 主 GUI 入口
+│   │   ├── theme.py                 # 颜色、间距与字体样式令牌
+│   │   ├── components.py            # 共享卡片、标题与状态组件
 │   │   └── views/                   # 视图组件
 │   │       ├── answering_view.py
 │   │       ├── cloud_exam_view.py
 │   │       ├── course_certification_view.py
 │   │       ├── plugin_center_view.py
 │   │       └── settings_view.py
-│   │
-│   ├── modules/                     # 扩展模块
-│   │   ├── WeBan/                   # 安全微伴模块
-│   │   ├── weban_adapter.py
-│   │   └── weban_runner.py
 │   │
 │   └── utils/                       # 工具模块
 │       └── retry.py
@@ -317,13 +322,13 @@ python -m playwright install chromium
 
 **方法2: 使用本地浏览器**
 ```bash
-# 编辑 cli_config.json，添加本地浏览器路径
+# 在设置界面配置本地浏览器路径，或编辑用户配置目录中的 cli_config.json
 # "browser_settings": {"local_browser_path": "C:\\Path\\To\\chrome.exe"}
 ```
 
 **⚠️ 重要提示**: 如果遇到浏览器安装问题：
 - 程序启动时会自动尝试安装浏览器
-- 详见：[浏览器安装指南](BROWSER_INSTALL_GUIDE.md)
+- 详见：[浏览器安装指南](docs/BROWSER_SETUP.md)
 
 5. **运行程序**
 
@@ -343,7 +348,7 @@ python main.py
 
 **如果无法访问 Google/GitHub**：
 - 使用代理（推荐）
-- 配置国内镜像（详见 BUILD_GUIDE.md）
+- 配置国内镜像（详见 [编译打包指南](docs/BUILD_GUIDE.md)）
 - 或在良好网络环境下构建
 
 #### 快速构建
@@ -455,12 +460,12 @@ unable to get local issuer certificate (_ssl.c:1000)>
 
 **解决方案**:
 
-**✅ 自动配置 (v3.2.0+)**
+**✅ 启动配置**
 
 从 v3.2.0 开始，程序内置了自动 SSL 证书配置功能，无需手动干预。
 
 程序会在启动时：
-1. 自动检查并安装 `certifi` 根证书包
+1. 使用依赖中已安装的 `certifi` 根证书包；缺失时回退到系统证书
 2. 配置全局 SSL 证书设置
 3. 配置 urllib 和 requests 的 SSL 上下文
 
@@ -478,9 +483,9 @@ unable to get local issuer certificate (_ssl.c:1000)>
    python main.py
    ```
 
-3. **运行测试脚本**:
+3. **验证证书包可用**:
    ```bash
-   python test_ssl.py
+   python -c "import certifi; print(certifi.where())"
    ```
 
 **详细指南**: 查看 [SSL 证书配置指南](docs/SSL_SETUP.md)
@@ -491,17 +496,16 @@ unable to get local issuer certificate (_ssl.c:1000)>
 
 **解决方案**:
 
-1. **自动安装**: 程序启动时会自动检测并安装 Flet
-2. **手动安装**:
+1. **安装项目依赖**:
+   ```bash
+   pip install -r requirements.txt
+   ```
+2. **仅安装 GUI 依赖**:
    ```bash
    pip install flet>=0.82.0
    pip install flet-desktop
    ```
-3. **使用项目依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-4. **国内镜像加速**:
+3. **国内镜像加速**:
    ```bash
    pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
    pip install flet-desktop -i https://pypi.tuna.tsinghua.edu.cn/simple
@@ -509,7 +513,7 @@ unable to get local issuer certificate (_ssl.c:1000)>
 
 **⚠️ 重要提示**:
 - Flet 首次运行时会自动下载桌面运行时文件（约 50-100MB），可能需要 1-3 分钟，这是正常行为
-- **Flet 0.8.0+ 需要同时安装 `flet` 和 `flet-desktop` 两个包**
+- **本项目使用 Flet 0.82.x，需要同时安装 `flet` 和 `flet-desktop` 两个包**
 
 **错误: `No module named 'flet_desktop'`**
 
@@ -519,9 +523,7 @@ unable to get local issuer certificate (_ssl.c:1000)>
 pip install flet-desktop
 ```
 
-**📥 如果自动下载失败**：请查看 [Flet 可执行文件手动下载指南](FLET_MANUAL_DOWNLOAD.md)
-
-**详细指南**: 查看 [Flet 安装指南](FLET_INSTALL_GUIDE.md)
+**如果自动下载失败**：请查看 [Flet 安装与运行时指南](docs/FLET_SETUP.md)
 
 ### 3. 浏览器启动失败
 
@@ -534,7 +536,7 @@ pip install flet-desktop
    ```bash
    python -m playwright install chromium
    ```
-3. **使用本地浏览器**: 编辑 `cli_config.json`，添加浏览器路径
+3. **使用本地浏览器**: 在设置界面配置路径，或编辑用户配置目录中的 `cli_config.json`
    ```json
    {
      "browser_settings": {
@@ -549,7 +551,7 @@ pip install flet-desktop
    python -m playwright install chromium
    ```
 
-**详细指南**: 查看 [浏览器安装指南](BROWSER_INSTALL_GUIDE.md)
+**详细指南**: 查看 [浏览器安装指南](docs/BROWSER_SETUP.md)
 
 ### 4. 插件无法加载
 
@@ -566,6 +568,14 @@ pip install flet-desktop
 ---
 
 ## 版本历史
+
+### v3.7.2 (2026-05-26)
+
+- 统一评估答题、答案提取、插件中心与课程认证页面的现代工作台风格
+- 修复侧边栏折叠后无法恢复、状态标签可读性不足及详情列表影响整体布局的问题
+- 同步项目说明与版本元数据，整理过期文档入口
+
+完整变更记录请参阅 [CHANGELOG.md](CHANGELOG.md)。
 
 ### v3.6.0 (2026-05-07)
 
@@ -601,7 +611,7 @@ pip install flet-desktop
 
 - 🔒 **新增**: 自动 SSL 证书配置功能
   - 解决 Windows 环境下的 SSL 验证失败问题
-  - 自动安装和配置 certifi 根证书包
+  - 检测和配置 certifi 根证书包
   - 配置 urllib、requests 的 SSL 上下文
   - 新增 SSL 测试工具 (`test_ssl.py`)
 - 📝 **文档**: 新增 SSL 证书配置指南 (`docs/SSL_SETUP.md`)

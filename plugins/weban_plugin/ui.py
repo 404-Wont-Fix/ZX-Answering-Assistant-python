@@ -34,5 +34,5 @@ def create_view(page, context):
         ft.Control: 安全微伴的根控件
     """
     # 创建WeBan视图（使用插件内部版本）
-    view = WeBanView(page)
+    view = WeBanView(page, settings_manager=context.settings_manager)
     return view.get_content()

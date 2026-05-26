@@ -184,19 +184,22 @@ build\windows\x64\runner\Release\ZX Answering Assistant.exe
 ```toml
 [project]
 name = "zx-answering-assistant"
-version = "3.5.0"
+version = "3.7.2"
 description = "Intelligent Answering Assistant System"
 requires-python = ">=3.10"
 
 dependencies = [
-    "flet>=0.82.0",
+    "flet==0.82.2",
     "requests>=2.31.0",
     "certifi>=2024.0.0",
     "playwright>=1.57.0",
-    "flet-desktop>=0.21.0",
+    "flet-desktop==0.82.2",
     "pycryptodome>=3.19.0",
     "loguru>=0.7.0",
     "ddddocr>=1.5.0",
+    "DrissionPage>=4.1.0",
+    "pystray>=0.19.5",
+    "Pillow>=10.0.0",
 ]
 
 [tool.flet]

@@ -21,10 +21,24 @@ from src.auth.student import (
     cleanup_browser,
 )
 from src.core.config import get_settings_manager
+from src.ui.components import (
+    hero_panel,
+    page_heading,
+    primary_button,
+    secondary_button,
+    section_label,
+    status_chip,
+    surface_card,
+    workflow_step,
+)
+from src.ui.theme import Palette, Radius
 
 
 class AnsweringView:
     """评估答题页面视图"""
+
+    DETAIL_MIN_HEIGHT = 620
+    DETAIL_MAX_HEIGHT = 860
 
     def __init__(self, page: ft.Page, main_app=None):
         """
@@ -96,59 +110,86 @@ class AnsweringView:
         Returns:
             ft.Column: 主界面组件
         """
+        start_button = ft.FilledButton(
+            "开始新任务",
+            icon=ft.Icons.PLAY_ARROW,
+            bgcolor=Palette.SURFACE,
+            color=Palette.PRIMARY,
+            on_click=lambda e: self._on_start_answer_click(e),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=16),
+                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+            ),
+        )
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "评估答题",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "登录学生端、选择课程并完成自动答题流程",
+                    ft.Icons.CHECK_CIRCLE_OUTLINE,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
-                                    title=ft.Text("学生端登录", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("登录学生端平台进行身份验证"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.GREEN),
-                                    title=ft.Text("选择课程", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("查看并选择需要完成的课程"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.PLAY_ARROW, color=ft.Colors.ORANGE),
-                                    title=ft.Text("开始答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("自动加载题库并完成课程评估答题"),
-                                ),
-                            ],
-                            spacing=10,
+                hero_panel(
+                    "让课程评估处理更从容",
+                    "一次完成身份验证、课程选择与题库驱动的自动答题。",
+                    action=start_button,
+                    chips=[
+                        status_chip(
+                            "学生端认证",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),
-                        padding=20,
-                        width=600,
-                    ),
-                    elevation=2,
+                        status_chip(
+                            "题库支持",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "进度可见",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                    ],
+                    icon=ft.Icons.AUTO_AWESOME,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.ElevatedButton(
-                    "开始答题",
-                    icon=ft.Icons.PLAY_ARROW,
-                    bgcolor=ft.Colors.BLUE,
-                    color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
-                        animation_duration=200,
+                section_label("任务流程", "开始前可快速确认整个执行路径"),
+                ft.ResponsiveRow(
+                    [
+                        ft.Container(
+                            content=workflow_step("01", "学生端登录", "验证账号并读取可用课程", ft.Icons.PERSON_OUTLINE),
+                            col={"xs": 12, "md": 4},
+                        ),
+                        ft.Container(
+                            content=workflow_step("02", "选择课程", "查看进度和未完成项目", ft.Icons.MENU_BOOK),
+                            col={"xs": 12, "md": 4},
+                        ),
+                        ft.Container(
+                            content=workflow_step("03", "启动答题", "载入题库并跟踪执行状态", ft.Icons.PLAY_CIRCLE_OUTLINE),
+                            col={"xs": 12, "md": 4},
+                        ),
+                    ],
+                    spacing=12,
+                    run_spacing=12,
+                ),
+                surface_card(
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.INFO_OUTLINE, color=Palette.PRIMARY, size=21),
+                            ft.Text(
+                                "建议先准备与课程匹配的 JSON 题库，任务执行过程会展示实时进度。",
+                                size=13,
+                                color=Palette.TEXT_MUTED,
+                                expand=True,
+                            ),
+                        ],
+                        spacing=12,
                     ),
-                    on_click=lambda e: self._on_start_answer_click(e),
-                    animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+                    padding=16,
+                    bgcolor=Palette.PRIMARY_SOFT,
                 ),
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=22,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def _get_login_content(self) -> ft.Column:
@@ -189,7 +230,7 @@ class AnsweringView:
             icon_size=20,
             tooltip="使用账号后六位作为密码",
             on_click=lambda e: self._on_fill_password_click(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -201,7 +242,7 @@ class AnsweringView:
             icon_size=20,
             tooltip="显示/隐藏密码",
             on_click=lambda e: self._toggle_password_visibility(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -219,88 +260,59 @@ class AnsweringView:
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             width=400,
-            border=ft.border.all(1, ft.Colors.BLACK),
-            border_radius=4,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER_STRONG),
+            border_radius=Radius.SMALL,
             padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
-            # bgcolor=ft.Colors.WHITE,
         )
 
         # 创建"记住我"复选框
         self.remember_password_checkbox = ft.Checkbox(
             label="记住我（自动保存账号和密码）",
             value=bool(saved_username and saved_password),  # 如果已保存凭据，默认勾选
-            fill_color=ft.Colors.BLUE,
+            fill_color=Palette.PRIMARY,
         )
 
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "学生端登录",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "安全验证学生账号后读取课程列表",
+                    ft.Icons.LOCK_OUTLINE,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(
-                                    ft.Icons.SCHOOL,
-                                    size=64,
-                                    color=ft.Colors.BLUE_400,
-                                ),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                self.username_field,
-                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                                password_row,
-                                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                                self.remember_password_checkbox,
-                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                                ft.Row(
-                                    [
-                                        ft.OutlinedButton(
-                                            "返回",
-                                            icon=ft.Icons.ARROW_BACK,
-                                            style=ft.ButtonStyle(
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_back_click(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                        ft.ElevatedButton(
-                                            "登录",
-                                            icon=ft.Icons.LOGIN,
-                                            bgcolor=ft.Colors.BLUE,
-                                            color=ft.Colors.WHITE,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.Padding.symmetric(
-                                                    horizontal=30, vertical=15
-                                                ),
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_login_click(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    spacing=20,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=30,
-                        width=500,
+                surface_card(
+                    ft.Column(
+                        [
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.SCHOOL, size=32, color=Palette.PRIMARY),
+                                width=64,
+                                height=64,
+                                alignment=ft.Alignment(0, 0),
+                                bgcolor=Palette.PRIMARY_SOFT,
+                                border_radius=Radius.CARD,
+                            ),
+                            ft.Text("登录学生端", size=20, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Text("凭据仅用于完成当前工作流", size=12, color=Palette.TEXT_MUTED),
+                            self.username_field,
+                            password_row,
+                            self.remember_password_checkbox,
+                            ft.Row(
+                                [
+                                    secondary_button("返回", ft.Icons.ARROW_BACK, lambda e: self._on_back_click(e)),
+                                    primary_button("登录并继续", ft.Icons.LOGIN, lambda e: self._on_login_click(e)),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=12,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=16,
                     ),
-                    elevation=5,
+                    padding=30,
+                    width=520,
                 ),
             ],
+            spacing=24,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
@@ -447,7 +459,7 @@ class AnsweringView:
             if access_token:
                 self.access_token = access_token
                 self.username = username
-                print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+                print("✅ 成功获取 access_token")
 
                 # 根据复选框状态保存凭据
                 if self.remember_password_checkbox.value:
@@ -775,12 +787,14 @@ class AnsweringView:
         # 获取课程ID
         course_id = course.get('courseID')
         course_name = course.get('courseName', '未知课程')
+        detail_height = self._get_detail_workspace_height()
 
         # 生成进度信息卡片内容
         progress_card = self._create_progress_card(course_name)
 
         # 生成未完成知识点列表卡片内容
         knowledge_card = self._create_knowledge_list_card(course)
+        knowledge_card.height = detail_height
 
         # 答题选项菜单（移到左侧）
         option_menu = ft.Card(
@@ -877,46 +891,53 @@ class AnsweringView:
             [
                 progress_card,
                 ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                ft.Container(
-                    content=option_menu,
-                    expand=True,
-                ),
+                option_menu,
             ],
-            expand=True,
             spacing=0,
+            scroll=ft.ScrollMode.AUTO,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        # 右侧区域：未完成知识点列表（填充剩余区域）
+        # 右侧列表固定在工作区内滚动，不让条目数量拉伸整个页面。
         right_column = ft.Container(
             content=knowledge_card,
+            height=detail_height,
             expand=True,
         )
 
         # 左右分栏内容
         detail_row = ft.Row(
             [
-                # 左侧：进度信息 + 答题选项菜单（扩展填充）
                 ft.Container(
                     content=left_column,
+                    height=detail_height,
                     expand=True,
                 ),
                 ft.VerticalDivider(width=1, color=ft.Colors.GREY_300),
-                # 右侧：未完成知识点列表（填充剩余区域）
                 right_column,
             ],
-            expand=True,
+            height=detail_height,
             spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
-        # 包装在Column中，铺满窗口
         return ft.Column(
             [
                 detail_row,
             ],
-            expand=True,
             spacing=0,
         )
+
+    def _get_detail_workspace_height(self) -> int:
+        """Calculate a stable detail-panel height independent of list contents."""
+        viewport_height = getattr(self.page, "height", None)
+        if viewport_height:
+            available_height = int(viewport_height) - 185
+            return max(
+                self.DETAIL_MIN_HEIGHT,
+                min(self.DETAIL_MAX_HEIGHT, available_height),
+            )
+        return self.DETAIL_MAX_HEIGHT
 
     def _update_progress_info(self):
         """更新课程进度信息卡片（已弃用，使用 _perform_course_navigation_and_load 代替）"""

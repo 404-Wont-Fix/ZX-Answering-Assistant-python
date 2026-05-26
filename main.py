@@ -379,7 +379,7 @@ def run_gui_mode():
         # 检查 Flet 库安装状态
         print("   ✓ 检查 Flet 库...")
         from src.core.flet_installer import ensure_flet_installed
-        flet_ok, flet_error = ensure_flet_installed(auto_install=True)
+        flet_ok, flet_error = ensure_flet_installed(auto_install=False)
         if not flet_ok:
             print()
             print("❌ Flet 库检查失败！")

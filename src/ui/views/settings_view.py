@@ -6,6 +6,8 @@ This module contains the UI components for the settings page.
 
 import flet as ft
 from src.core.config import get_settings_manager, APIRateLevel
+from src.ui.components import page_heading, primary_button, secondary_button
+from src.ui.theme import Palette, Radius
 
 
 class SettingsView:
@@ -88,81 +90,51 @@ class SettingsView:
 
         return ft.Column(
             [
-                # 页面标题
                 ft.Container(
-                    content=ft.Row(
-                        [
-                            ft.Icon(ft.Icons.SETTINGS, size=32, color=ft.Colors.BLUE_800),
-                            ft.Text(
-                                "系统设置",
-                                size=32,
-                                weight=ft.FontWeight.BOLD,
-                                color=ft.Colors.BLUE_800,
-                            ),
-                        ],
-                        spacing=15,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    content=page_heading(
+                        "系统设置",
+                        "集中管理账号、请求策略、浏览器和后台运行方式",
+                        ft.Icons.SETTINGS_OUTLINED,
                     ),
-                    padding=ft.Padding.symmetric(vertical=10),
+                    width=900,
                 ),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
 
                 # 账号管理区域
                 self._create_accounts_section(student_has_config, teacher_has_config),
 
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
                 # API设置区域
                 self._create_api_settings_section(rate_level, max_retries),
-
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
 
                 # 浏览器设置区域
                 self._create_browser_settings_section(headless),
 
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                # GUI设置区域
-                self._create_gui_settings_section(),
-
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
+                # 主窗口和系统托盘设置区域
+                self._create_tray_settings_section(),
 
                 # 保存和应用按钮
-                ft.Row(
-                    [
-                        ft.ElevatedButton(
-                            "保存设置",
-                            icon=ft.Icons.SAVE,
-                            bgcolor=ft.Colors.GREEN,
-                            color=ft.Colors.WHITE,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
-                                animation_duration=200,
+                ft.Container(
+                    content=ft.Row(
+                        [
+                            secondary_button(
+                                "应用并重启浏览器",
+                                ft.Icons.AUTORENEW,
+                                lambda e: self._on_apply_click(e),
                             ),
-                            on_click=lambda e: self._on_save_click(e),
-                            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                        ),
-                        ft.ElevatedButton(
-                            "应用并重启浏览器",
-                            icon=ft.Icons.AUTORENEW,
-                            bgcolor=ft.Colors.BLUE,
-                            color=ft.Colors.WHITE,
-                            style=ft.ButtonStyle(
-                                shape=ft.RoundedRectangleBorder(radius=10),
-                                padding=ft.Padding.symmetric(horizontal=40, vertical=15),
-                                animation_duration=200,
+                            primary_button(
+                                "保存设置",
+                                ft.Icons.SAVE,
+                                lambda e: self._on_save_click(e),
                             ),
-                            on_click=lambda e: self._on_apply_click(e),
-                            animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
-                        ),
-                    ],
-                    alignment=ft.MainAxisAlignment.CENTER,
-                    spacing=20,
+                        ],
+                        alignment=ft.MainAxisAlignment.END,
+                        spacing=12,
+                    ),
+                    width=900,
+                    padding=ft.Padding.symmetric(vertical=8),
                 ),
             ],
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-            spacing=0,
+            spacing=18,
         )
 
     def _create_accounts_section(
@@ -217,7 +189,7 @@ class SettingsView:
             icon_size=20,
             tooltip="使用账号后六位作为密码",
             on_click=lambda e: self._on_student_fill_password_click(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -229,7 +201,7 @@ class SettingsView:
             icon_size=20,
             tooltip="显示/隐藏密码",
             on_click=lambda e: self._on_student_toggle_password_visibility(e),
-            icon_color=ft.Colors.BLACK,
+            icon_color=Palette.TEXT_MUTED,
             width=40,
             height=40,
             padding=5,
@@ -246,8 +218,8 @@ class SettingsView:
                 spacing=0,
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
-            border=ft.border.all(1, ft.Colors.BLACK),
-            border_radius=4,
+            border=ft.border.all(1, Palette.BORDER_STRONG),
+            border_radius=Radius.SMALL,
             padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
             width=310,
         )
@@ -258,7 +230,7 @@ class SettingsView:
                 ft.Container(
                     content=ft.Icon(
                         ft.Icons.LOCK,
-                        color=ft.Colors.BLACK,
+                        color=Palette.TEXT_MUTED,
                         size=22,
                     ),
                     width=40,
@@ -442,8 +414,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.BLUE_GREY_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _create_api_settings_section(
@@ -608,8 +581,9 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.BLUE_GREY_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _create_browser_settings_section(self, headless: bool) -> ft.Container:
@@ -728,198 +702,86 @@ class SettingsView:
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.PURPLE_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
-    def _create_gui_settings_section(self) -> ft.Container:
-        """
-        创建GUI设置区域（包括系统托盘设置）
-
-        Returns:
-            ft.Container: GUI设置区域
-        """
-        # 获取当前托盘设置
-        minimize_to_tray = self.settings_manager.get_minimize_to_tray()
-        close_to_tray = self.settings_manager.get_close_to_tray()
-
-        # 检查托盘功能是否可用
+    def _create_tray_settings_section(self) -> ft.Container:
+        """创建主窗口的系统托盘设置区域。"""
         try:
             from src.core.tray_manager import get_tray_manager
-            tray_manager = get_tray_manager()
-            tray_available = tray_manager.is_available()
-        except Exception:
-            tray_available = False
 
-        # 创建托盘设置开关
+            tray_manager = get_tray_manager()
+            available = tray_manager.is_available()
+            unavailable_reason = tray_manager.get_unavailable_reason()
+        except Exception:
+            available = False
+            unavailable_reason = "组件初始化失败"
+
+        minimize_to_tray = self.settings_manager.get_minimize_to_tray()
+        close_to_tray = self.settings_manager.get_close_to_tray()
         self.minimize_to_tray_switch = ft.Switch(
-            label="最小化到系统托盘",
+            label="最小化窗口时隐藏到系统托盘",
             value=minimize_to_tray,
             active_color=ft.Colors.BLUE,
-            disabled=not tray_available,
+            disabled=not available and not minimize_to_tray,
         )
-
         self.close_to_tray_switch = ft.Switch(
-            label="关闭到系统托盘",
+            label="关闭窗口时隐藏到系统托盘",
             value=close_to_tray,
             active_color=ft.Colors.BLUE,
-            disabled=not tray_available,
+            disabled=not available and not close_to_tray,
         )
-
-        # 创建托盘可用性提示
-        tray_status_text = "✅ 系统托盘功能可用" if tray_available else "❌ 系统托盘功能不可用（需要安装 pystray 和 Pillow）"
-        tray_status_color = ft.Colors.GREEN if tray_available else ft.Colors.RED
+        status = (
+            "系统托盘组件可用，保存后立即生效"
+            if available
+            else f"系统托盘组件不可用：{unavailable_reason}；可关闭已有设置"
+        )
+        status_color = ft.Colors.GREEN if available else ft.Colors.ORANGE
 
         return ft.Container(
             content=ft.Column(
                 [
-                    # 区域标题
-                    ft.Container(
-                        content=ft.Row(
-                            [
-                                ft.Icon(ft.Icons.DESKTOP_WINDOWS, size=28, color=ft.Colors.CYAN),
-                                ft.Text(
-                                    "界面设置",
-                                    size=24,
-                                    weight=ft.FontWeight.BOLD,
-                                    color=ft.Colors.BLUE_800,
-                                ),
-                            ],
-                            spacing=10,
-                        ),
-                        padding=ft.Padding.only(bottom=15),
+                    ft.Row(
+                        [
+                            ft.Icon(ft.Icons.DESKTOP_WINDOWS, size=28, color=ft.Colors.CYAN),
+                            ft.Text(
+                                "窗口与托盘",
+                                size=24,
+                                weight=ft.FontWeight.BOLD,
+                                color=ft.Colors.BLUE_800,
+                            ),
+                        ],
+                        spacing=10,
                     ),
-
-                    # GUI设置卡片
                     ft.Card(
                         content=ft.Container(
                             content=ft.Column(
                                 [
-                                    # 托盘状态
-                                    ft.ListTile(
-                                        leading=ft.Icon(
-                                            ft.Icons.INFO,
-                                            color=tray_status_color,
-                                            size=28,
-                                        ),
-                                        title=ft.Text(
-                                            "系统托盘状态",
-                                            weight=ft.FontWeight.BOLD,
-                                            size=16,
-                                        ),
-                                        subtitle=ft.Text(
-                                            tray_status_text,
-                                            size=12,
-                                            color=tray_status_color,
-                                        ),
-                                    ),
-
-                                    # 最小化到托盘设置
-                                    ft.ListTile(
-                                        leading=ft.Icon(
-                                            ft.Icons.MINIMIZE,
-                                            color=ft.Colors.CYAN,
-                                            size=28,
-                                        ),
-                                        title=ft.Text(
-                                            "最小化到系统托盘",
-                                            weight=ft.FontWeight.BOLD,
-                                            size=16,
-                                        ),
-                                        subtitle=ft.Text(
-                                            "启用后，最小化窗口时会隐藏到系统托盘",
-                                            size=12,
-                                            color=ft.Colors.GREY_600,
-                                        ),
-                                    ),
-                                    ft.Container(
-                                        content=self.minimize_to_tray_switch,
-                                        padding=ft.Padding.symmetric(
-                                            horizontal=20, vertical=10
-                                        ),
-                                    ),
-
-                                    # 关闭到托盘设置
-                                    ft.ListTile(
-                                        leading=ft.Icon(
-                                            ft.Icons.CLOSE,
-                                            color=ft.Colors.CYAN,
-                                            size=28,
-                                        ),
-                                        title=ft.Text(
-                                            "关闭到系统托盘",
-                                            weight=ft.FontWeight.BOLD,
-                                            size=16,
-                                        ),
-                                        subtitle=ft.Text(
-                                            "启用后，点击关闭按钮会隐藏到系统托盘而不是退出程序",
-                                            size=12,
-                                            color=ft.Colors.GREY_600,
-                                        ),
-                                    ),
-                                    ft.Container(
-                                        content=self.close_to_tray_switch,
-                                        padding=ft.Padding.symmetric(
-                                            horizontal=20, vertical=10
-                                        ),
-                                    ),
-
-                                    # 托盘使用说明
-                                    ft.Container(
-                                        content=ft.Column(
-                                            [
-                                                ft.Icon(
-                                                    ft.Icons.HELP_OUTLINE,
-                                                    color=ft.Colors.BLUE_400,
-                                                    size=16,
-                                                ),
-                                                ft.Text(
-                                                    "系统托盘功能说明：",
-                                                    size=11,
-                                                    weight=ft.FontWeight.BOLD,
-                                                    color=ft.Colors.GREY_700,
-                                                ),
-                                                ft.Text(
-                                                    "• 启用后程序可最小化到任务栏右下角的系统托盘",
-                                                    size=10,
-                                                    color=ft.Colors.GREY_600,
-                                                ),
-                                                ft.Text(
-                                                    "• 双击托盘图标可重新显示窗口",
-                                                    size=10,
-                                                    color=ft.Colors.GREY_600,
-                                                ),
-                                                ft.Text(
-                                                    "• 右键托盘图标可显示菜单（显示/隐藏/退出）",
-                                                    size=10,
-                                                    color=ft.Colors.GREY_600,
-                                                ),
-                                                ft.Text(
-                                                    "• 修改设置后需重启应用才能生效",
-                                                    size=10,
-                                                    color=ft.Colors.BLUE_600,
-                                                    weight=ft.FontWeight.BOLD,
-                                                ),
-                                            ],
-                                            spacing=2,
-                                            tight=True,
-                                        ),
-                                        padding=ft.Padding.only(left=60, bottom=10),
+                                    ft.Text(status, size=12, color=status_color),
+                                    self.minimize_to_tray_switch,
+                                    self.close_to_tray_switch,
+                                    ft.Text(
+                                        "隐藏后可通过托盘菜单的「显示窗口」恢复；「退出」会完全结束程序。",
+                                        size=11,
+                                        color=ft.Colors.GREY_700,
                                     ),
                                 ],
-                                spacing=0,
+                                spacing=8,
                             ),
-                            padding=0,
+                            padding=20,
                         ),
                         elevation=3,
                     ),
                 ],
-                spacing=0,
+                spacing=15,
             ),
             width=900,
             padding=20,
-            bgcolor=ft.Colors.CYAN_50,
-            border_radius=15,
+            bgcolor=Palette.SURFACE,
+            border=ft.border.all(1, Palette.BORDER),
+            border_radius=Radius.CARD,
         )
 
     def _on_save_click(self, e):
@@ -1020,13 +882,20 @@ class SettingsView:
             save_errors.append("无头模式保存失败")
             success = False
 
-        # 保存GUI设置（托盘功能）
-        if self.minimize_to_tray_switch and not self.settings_manager.set_minimize_to_tray(self.minimize_to_tray_switch.value):
+        if self.minimize_to_tray_switch and not self.settings_manager.set_minimize_to_tray(
+            self.minimize_to_tray_switch.value
+        ):
             save_errors.append("最小化到托盘设置保存失败")
             success = False
 
-        if self.close_to_tray_switch and not self.settings_manager.set_close_to_tray(self.close_to_tray_switch.value):
+        if self.close_to_tray_switch and not self.settings_manager.set_close_to_tray(
+            self.close_to_tray_switch.value
+        ):
             save_errors.append("关闭到托盘设置保存失败")
+            success = False
+
+        if success and self.main_app and not self.main_app.apply_tray_settings():
+            save_errors.append("系统托盘启动失败，隐藏设置本次未启用")
             success = False
 
         # 显示结果
@@ -1062,11 +931,11 @@ class SettingsView:
                             size=12
                         ),
                         ft.Text(
-                            f"• 最小化到托盘：{'开启' if self.minimize_to_tray_switch and self.minimize_to_tray_switch.value else '关闭'}",
+                            f"• 最小化到托盘：{'开启' if self.minimize_to_tray_switch.value else '关闭'}",
                             size=12
                         ),
                         ft.Text(
-                            f"• 关闭到托盘：{'开启' if self.close_to_tray_switch and self.close_to_tray_switch.value else '关闭'}",
+                            f"• 关闭到托盘：{'开启' if self.close_to_tray_switch.value else '关闭'}",
                             size=12
                         ),
                     ],

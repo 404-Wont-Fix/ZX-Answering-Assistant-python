@@ -500,7 +500,7 @@ class CloudExamView:
             if access_token:
                 self.access_token = access_token
                 self.username = username
-                print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+                print("✅ 成功获取 access_token")
 
                 # 根据复选框状态保存凭据
                 if self.remember_password_checkbox.value:

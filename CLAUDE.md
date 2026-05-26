@@ -40,12 +40,14 @@ python main.py --cli
 ## UI Architecture
 
 ### GUI Mode (Flet Framework)
-The application features a modern GUI built with **Flet** (`flet>=0.80.0`):
+The application features a modern GUI built with **Flet** (`flet==0.82.2`):
 
 - **[src/main_gui.py](src/main_gui.py)** - Main GUI entry point with `MainApp` class
   - Navigation rail with collapsible sidebar
   - View caching mechanism to preserve state when switching tabs
   - Window cleanup handler for Playwright browser on close
+- **[src/ui/theme.py](src/ui/theme.py)** - Shared colors, typography, spacing, and control styles
+- **[src/ui/components.py](src/ui/components.py)** - Shared workspace headers, cards, chips, and action components
 
 **⚠️ CRITICAL: Flet Version Compatibility**
 
@@ -92,6 +94,7 @@ Flet 0.8.0+ has **massive breaking changes** from earlier versions. Many commonl
 - **[extraction_view.py](src/ui/views/extraction_view.py)** - Teacher-side answer extraction
 - **[settings_view.py](src/ui/views/settings_view.py)** - Configuration management
 - **[course_certification_view.py](src/ui/views/course_certification_view.py)** - Course certification workflow
+- **[plugin_center_view.py](src/ui/views/plugin_center_view.py)** - Plugin catalog and plugin entry workspace
 - **[cloud_exam_view.py](src/ui/views/cloud_exam_view.py)** - Cloud exam page (⚠️ **Partial implementation** - answer injection blocked by missing ExamMemberID parameter)
 
 ### CLI Mode
@@ -361,7 +364,7 @@ pip install flet-desktop
 **Flet Executable Download Issues**:
 
 If Flet desktop executable fails to download automatically:
-- **Manual download**: [FLET_MANUAL_DOWNLOAD.md](FLET_MANUAL_DOWNLOAD.md)
+- **Installation and runtime guide**: [docs/FLET_SETUP.md](docs/FLET_SETUP.md)
 - **Download links**:
   - Windows: https://github.com/flet-dev/flet/releases/latest/download/flet-latest-windows-x64.zip
   - Linux: https://github.com/flet-dev/flet/releases/latest/download/flet-latest-linux-x64.tar.gz
@@ -370,7 +373,7 @@ If Flet desktop executable fails to download automatically:
   - Windows: `C:\Users\YourName\.flet\bin\flet.exe`
   - Linux/Mac: `~/.flet/bin/flet`
 
-**Detailed guides**: See `FLET_INSTALL_GUIDE.md` and `FLET_MANUAL_DOWNLOAD.md`
+**Detailed guide**: See [docs/FLET_SETUP.md](docs/FLET_SETUP.md)
 
 **Version compatibility**:
 - Minimum: 0.80.0

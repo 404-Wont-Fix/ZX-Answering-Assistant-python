@@ -9,6 +9,17 @@ import json
 from pathlib import Path
 from src.extraction.importer import QuestionBankImporter
 from src.core.config import get_settings_manager
+from src.ui.components import (
+    hero_panel,
+    page_heading,
+    primary_button,
+    secondary_button,
+    section_label,
+    status_chip,
+    surface_card,
+    workflow_step,
+)
+from src.ui.theme import Palette, Radius
 
 
 class CourseCertificationView:
@@ -58,10 +69,12 @@ class CourseCertificationView:
             duration=300,
             switch_in_curve=ft.AnimationCurve.EASE_OUT,
             switch_out_curve=ft.AnimationCurve.EASE_IN,
+            expand=True,
         )
 
         return ft.Column(
             [self.current_content],
+            scroll=ft.ScrollMode.AUTO,
             expand=True,
             spacing=0,
         )
@@ -73,59 +86,85 @@ class CourseCertificationView:
         Returns:
             ft.Column: 主界面组件
         """
+        start_button = ft.FilledButton(
+            "开始认证",
+            icon=ft.Icons.PLAY_ARROW,
+            bgcolor=Palette.SURFACE,
+            color=Palette.PRIMARY,
+            on_click=lambda e: self._on_start_answer_click(e),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=16),
+                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+            ),
+        )
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "课程认证",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "载入认证题库并使用 API 完成课程认证流程",
+                    ft.Icons.VERIFIED_OUTLINED,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.SCHOOL, color=ft.Colors.BLUE),
-                                    title=ft.Text("教师端登录", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("登录教师端平台进行身份验证"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.ATTACH_FILE, color=ft.Colors.GREEN),
-                                    title=ft.Text("导入题库", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("加载JSON格式的课程认证题库"),
-                                ),
-                                ft.ListTile(
-                                    leading=ft.Icon(ft.Icons.FLASH_ON, color=ft.Colors.ORANGE),
-                                    title=ft.Text("API答题", weight=ft.FontWeight.BOLD),
-                                    subtitle=ft.Text("使用API快速模式自动完成课程认证"),
-                                ),
-                            ],
-                            spacing=10,
+                hero_panel(
+                    "快速完成课程认证任务",
+                    "验证教师身份、导入课程题库，并通过 API 模式完成认证答题。",
+                    action=start_button,
+                    chips=[
+                        status_chip(
+                            "教师端认证",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),
-                        padding=20,
-                        width=600,
-                    ),
-                    elevation=2,
+                        status_chip(
+                            "JSON 题库",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                        status_chip(
+                            "API 模式",
+                            color=Palette.SURFACE,
+                            bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
+                        ),
+                    ],
+                    icon=ft.Icons.VERIFIED_USER_OUTLINED,
                 ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                ft.ElevatedButton(
-                    "开始答题",
-                    icon=ft.Icons.PLAY_ARROW,
-                    bgcolor=ft.Colors.BLUE,
-                    color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=10),
-                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
-                        animation_duration=200,
-                    ),
-                    on_click=lambda e: self._on_start_answer_click(e),
-                    animate_scale=ft.Animation(200, ft.AnimationCurve.EASE_OUT),
+                section_label("认证流程", "三步启动安全、快速的课程认证任务"),
+                ft.ResponsiveRow(
+                    [
+                        ft.Container(
+                            content=workflow_step(
+                                "01",
+                                "教师端登录",
+                                "完成账号身份验证",
+                                ft.Icons.PERSON_OUTLINE,
+                            ),
+                            col={"xs": 12, "md": 4},
+                        ),
+                        ft.Container(
+                            content=workflow_step(
+                                "02",
+                                "导入题库",
+                                "加载认证 JSON 题库",
+                                ft.Icons.ATTACH_FILE,
+                            ),
+                            col={"xs": 12, "md": 4},
+                        ),
+                        ft.Container(
+                            content=workflow_step(
+                                "03",
+                                "API 答题",
+                                "自动提交认证答案",
+                                ft.Icons.BOLT_OUTLINED,
+                            ),
+                            col={"xs": 12, "md": 4},
+                        ),
+                    ],
+                    spacing=12,
+                    run_spacing=12,
                 ),
             ],
-            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+            spacing=22,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def _get_login_content(self) -> ft.Column:
@@ -161,136 +200,114 @@ class CourseCertificationView:
 
         return ft.Column(
             [
-                ft.Text(
+                page_heading(
                     "教师端登录",
-                    size=32,
-                    weight=ft.FontWeight.BOLD,
-                    color=ft.Colors.BLUE_800,
-                    animate_opacity=200,
+                    "认证教师账号后进入课程认证任务",
+                    ft.Icons.ADMIN_PANEL_SETTINGS_OUTLINED,
                 ),
-                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.Icon(
-                                    ft.Icons.SCHOOL,
-                                    size=64,
-                                    color=ft.Colors.BLUE_400,
-                                ),
-                                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                                self.username_field,
-                                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                                self.password_field,
-                                ft.Divider(height=30, color=ft.Colors.TRANSPARENT),
-                                ft.Row(
-                                    [
-                                        ft.OutlinedButton(
-                                            "返回",
-                                            icon=ft.Icons.ARROW_BACK,
-                                            style=ft.ButtonStyle(
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_back_from_login(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                        ft.ElevatedButton(
-                                            "登录",
-                                            icon=ft.Icons.LOGIN,
-                                            bgcolor=ft.Colors.BLUE,
-                                            color=ft.Colors.WHITE,
-                                            style=ft.ButtonStyle(
-                                                shape=ft.RoundedRectangleBorder(radius=10),
-                                                padding=ft.Padding.symmetric(
-                                                    horizontal=30, vertical=15
-                                                ),
-                                                animation_duration=200,
-                                            ),
-                                            on_click=lambda e: self._on_login_click(e),
-                                            animate_scale=ft.Animation(
-                                                200, ft.AnimationCurve.EASE_OUT
-                                            ),
-                                        ),
-                                    ],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                    spacing=20,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        padding=30,
-                        width=500,
+                surface_card(
+                    ft.Column(
+                        [
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.SCHOOL, size=32, color=Palette.PRIMARY),
+                                width=64,
+                                height=64,
+                                alignment=ft.Alignment(0, 0),
+                                bgcolor=Palette.PRIMARY_SOFT,
+                                border_radius=Radius.CARD,
+                            ),
+                            ft.Text("登录教师端", size=20, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Text("登录后即可导入认证题库", size=12, color=Palette.TEXT_MUTED),
+                            self.username_field,
+                            self.password_field,
+                            ft.Row(
+                                [
+                                    secondary_button(
+                                        "返回",
+                                        ft.Icons.ARROW_BACK,
+                                        lambda e: self._on_back_from_login(e),
+                                    ),
+                                    primary_button(
+                                        "登录并继续",
+                                        ft.Icons.LOGIN,
+                                        lambda e: self._on_login_click(e),
+                                    ),
+                                ],
+                                alignment=ft.MainAxisAlignment.CENTER,
+                                spacing=12,
+                            ),
+                        ],
+                        horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                        spacing=16,
                     ),
-                    elevation=5,
+                    padding=30,
+                    width=520,
                 ),
             ],
+            spacing=24,
             horizontal_alignment=ft.CrossAxisAlignment.CENTER,
         )
 
-    def _get_course_list_content(self) -> ft.Row:
+    def _get_course_list_content(self) -> ft.Column:
         """
         获取课程列表界面内容（左右分栏布局）
 
         Returns:
-            ft.Row: 左右分栏的界面组件
+            ft.Column: 包含页面标题和左右分栏的界面组件
         """
-        # 左侧课程列表面板（独立滚动）
-        left_panel = ft.Container(
-            content=ft.Column(
+        left_panel = surface_card(
+            ft.Column(
                 [
-                    ft.Text(
-                        "课程列表",
-                        size=24,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
+                    ft.Row(
+                        [
+                            ft.Text("选择课程", size=18, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Container(expand=True),
+                            status_chip(f"{len(self.course_list)} 门课程"),
+                        ],
                     ),
-                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                    # 课程卡片列表容器，独立滚动
                     ft.ListView(
                         controls=self._create_course_cards(),
                         expand=True,
-                        spacing=10,
+                        spacing=12,
                     ),
                 ],
+                spacing=18,
                 expand=True,
             ),
-            expand=2,  # 占据2/3宽度
-            padding=ft.Padding.all(10),
-            bgcolor=ft.Colors.GREY_50,
-            border_radius=10,
+            padding=20,
         )
+        left_panel.expand = 2
 
-        # 右侧信息面板（固定布局，不滚动）
-        right_panel = ft.Container(
-            content=ft.Column(
-                [
-                    # 上半部分：统计信息
-                    self._create_course_stats_panel() if self.selected_course else self._create_empty_stats_panel(),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                    # 下半部分：功能按钮
-                    self._create_action_panel(),
-                ],
-                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                tight=True,
-            ),
-            expand=1,  # 占据1/3宽度
-            padding=ft.Padding.all(10),
-        )
-
-        # 计算可用高度（视口高度减去导航栏和边距）
-        available_height = 600  # 使用固定高度，避免Flet版本兼容性问题
-
-        return ft.Row(
+        right_panel = ft.Column(
             [
-                left_panel,
-                ft.VerticalDivider(width=1),
-                right_panel,
+                self._create_course_stats_panel() if self.selected_course else self._create_empty_stats_panel(),
+                self._create_action_panel(),
             ],
-            height=available_height,  # 设置明确的高度，关键！
-            spacing=10,
-            vertical_alignment=ft.CrossAxisAlignment.START,
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            expand=1,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+
+        return ft.Column(
+            [
+                page_heading(
+                    "课程认证",
+                    "选择目标课程、载入题库并启动 API 答题",
+                    ft.Icons.VERIFIED_OUTLINED,
+                ),
+                ft.Row(
+                    [
+                        left_panel,
+                        right_panel,
+                    ],
+                    height=620,
+                    spacing=14,
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
+            ],
+            spacing=22,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
         )
 
     def _create_course_cards(self) -> list:
@@ -304,37 +321,45 @@ class CourseCertificationView:
         for idx, course in enumerate(self.course_list):
             course_name = course.get('lessonName', '未知课程')
             ecourse_id = course.get('eCourseID', '')
+            selected = self.selected_course == course
 
             card = ft.GestureDetector(
-                content=ft.Card(
-                    content=ft.Container(
-                        content=ft.Column(
-                            [
-                                ft.ListTile(
-                                    leading=ft.Icon(
-                                        ft.Icons.BOOK,
-                                        color=ft.Colors.BLUE,
-                                        size=36,
-                                    ),
-                                    title=ft.Text(
-                                        course_name,
-                                        weight=ft.FontWeight.BOLD,
-                                        size=16,
-                                    ),
-                                    subtitle=ft.Text(
+                content=ft.Container(
+                    content=ft.Row(
+                        [
+                            ft.Container(
+                                content=ft.Icon(ft.Icons.BOOK_OUTLINED, color=Palette.PRIMARY, size=22),
+                                width=45,
+                                height=45,
+                                alignment=ft.Alignment(0, 0),
+                                bgcolor=Palette.SURFACE if selected else Palette.PRIMARY_SOFT,
+                                border_radius=Radius.SMALL,
+                            ),
+                            ft.Column(
+                                [
+                                    ft.Text(course_name, weight=ft.FontWeight.W_600, size=15, color=Palette.TEXT),
+                                    ft.Text(
                                         f"ID: {ecourse_id[:16]}...",
                                         size=12,
-                                        color=ft.Colors.GREY_600,
+                                        color=Palette.TEXT_MUTED,
                                     ),
-                                ),
-                            ],
-                            spacing=0,
-                        ),
-                        padding=15,
-                        bgcolor=ft.Colors.BLUE_50 if self.selected_course == course else None,
+                                ],
+                                spacing=4,
+                                expand=True,
+                            ),
+                            ft.Icon(
+                                ft.Icons.CHECK_CIRCLE if selected else ft.Icons.CHEVRON_RIGHT,
+                                size=20,
+                                color=Palette.PRIMARY if selected else Palette.TEXT_SOFT,
+                            ),
+                        ],
+                        spacing=12,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
-                    elevation=2,
-                    margin=ft.margin.only(bottom=10),
+                    padding=14,
+                    bgcolor=Palette.PRIMARY_SOFT if selected else Palette.SURFACE,
+                    border=ft.border.all(1, Palette.PRIMARY if selected else Palette.BORDER),
+                    border_radius=Radius.MEDIUM,
                 ),
                 on_tap=lambda e, c=course: self._on_course_card_click(e, c),
                 mouse_cursor=ft.MouseCursor.CLICK,
@@ -350,27 +375,27 @@ class CourseCertificationView:
         Returns:
             ft.Container: 空统计面板
         """
-        return ft.Container(
-            content=ft.Column(
+        return surface_card(
+            ft.Column(
                 [
                     ft.Icon(
                         ft.Icons.INFO_OUTLINE,
-                        size=48,
-                        color=ft.Colors.GREY_400,
+                        size=38,
+                        color=Palette.TEXT_SOFT,
                     ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
                     ft.Text(
                         "请选择一门课程",
                         size=16,
-                        color=ft.Colors.GREY_600,
+                        weight=ft.FontWeight.W_600,
+                        color=Palette.TEXT,
                     ),
+                    ft.Text("选中后将显示课程认证信息", size=12, color=Palette.TEXT_MUTED),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=10,
             ),
-            padding=20,
-            bgcolor=ft.Colors.GREY_100,
-            border_radius=10,
-            alignment=ft.Alignment(0, 0),
+            padding=26,
+            bgcolor=Palette.SURFACE_ALT,
         )
 
     def _create_course_stats_panel(self) -> ft.Container:
@@ -383,32 +408,30 @@ class CourseCertificationView:
         course_name = self.selected_course.get('lessonName', '未知课程')
         ecourse_id = self.selected_course.get('eCourseID', '')
 
-        return ft.Container(
-            content=ft.Column(
+        return surface_card(
+            ft.Column(
                 [
-                    ft.Text(
-                        "课程信息",
-                        size=20,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
-                    ),
-                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                    ft.ListTile(
-                        leading=ft.Icon(ft.Icons.BOOK, color=ft.Colors.BLUE),
-                        title=ft.Text("课程名称", size=12, color=ft.Colors.GREY_600),
-                        subtitle=ft.Text(course_name, size=14, weight=ft.FontWeight.BOLD),
+                    ft.Row(
+                        [
+                            ft.Text("课程信息", size=17, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Container(expand=True),
+                            status_chip("已选择", color=Palette.ACCENT, bgcolor=Palette.ACCENT_SOFT),
+                        ],
                     ),
                     ft.ListTile(
-                        leading=ft.Icon(ft.Icons.VPN_KEY, color=ft.Colors.GREEN),
-                        title=ft.Text("课程ID", size=12, color=ft.Colors.GREY_600),
+                        leading=ft.Icon(ft.Icons.BOOK_OUTLINED, color=Palette.PRIMARY),
+                        title=ft.Text("课程名称", size=12, color=Palette.TEXT_MUTED),
+                        subtitle=ft.Text(course_name, size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                    ),
+                    ft.ListTile(
+                        leading=ft.Icon(ft.Icons.VPN_KEY_OUTLINED, color=Palette.ACCENT),
+                        title=ft.Text("课程 ID", size=12, color=Palette.TEXT_MUTED),
                         subtitle=ft.Text(ecourse_id, size=12, selectable=True),
                     ),
                 ],
-                spacing=0,
+                spacing=8,
             ),
             padding=20,
-            bgcolor=ft.Colors.BLUE_50,
-            border_radius=10,
         )
 
     def _create_action_panel(self) -> ft.Container:
@@ -418,59 +441,51 @@ class CourseCertificationView:
         Returns:
             ft.Container: 功能按钮面板
         """
-        return ft.Container(
-            content=ft.Column(
+        bank_ready = bool(self.question_bank_data)
+        return surface_card(
+            ft.Column(
                 [
-                    ft.Text(
-                        "操作",
-                        size=18,
-                        weight=ft.FontWeight.BOLD,
-                        color=ft.Colors.BLUE_800,
+                    ft.Row(
+                        [
+                            ft.Text("任务操作", size=17, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+                            ft.Container(expand=True),
+                            status_chip(
+                                "题库已导入" if bank_ready else "等待题库",
+                                color=Palette.ACCENT if bank_ready else Palette.TEXT_MUTED,
+                                bgcolor=Palette.ACCENT_SOFT if bank_ready else Palette.SURFACE_ALT,
+                            ),
+                        ],
                     ),
-                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                    ft.ElevatedButton(
+                    secondary_button(
                         "导入题库",
-                        icon=ft.Icons.ATTACH_FILE,
-                        bgcolor=ft.Colors.GREEN,
-                        color=ft.Colors.WHITE,
+                        ft.Icons.ATTACH_FILE,
+                        lambda e: self._on_select_json_bank(e),
                         width=280,
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
-                        ),
-                        on_click=lambda e: self._on_select_json_bank(e),
                     ),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                    ft.ElevatedButton(
+                    ft.FilledButton(
                         "开始答题（API模式）",
                         icon=ft.Icons.FLASH_ON,
-                        bgcolor=ft.Colors.ORANGE,
-                        color=ft.Colors.WHITE,
+                        bgcolor=Palette.PRIMARY,
+                        color=Palette.SURFACE,
                         width=280,
-                        disabled=not self.question_bank_data,
+                        disabled=not bank_ready,
                         style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
+                            shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                            padding=ft.Padding.symmetric(horizontal=22, vertical=15),
                         ),
                         on_click=lambda e: self._on_start_api_answer(e),
                     ),
-                    ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-                    ft.OutlinedButton(
-                        "返回主界面",
-                        icon=ft.Icons.HOME,
+                    secondary_button(
+                        "返回认证首页",
+                        ft.Icons.HOME_OUTLINED,
+                        lambda e: self._on_back_to_main(e),
                         width=280,
-                        style=ft.ButtonStyle(
-                            shape=ft.RoundedRectangleBorder(radius=8),
-                            padding=ft.Padding.symmetric(horizontal=20, vertical=12),
-                        ),
-                        on_click=lambda e: self._on_back_to_main(e),
                     ),
                 ],
                 horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                spacing=14,
             ),
             padding=20,
-            bgcolor=ft.Colors.GREY_50,
-            border_radius=10,
         )
 
     def _on_start_answer_click(self, e):
@@ -556,7 +571,7 @@ class CourseCertificationView:
             if result and result[0]:  # result = (access_token, browser, page, playwright)
                 access_token = result[0]
                 self.access_token = access_token
-                print(f"✅ 成功获取 access_token: {access_token[:20]}...")
+                print("✅ 成功获取 access_token")
 
                 # 获取课程列表
                 self.course_list = self._fetch_course_list(access_token)
@@ -631,6 +646,10 @@ class CourseCertificationView:
         try:
             api_client = get_api_client()
             response = api_client.get(api_url, headers=headers)
+
+            if response is None:
+                print("❌ 获取课程列表失败：未收到有效响应")
+                return []
 
             if response.status_code == 200:
                 data = response.json()
