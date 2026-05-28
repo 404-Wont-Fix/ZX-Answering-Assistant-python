@@ -4,7 +4,7 @@
   "version": "1.2.1",
   "description": "安全微伴自动学习答题插件，支持多账号自动化学习、考试和答题，并可连接外部 WeBan 模块。",
   "icon": "school",
-  "author": "TianJiaJi",
+  "author": "hangone",
   "entry_ui": "ui.create_view",
   "entry_core": "core.WeBanPluginCore",
   "min_app_version": "3.0.0",
