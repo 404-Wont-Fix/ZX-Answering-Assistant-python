@@ -66,9 +66,9 @@ jobs:
           - name: Windows x64
             runner: windows-latest
             platform: windows-x64
-          - name: macOS x64
-            runner: macos-26-intel
-            platform: macos-x64
+          - name: macOS arm64
+            runner: macos-26
+            platform: macos-arm64
 
     steps:
       - name: Checkout
