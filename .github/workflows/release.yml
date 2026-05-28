@@ -67,7 +67,7 @@ jobs:
             runner: windows-latest
             platform: windows-x64
           - name: macOS x64
-            runner: macos-15-intel
+            runner: macos-26-intel
             platform: macos-x64
 
     steps:
@@ -103,13 +103,21 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force -Path release-assets | Out-Null
 
-          $releaseDir = Get-ChildItem -Path build/windows -Directory -Recurse |
-            Where-Object { $_.Name -eq "Release" } |
+          $appExe = Get-ChildItem -Path build/windows -File -Recurse -Filter "*.exe" |
+            Where-Object { $_.Name -like "*Answering*" -or $_.Name -like "*ZX*" } |
             Select-Object -First 1
 
-          if (-not $releaseDir) {
-            Write-Error "Could not find Windows release directory under build/windows."
+          if (-not $appExe) {
+            Write-Host "No matching app executable found. Available executables:"
+            Get-ChildItem -Path build/windows -File -Recurse -Filter "*.exe" |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize
+
+            throw "Could not find the Windows app executable under build/windows."
           }
+
+          $releaseDir = $appExe.Directory
+          Write-Host "Packaging Windows app from $($releaseDir.FullName)"
 
           $archive = "release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-windows-x64.zip"
           Compress-Archive -Path "$($releaseDir.FullName)/*" -DestinationPath $archive -Force
