@@ -66,11 +66,8 @@ jobs:
           - name: Windows x64
             runner: windows-latest
             platform: windows-x64
-          - name: macOS Intel (x64)
-            runner: macos-latest
-            platform: macos-x64
-          - name: macOS Apple Silicon (arm64)
-            runner: macos-latest
+          - name: macOS arm64
+            runner: macos-13
             platform: macos-arm64
 
     steps:
