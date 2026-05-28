@@ -2,417 +2,250 @@
 
 # ZX Answering Assistant
 
-## 智能答题助手系统
+智能答题助手桌面工作台
 
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue.svg)](https://www.python.org/)
+[![Flet](https://img.shields.io/badge/Flet-0.82.2-0B6BFF.svg)](https://flet.dev/)
+[![Playwright](https://img.shields.io/badge/Playwright-1.57%2B-green.svg)](https://playwright.dev/python/)
+[![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)](#预构建发布包)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Platform](https://img.shields.io/badge/Platform-Windows-lightgrey.svg)](https://www.microsoft.com/windows)
-[![Version](https://img.shields.io/badge/Version-v3.7.2-green.svg)](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
+[![Version](https://img.shields.io/badge/Version-v3.7.4-green.svg)](version.py)
 
-**一个基于 Playwright 的在线学习平台自动化答题助手系统**
+一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
-支持 **插件化架构** 和统一的现代桌面工作台界面，提供浏览器兼容模式和 API 暴力模式两种答题方式。
-
-[功能特性](#功能特性) • [技术架构](#技术架构) • [快速开始](#快速开始) • [插件开发](#插件开发) • [常见问题](#常见问题)
+[快速开始](#快速开始) · [当前架构](#当前架构) · [插件系统](#插件系统) · [配置说明](#配置说明) · [构建发布](#构建发布) · [常见问题](#常见问题)
 
 </div>
 
 ---
 
-## 目录
+## 项目定位
 
-- [程序介绍](#程序介绍)
-- [功能特性](#功能特性)
-- [技术架构](#技术架构)
-- [快速开始](#快速开始)
-- [打包构建](#打包构建可选)
-- [使用指南](#使用指南)
-- [插件开发](#插件开发)
-- [常见问题](#常见问题)
-- [许可证](#许可证)
-- [致谢](#致谢)
+ZX Answering Assistant 是一个桌面端自动化工作台，面向在线学习、课程认证、题库提取和扩展插件场景。当前版本以 GUI 模式为主，主界面由 Flet 驱动，自动化能力由 Playwright、HTTP API 客户端和插件工作流共同提供。
 
----
+请在授权范围内使用本项目，并遵守目标平台、学校或组织的相关规则。
 
-## 程序介绍
+## 核心能力
 
-**ZX Answering Assistant（智能答题助手）** 是一个专为在线学习平台设计的自动化工具，采用插件化架构设计，支持功能模块的动态加载和扩展。
+| 能力 | 说明 |
+| --- | --- |
+| 工作台界面 | Flet 桌面应用，包含评估答题、答案提取、插件中心、系统设置和关于页面 |
+| 插件化扩展 | 自动扫描 `plugins/`，通过 `manifest.json` 和入口点动态加载插件 UI 与核心逻辑 |
+| 浏览器自动化 | `BrowserManager` 统一管理 Playwright，支持系统 Chrome、Edge、Playwright Chromium 和打包浏览器 |
+| API 请求治理 | `APIClient` 提供限速、重试、GET 缓存和统一请求入口 |
+| 配置持久化 | `SettingsManager` 将账号、浏览器、限速、插件和托盘设置保存到用户配置目录 |
+| 题库与答案处理 | 支持学生端答题、教师端答案提取、题库导入导出等基础流程 |
+| Windows 托盘 | Windows 环境下支持最小化到托盘和关闭到托盘 |
+| 桌面打包 | 使用 Flet 构建 Windows 可执行程序和 macOS `.app` 应用包 |
 
-### 核心定位
+## 当前架构
 
-- **学生端**: 自动化答题、课程进度管理、学习数据统计
-- **教师端**: 题库提取、教学辅助、学情分析
-- **课程认证**: 快速完成课程认证要求
-- **插件扩展**: 支持自定义插件开发和安装
+### 启动链路
 
-### 设计目标
-
-1. **插件化架构**: 核心功能与扩展功能分离，支持动态加载
-2. **效率优先**: 通过自动化工具减少重复性劳动
-3. **用户友好**: 提供直观的 GUI 界面
-4. **安全可靠**: 智能速率控制、自动重试、崩溃恢复等机制
-
----
-
-## 功能特性
-
-### 插件化架构
-
-| 特性 | 描述 |
-|------|------|
-| **动态加载** | 插件可独立开发、测试、部署 |
-| **依赖注入** | 统一的服务接口，插件共享核心资源 |
-| **状态持久化** | 插件配置和状态自动保存 |
-| **一键管理** | 图形化插件管理界面，启用/禁用一键切换 |
-
-### 内置插件
-
-| 插件 | 功能 | 状态 |
-|------|------|------|
-| **云考试助手** | 云考试答题、题库匹配 | ✅ 可用 |
-| **课程认证助手** | 教师课程认证答题 | ✅ 可用 |
-| **评估出题助手** | 智能出题入口 | 开发中 |
-| **警告提示器** | 弹出自定义警告提示窗口，支持循环提醒 | ✅ 可用 |
-| **安全微伴** | 微伴课程学习与考试辅助 | ✅ 可用 |
-
-### 核心功能
-
-#### 现代工作台界面
-
-- **统一设计系统**: 核心页面和内置插件共享色彩、卡片、按钮及状态标签样式
-- **工作台导航**: 深色侧边栏可折叠，并始终保留可恢复展开的入口
-- **稳定布局**: 评估答题详情区使用独立滚动容器，列表长度不会挤压操作区布局
-- **页面一致性**: 评估答题、答案提取、插件中心和课程认证采用一致的信息层级与交互反馈
-
-#### 🌐 系统浏览器支持
-
-- **智能检测**: 自动检测系统已安装的浏览器（Chrome/Edge）
-- **零配置启动**: 无需下载 170MB 浏览器，直接使用系统浏览器
-- **体积优化**: 打包体积减少 80%（200MB → 40MB）
-- **自动降级**: 智能选择最佳浏览器，确保程序始终可用
-- **详细文档**: 查看 [系统浏览器支持指南](docs/SYSTEM_BROWSER_SUPPORT.md)
-
-#### 🎨 启动动画系统
-
-- **启动画面**: 应用启动时显示品牌标识和渐变背景
-- **加载界面**: 显示加载进度和组件初始化状态
-- **用户体验**: 视觉反馈提升，缓解启动等待感
-- **一键编译**: 使用 `build.bat` 自动清理并编译
-
-#### 学生端功能
-
-- **自动登录**: 支持账户密码自动登录学生端
-- **课程管理**: 图形化显示课程列表和完成进度
-- **智能答题**: 两种模式可选
-  - **浏览器兼容模式**: 模拟真实用户操作（约 2-3 题/秒）
-  - **API 暴力模式**: 直接调用 API 接口（约 10-20 题/秒）
-- **网络重试**: 连接失败自动重试（最多 3 次）
-- **题库导入**: 支持 JSON 格式题库导入
-- **进度监控**: 实时追踪课程完成情况
-
-#### 教师端功能
-
-- **教师登录**: 图形化登录界面
-- **答案提取**: 一键提取课程答案
-- **自动保存**: 提取完成自动保存为 JSON 文件
-- **文件管理**: 一键打开文件夹、复制文件路径
-
-#### 安全微伴功能 (WeBan)
-
-- **自动学习**: 自动完成必修课、推送课、自选课
-- **智能考试**: 基于题库自动匹配正确答案
-- **OCR 验证码**: 自动识别验证码（失败后手动输入）
-- **实时进度**: 显示学习进度和考试统计
-
-#### 警告提示器功能
-
-- **独立窗口**: 使用 Tkinter 创建完全独立的警告窗口，不阻塞主界面
-- **自定义内容**: 支持自定义警告标题、内容文本、警告级别
-- **丰富样式**: 多种颜色主题、字体大小、窗口尺寸可配置
-- **循环提醒**: 支持定时重复弹出警告（可配置间隔时间）
-- **动画效果**: 淡入动画效果，视觉体验更佳
-- **自动关闭**: 可设置自动关闭时间，适合快速通知场景
-- **透明度调节**: 支持窗口透明度设置，避免完全遮挡内容
-- **配置持久化**: JSON 格式配置文件，自动保存用户设置
-
----
-
-## 技术架构
-
-### 系统架构图
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      用户界面层 (Flet)                        │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────────────────┐ │
-│  │  导航栏     │ │  内容区域   │ │     插件中心视图         │ │
-│  └─────────────┘ └─────────────┘ └─────────────────────────┘ │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      插件管理层                              │
-│  ┌─────────────────────────────────────────────────────────┐ │
-│  │              PluginManager (插件管理器)                  │ │
-│  │  • 插件扫描  • 插件加载  • 生命周期管理  • 状态持久化   │ │
-│  └─────────────────────────────────────────────────────────┘ │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
-│  │ 云考试插件  │ │ 课程认证插件│ │ 评估出题插件│            │
-│  └─────────────┘ └─────────────┘ └─────────────┘            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      核心服务层                              │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
-│  │ APIClient   │ │BrowserMgr   │ │ ConfigMgr   │            │
-│  │ (API请求)   │ │ (浏览器管理)│ │ (配置管理)  │            │
-│  └─────────────┘ └─────────────┘ └─────────────┘            │
-└─────────────────────────────────────────────────────────────┘
-                              │
-                              ▼
-┌─────────────────────────────────────────────────────────────┐
-│                      基础设施层                              │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐            │
-│  │ Playwright  │ │  Requests   │ │ 文件系统    │            │
-│  └─────────────┘ └─────────────┘ └─────────────┘            │
-└─────────────────────────────────────────────────────────────┘
+```text
+main.py
+  ├─ 配置 SSL 证书环境
+  ├─ 准备 Playwright 浏览器路径
+  ├─ 准备 Flet 运行环境
+  ├─ 注册退出清理逻辑
+  └─ src.main_gui.run_app()
+       └─ MainApp
+            ├─ 初始化核心单例
+            ├─ 扫描 plugins/
+            ├─ 构建 Flet 工作台
+            └─ 根据设置启用系统托盘
 ```
 
-### 分层架构说明
+### 分层结构
 
-| 层级 | 职责 | 主要组件 |
-|------|------|----------|
-| **用户界面层** | 用户交互和界面展示 | MainGUI, PluginCenterView |
-| **插件管理层** | 插件发现、加载、生命周期管理 | PluginManager, PluginContext |
-| **核心服务层** | 为插件提供共享的基础服务 | APIClient, BrowserManager, ConfigManager |
-| **基础设施层** | 底层技术支撑 | Playwright, Requests, 文件系统 |
-
-### 项目目录结构
-
-```
-ZX-Answering-Assistant-python/
-├── main.py                          # 应用程序入口
-├── version.py                       # 版本信息
-├── requirements.txt                 # 依赖列表
-│
-├── plugins/                         # 插件目录
-│   ├── cloud_exam/                  # 云考试插件
-│   │   ├── manifest.json            # 插件元数据
-│   │   ├── __init__.py
-│   │   ├── ui.py                    # UI 入口
-│   │   └── core.py                  # 业务逻辑
-│   ├── course_certification/        # 课程认证插件
-│   ├── evaluation/                  # 评估出题插件
-│   ├── warning_alert/               # 警告提示器插件
-│   │   ├── manifest.json            # 插件元数据
-│   │   ├── __init__.py
-│   │   ├── ui.py                    # UI 入口
-│   │   └── warning_config.example.json # 配置示例（运行配置不入库）
-│   ├── weban_plugin/                # 安全微伴插件
-│   └── README.md                    # 插件开发指南
-│
-├── src/
-│   ├── core/                        # 核心服务层
-│   │   ├── api_client.py            # API 客户端
-│   │   ├── browser.py               # 浏览器管理器
-│   │   ├── config.py                # 配置管理器
-│   │   ├── plugin_manager.py        # 插件管理器
-│   │   └── plugin_context.py        # 插件上下文
-│   │
-│   ├── auth/                        # 认证模块
-│   │   ├── student.py               # 学生端登录
-│   │   ├── teacher.py               # 教师端登录
-│   │   └── token_manager.py         # Token 管理
-│   │
-│   ├── answering/                   # 答题模块
-│   │   ├── api_answer.py            # API 模式答题
-│   │   └── browser_answer.py        # 浏览器模式答题
-│   │
-│   ├── certification/               # 课程认证核心逻辑
-│   │   ├── workflow.py
-│   │   └── api_answer.py
-│   │
-│   ├── cloud_exam/                  # 云考试核心逻辑
-│   │   ├── api_client.py
-│   │   ├── models.py
-│   │   └── workflow.py
-│   │
-│   ├── extraction/                  # 数据提取模块
-│   │   ├── extractor.py
-│   │   ├── exporter.py
-│   │   └── importer.py
-│   │
-│   ├── main_gui.py                  # 主 GUI 入口
-│   ├── ui/                          # UI 层
-│   │   ├── theme.py                 # 颜色、间距与字体样式令牌
-│   │   ├── components.py            # 共享卡片、标题与状态组件
-│   │   └── views/                   # 视图组件
-│   │       ├── answering_view.py
-│   │       ├── cloud_exam_view.py
-│   │       ├── course_certification_view.py
-│   │       ├── plugin_center_view.py
-│   │       └── settings_view.py
-│   │
-│   └── utils/                       # 工具模块
-│       └── retry.py
-│
-├── CLAUDE.md                        # Claude Code 指导文档
-├── PLUGIN_DEVELOPMENT.md            # 插件开发指南
-└── README.md                        # 项目文档
+```text
+┌────────────────────────────────────────────────────────────┐
+│ GUI 工作台层                                                │
+│ src/main_gui.py, src/ui/theme.py, src/ui/components.py      │
+│ src/ui/views/*                                             │
+└──────────────────────────────┬─────────────────────────────┘
+                               │
+┌──────────────────────────────▼─────────────────────────────┐
+│ 插件层                                                      │
+│ plugins/*/manifest.json, ui.py, core.py                    │
+│ PluginManager + PluginContext                              │
+└──────────────────────────────┬─────────────────────────────┘
+                               │
+┌──────────────────────────────▼─────────────────────────────┐
+│ 核心服务层                                                  │
+│ SettingsManager, APIClient, BrowserManager, AppState, Tray  │
+└──────────────────────────────┬─────────────────────────────┘
+                               │
+┌──────────────────────────────▼─────────────────────────────┐
+│ 业务与基础设施层                                            │
+│ auth, answering, extraction, cloud_exam, certification      │
+│ requests, Playwright, certifi, filesystem                   │
+└────────────────────────────────────────────────────────────┘
 ```
 
----
+### 主要目录
 
-## 技术栈
+| 路径 | 职责 |
+| --- | --- |
+| `main.py` | 应用入口，负责启动前环境配置、版本输出、浏览器准备和 GUI 启动 |
+| `version.py` | 应用版本、构建信息和可选 WeBan 模块版本读取 |
+| `src/main_gui.py` | Flet 主工作台，负责导航、页面缓存、插件初始化和托盘调度 |
+| `src/ui/` | 共享主题、组件和工作台内置视图 |
+| `src/core/` | 核心单例服务：配置、API、浏览器、插件、托盘、SSL 和应用状态 |
+| `src/auth/` | 学生端、教师端登录和 token 管理 |
+| `src/answering/` | 学生端答题流程，包含浏览器模式和 API 模式 |
+| `src/extraction/` | 教师端答案提取、导入导出和文件处理 |
+| `src/cloud_exam/` | 云考试数据模型、API 客户端和工作流 |
+| `src/certification/` | 课程认证工作流和 API 答题逻辑 |
+| `src/utils/` | 通用工具，目前主要是重试辅助 |
+| `plugins/` | 内置与外部插件目录 |
+| `docs/` | 浏览器、SSL、Flet、构建和系统浏览器等专题文档 |
+| `tests/` | 配置、插件和 API 客户端相关测试 |
 
-### 核心依赖
+## 工作台页面
 
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| **flet** | ≥0.82.0 | GUI 框架 |
-| **playwright** | ≥1.57.0 | 浏览器自动化 |
-| **requests** | ≥2.31.0 | HTTP 客户端 |
+| 页面 | 说明 |
+| --- | --- |
+| 评估答题 | 面向学生端课程/任务的答题入口，复用登录、题库和答题模块 |
+| 答案提取 | 面向教师端课程答案提取，支持生成可复用题库文件 |
+| 插件中心 | 展示已安装插件，支持启用、禁用、查看详情和进入插件 UI |
+| 系统设置 | 管理账号、API 限速与重试、浏览器通道、本地浏览器路径和托盘行为 |
+| 关于 | 展示版本、项目说明和相关信息 |
 
-### WeBan 模块依赖
+界面样式集中在 `src/ui/theme.py` 和 `src/ui/components.py`，内置页面和插件页面应优先复用这些主题令牌与组件，避免各自维护一套视觉风格。
 
-| 依赖 | 版本 | 用途 |
-|------|------|------|
-| **ddddocr** | 1.6.1 | OCR 验证码识别 |
-| **loguru** | 0.7.3 | 日志处理 |
-| **pycryptodome** | 3.23.0 | 加密解密 |
+## 内置插件
 
----
+| 插件目录 | 显示名称 | 入口 | 说明 |
+| --- | --- | --- | --- |
+| `plugins/cloud_exam` | 云考试助手 | `ui.create_view`, `core.Workflow` | 云考试试卷获取、题库匹配和答案注入 |
+| `plugins/course_certification` | 课程认证助手 | `ui.create_view`, `core.Workflow` | 教师课程认证答题流程 |
+| `plugins/evaluation` | 评估出题助手 | `ui.create_view`, `core.Workflow` | 评估出题、试题生成和编辑入口 |
+| `plugins/weban_plugin` | 安全微伴 | `ui.create_view`, `core.WeBanPluginCore` | 安全微伴学习、考试和外部 WeBan 模块接入 |
+| `plugins/warning_alert` | 警告提示器 | `ui.create_view` | 自定义警告窗口和循环提醒 |
 
 ## 快速开始
 
 ### 环境要求
 
-- Python 3.10+
-- Windows 操作系统
+- Python 3.10 或更高版本
+- Windows 和 macOS 为当前桌面发布目标
+- Linux 可用于部分开发调试流程
+- Chrome、Edge 或 Playwright Chromium 至少一种可用浏览器
 
-### 安装步骤
+### 预构建发布包
 
-1. **克隆仓库**
+GitHub Release 工作流会构建并上传以下桌面包：
+
+| 平台 | 产物 |
+| --- | --- |
+| Windows x86-64 | `ZX-Answering-Assistant-<version>-windows-x86_64.zip` |
+| macOS Intel | `ZX-Answering-Assistant-<version>-macos-x86_64.zip` |
+| macOS Apple Silicon | `ZX-Answering-Assistant-<version>-macos-arm64.zip` |
+
+macOS 包内包含 `ZX Answering Assistant.app`。如遇到 macOS 首次打开的安全提示，请在系统设置中允许该应用；确认包来源可信时，也可以对解压后的 `.app` 移除 quarantine 标记：
+
+```bash
+xattr -dr com.apple.quarantine "ZX Answering Assistant.app"
+```
+
+### 从源码运行
 
 ```bash
 git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
 ```
 
-2. **创建虚拟环境**
+Windows PowerShell:
 
-```bash
+```powershell
 python -m venv .venv
-.venv\Scripts\activate
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+python main.py
 ```
 
-3. **安装依赖**
+macOS / Linux:
 
 ```bash
-pip install -r requirements.txt
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+python main.py
 ```
 
-4. **安装 Playwright 浏览器**
+如果系统没有可用的 Chrome 或 Edge，安装 Playwright Chromium:
 
-**方法1: 自动安装（推荐）**
 ```bash
 python -m playwright install chromium
 ```
 
-**方法2: 使用本地浏览器**
-```bash
-# 在设置界面配置本地浏览器路径，或编辑用户配置目录中的 cli_config.json
-# "browser_settings": {"local_browser_path": "C:\\Path\\To\\chrome.exe"}
-```
+## 配置说明
 
-**⚠️ 重要提示**: 如果遇到浏览器安装问题：
-- 程序启动时会自动尝试安装浏览器
-- 详见：[浏览器安装指南](docs/BROWSER_SETUP.md)
+配置由 `src/core/config.py` 中的 `SettingsManager` 管理。默认配置文件不会写入仓库，而是保存在当前用户配置目录：
 
-5. **运行程序**
+| 平台 | 默认位置 |
+| --- | --- |
+| Windows | `%APPDATA%\ZX-Answering-Assistant\cli_config.json` |
+| macOS | `~/Library/Application Support/ZX-Answering-Assistant/cli_config.json` |
+| Linux | `$XDG_CONFIG_HOME/ZX-Answering-Assistant/cli_config.json` 或 `~/.config/ZX-Answering-Assistant/cli_config.json` |
 
-```bash
-python main.py
-```
-
-### 打包构建（可选）
-
-如果你想将程序打包成独立的 Windows 可执行文件：
-
-#### ⚠️ 网络环境要求
-
-**重要：构建过程需要访问 Google 和 GitHub 服务，请确保网络环境能正常访问这些服务！**
-
-构建过程会下载约 1.5-2 GB 资源（Flutter SDK、Flet 运行时、Playwright 浏览器等）。
-
-**如果无法访问 Google/GitHub**：
-- 使用代理（推荐）
-- 配置国内镜像（详见 [编译打包指南](docs/BUILD_GUIDE.md)）
-- 或在良好网络环境下构建
-
-#### 快速构建
+也可以通过环境变量指定配置文件：
 
 ```bash
-# 1. 激活虚拟环境
-.venv\Scripts\activate
-
-# 2. 运行构建脚本
-build.bat
+ZX_ASSISTANT_CONFIG_FILE=/path/to/cli_config.json python main.py
 ```
 
-#### 构建产物
+配置内容主要包含：
 
-可执行文件位于：`build\windows\x64\runner\Release\ZX Answering Assistant.exe`
+| 配置段 | 内容 |
+| --- | --- |
+| `credentials` | 学生端、教师端和安全微伴账号信息 |
+| `api_settings` | 最大重试次数和请求限速等级 |
+| `browser_settings` | 是否无头、本地浏览器路径、浏览器通道 |
+| `gui_settings` | 最小化到托盘、关闭到托盘 |
+| `plugins` | 禁用插件列表和插件私有配置 |
 
-#### 详细文档
+请不要将真实账号、密码或个人配置提交到仓库。
 
-- **[编译打包指南](docs/BUILD_GUIDE.md)** - 详细步骤和配置说明
-- **[快速参考](docs/BUILD_QUICKREF.md)** - 常用命令速查
+## 浏览器策略
 
----
+浏览器能力集中在 `src/core/browser.py`：
 
-## 使用指南
+- 使用单例 `BrowserManager` 管理浏览器生命周期。
+- Playwright 操作统一调度到专用工作线程，降低 Flet/AsyncIO 场景下的线程切换问题。
+- 使用“单浏览器实例 + 多上下文”模型隔离不同业务模块的 Cookie、Session 和 LocalStorage。
+- 支持的业务上下文包括 `STUDENT`、`TEACHER`、`COURSE_CERTIFICATION` 和 `CLOUD_EXAM`。
+- 浏览器通道支持 `chrome`、`msedge`、`chromium` 和空字符串代表的 Playwright 内置/打包 Chromium。
 
-### 启动应用
+开发环境默认优先使用系统浏览器。打包环境会优先尝试使用随包浏览器；如果不存在，会回退到用户缓存目录并提示安装 Chromium。
 
-```bash
-python main.py
+## 插件系统
+
+### 加载流程
+
+```text
+plugins/<plugin_id>/manifest.json
+  └─ PluginManager.scan_plugins()
+       ├─ 校验插件 ID、名称和入口格式
+       ├─ 合并用户启用/禁用状态
+       ├─ 提示缺失的 requirements.txt 依赖
+       └─ 按需加载 UI 或核心类
 ```
 
-### 使用插件
+### 插件目录结构
 
-1. 启动后点击左侧导航栏的"插件中心"
-2. 在"我的插件"和"插件管理"之间切换
-3. 使用开关启用/禁用插件
-4. 点击信息图标查看插件详情
-
-### 安装新插件
-
-1. 点击"插件管理"视图中的"打开插件目录"按钮
-2. 将插件文件夹复制到打开的目录中
-3. 重启应用，新插件将自动被发现
-
----
-
-## 插件开发
-
-详细的插件开发指南请参阅 [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md)。
-
-### 快速开始
-
-1. **创建插件目录**
-
-```
+```text
 plugins/
-└── my_plugin/
-    ├── manifest.json     # 插件元数据
-    ├── __init__.py
-    ├── ui.py             # UI 入口
-    └── core.py           # 业务逻辑
+└─ my_plugin/
+   ├─ manifest.json      # 必需，插件元数据
+   ├─ __init__.py        # 必需，Python 包标识
+   ├─ ui.py              # 必需，提供 create_view(page, context)
+   ├─ core.py            # 可选，提供业务工作流类
+   └─ requirements.txt   # 可选，声明额外 Python 依赖
 ```
 
-2. **编写 manifest.json**
+### manifest 示例
 
 ```json
 {
@@ -424,289 +257,169 @@ plugins/
   "author": "作者",
   "entry_ui": "ui.create_view",
   "entry_core": "core.Workflow",
+  "min_app_version": "3.0.0",
+  "dependencies": [],
   "enabled": true
 }
 ```
 
-3. **实现 UI 入口**
+### 插件可用服务
 
-```python
-# plugins/my_plugin/ui.py
-import flet as ft
+插件入口会收到 `PluginContext`，可访问：
 
-def create_view(page, context):
-    return ft.Column([
-        ft.Text("我的插件"),
-    ])
+| 属性/方法 | 说明 |
+| --- | --- |
+| `context.plugin_id` | 当前插件 ID |
+| `context.api_client` | 全局 API 客户端 |
+| `context.browser_manager` | 全局浏览器管理器 |
+| `context.settings_manager` | 全局配置管理器 |
+| `context.run_task()` | 后台线程执行耗时任务 |
+| `context.get_plugin_config()` | 读取插件私有配置 |
+| `context.set_plugin_config()` | 保存插件私有配置 |
+
+插件依赖不会在扫描阶段自动安装。若插件包含 `requirements.txt`，请在当前虚拟环境中显式执行：
+
+```bash
+python -m pip install -r plugins/<plugin_id>/requirements.txt
 ```
 
-4. **重启应用**
+更多细节见 [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md) 和 [plugins/README.md](plugins/README.md)。
 
-新插件将自动被发现并显示在插件中心。
+## 开发命令
 
----
+安装依赖：
+
+```bash
+python -m pip install -r requirements.txt
+```
+
+运行应用：
+
+```bash
+python main.py
+```
+
+运行测试：
+
+```bash
+python -m pytest
+```
+
+查看当前版本：
+
+```bash
+python -c "import version; print(version.get_version_string())"
+```
+
+## 构建发布
+
+当前仓库支持 Windows 和 macOS 桌面包构建。GitHub Actions 会在 Windows、macOS Intel 和 macOS Apple Silicon runner 上分别构建并上传 zip 包。
+
+### Windows 本地构建
+
+仓库提供 Windows 一键构建脚本：
+
+```powershell
+.\.venv\Scripts\Activate.ps1
+.\build.bat
+```
+
+构建产物默认位于：
+
+```text
+build\windows\x64\runner\Release\ZX Answering Assistant.exe
+```
+
+### macOS 本地构建
+
+macOS 需要在 macOS 主机上构建：
+
+```bash
+source .venv/bin/activate
+flet build macos --project=ZX-Answering-Assistant --verbose
+```
+
+构建完成后，`.app` bundle 位于 `build/macos/` 下。CI 发布流程会查找该 `.app`，并使用 `ditto --keepParent` 打包为对应架构的 zip：
+
+```text
+release-assets/ZX-Answering-Assistant-<version>-macos-x86_64.zip
+release-assets/ZX-Answering-Assistant-<version>-macos-arm64.zip
+```
+
+构建过程可能下载 Flutter SDK、Flet 运行时、Playwright 浏览器等资源，需要稳定访问 Google、GitHub 和 Python 包源。构建配置见 `pyproject.toml`。
+
+相关文档：
+
+- [编译打包指南](docs/BUILD_GUIDE.md)
+- [编译快速参考](docs/BUILD_QUICKREF.md)
+- [Flet 安装与运行时指南](docs/FLET_SETUP.md)
 
 ## 常见问题
 
-### 1. SSL 证书验证失败
+### Flet 无法启动或缺少 `flet_desktop`
 
-**问题**: 在新环境部署时出现 SSL 证书验证错误
-
-**错误信息**:
-```
-<urlopen error [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed:
-unable to get local issuer certificate (_ssl.c:1000)>
-```
-
-**解决方案**:
-
-**✅ 启动配置**
-
-从 v3.2.0 开始，程序内置了自动 SSL 证书配置功能，无需手动干预。
-
-程序会在启动时：
-1. 使用依赖中已安装的 `certifi` 根证书包；缺失时回退到系统证书
-2. 配置全局 SSL 证书设置
-3. 配置 urllib 和 requests 的 SSL 上下文
-
-**🔧 手动修复** (如果自动配置失败)
-
-1. **更新 certifi**:
-   ```bash
-   pip install --upgrade certifi
-   ```
-
-2. **设置环境变量** (临时解决):
-   ```powershell
-   # PowerShell
-   $env:SSL_CERT_FILE = python -c "import certifi; print(certifi.where())"
-   python main.py
-   ```
-
-3. **验证证书包可用**:
-   ```bash
-   python -c "import certifi; print(certifi.where())"
-   ```
-
-**详细指南**: 查看 [SSL 证书配置指南](docs/SSL_SETUP.md)
-
-### 2. Flet 库安装问题
-
-**问题**: Flet GUI 库未安装或版本不兼容
-
-**解决方案**:
-
-1. **安装项目依赖**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-2. **仅安装 GUI 依赖**:
-   ```bash
-   pip install flet>=0.82.0
-   pip install flet-desktop
-   ```
-3. **国内镜像加速**:
-   ```bash
-   pip install flet -i https://pypi.tuna.tsinghua.edu.cn/simple
-   pip install flet-desktop -i https://pypi.tuna.tsinghua.edu.cn/simple
-   ```
-
-**⚠️ 重要提示**:
-- Flet 首次运行时会自动下载桌面运行时文件（约 50-100MB），可能需要 1-3 分钟，这是正常行为
-- **本项目使用 Flet 0.82.x，需要同时安装 `flet` 和 `flet-desktop` 两个包**
-
-**错误: `No module named 'flet_desktop'`**
-
-如果看到这个错误，说明缺少 `flet-desktop` 包：
+确认依赖已安装，并且版本与项目锁定一致：
 
 ```bash
-pip install flet-desktop
+python -m pip install -r requirements.txt
 ```
 
-**如果自动下载失败**：请查看 [Flet 安装与运行时指南](docs/FLET_SETUP.md)
+更多说明见 [docs/FLET_SETUP.md](docs/FLET_SETUP.md)。
 
-### 3. 浏览器启动失败
+### Playwright 浏览器不可用
 
-**问题**: Playwright 浏览器未安装或无法下载
+优先在“系统设置”中选择系统 Chrome 或 Edge。若需要 Playwright Chromium：
 
-**解决方案**:
+```bash
+python -m playwright install chromium
+```
 
-1. **自动安装**: 程序启动时会自动尝试安装浏览器
-2. **手动安装**:
-   ```bash
-   python -m playwright install chromium
-   ```
-3. **使用本地浏览器**: 在设置界面配置路径，或编辑用户配置目录中的 `cli_config.json`
-   ```json
-   {
-     "browser_settings": {
-       "local_browser_path": "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe"
-     }
-   }
-   ```
-4. **网络问题**: 使用国内镜像
-   ```bash
-   # Windows PowerShell
-   $env:PLAYWRIGHT_DOWNLOAD_HOST="https://npmmirror.com/mirrors/playwright/"
-   python -m playwright install chromium
-   ```
+网络受限时可参考 [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) 和 [docs/SYSTEM_BROWSER_SUPPORT.md](docs/SYSTEM_BROWSER_SUPPORT.md)。
 
-**详细指南**: 查看 [浏览器安装指南](docs/BROWSER_SETUP.md)
+### SSL 证书校验失败
 
-### 4. 插件无法加载
+程序启动时会先执行 `src/core/ssl_helper.py` 中的 SSL 自动配置。若仍失败，先更新证书包：
 
-**问题**: manifest.json 格式错误或缺少必要字段
+```bash
+python -m pip install --upgrade certifi
+```
 
-**解决方案**: 检查 manifest.json 格式，确保包含 `id`、`name`、`version`、`entry_ui` 字段。
+详细排查见 [docs/SSL_SETUP.md](docs/SSL_SETUP.md)。
 
-### 5. API 请求失败
+### 插件没有显示或无法加载
 
-**问题**: 网络连接问题或 Token 过期
+检查以下内容：
 
-**解决方案**: 检查网络连接，重新登录获取新 Token。
+- 插件目录位于 `plugins/<plugin_id>/`。
+- `manifest.json` 存在且是合法 JSON。
+- `id` 仅包含小写字母、数字和下划线。
+- `entry_ui` 使用 `模块.函数` 格式，例如 `ui.create_view`。
+- 插件额外依赖已经通过 `requirements.txt` 手动安装。
+- 依赖的其他插件已经启用。
 
----
+### 系统托盘不可用
 
-## 版本历史
+系统托盘当前只在 Windows 平台启用，并依赖 `pystray` 和 `Pillow`。非 Windows 环境下相关设置会自动降级，不影响主窗口运行。
 
-### v3.7.2 (2026-05-26)
+## 文档索引
 
-- 统一评估答题、答案提取、插件中心与课程认证页面的现代工作台风格
-- 修复侧边栏折叠后无法恢复、状态标签可读性不足及详情列表影响整体布局的问题
-- 同步项目说明与版本元数据，整理过期文档入口
-
-完整变更记录请参阅 [CHANGELOG.md](CHANGELOG.md)。
-
-### v3.6.0 (2026-05-07)
-
-- ✨ **新增**: 警告提示器插件
-  - 基于 Tkinter 的独立警告窗口系统
-  - 支持循环提醒功能，可配置重复间隔
-  - 丰富的自定义选项：颜色、字体、窗口大小、透明度
-  - 多种警告级别：info/warning/error/success/critical
-  - 支持自动关闭和淡入动画效果
-  - JSON 配置文件持久化存储
-  - 完善的设置界面和文档
-- 🎨 **优化**: 插件系统架构
-- 📝 **文档**: 更新插件开发指南和配置文档
-
-### v3.5.0 (2026-04-27)
-
-- 🎨 **优化**: 清理项目结构，移除多余文件和文档
-- 🔧 **优化**: 清理不必要的依赖（pyyaml、py7zr）
-- 📝 **简化**: 整合文档，提高可维护性
-- 🐛 **修复**: 保留所有 v3.4.1 的功能修复
-
-### v3.4.1 (2026-04-27)
-
-- 🎨 **新增**: 启动动画系统
-- ⚡ **新增**: 一键构建脚本 (`build.bat`)
-- 🐛 **修复**: `__builtins__` 兼容性问题
-- 🐛 **修复**: Flet API 兼容性问题（v0.82.2）
-- 🐛 **修复**: 软件标题乱码
-- 🐛 **修复**: 启动屏幕中文显示
-- 🐛 **修复**: ImportError: No module named main
-
-### v3.2.0 (2026-04-23)
-
-- 🔒 **新增**: 自动 SSL 证书配置功能
-  - 解决 Windows 环境下的 SSL 验证失败问题
-  - 检测和配置 certifi 根证书包
-  - 配置 urllib、requests 的 SSL 上下文
-  - 新增 SSL 测试工具 (`test_ssl.py`)
-- 📝 **文档**: 新增 SSL 证书配置指南 (`docs/SSL_SETUP.md`)
-- 🐛 **修复**: Flet 首次下载时的 SSL 证书验证错误
-- 📦 **依赖**: 添加 certifi 到 requirements.txt
-
-### v3.0.0 (2026-04-21)
-
-- 🎉 完成插件化架构重构
-- ✨ 新增插件中心视图
-- ✨ 支持插件动态加载和管理
-- ✨ 新增依赖注入系统
-- 🐛 修复多个 UI 问题
-- 📝 完善插件开发文档
-
-### v2.9.0
-
-- ✨ 集成 WeBan 安全微伴模块
-- ✨ 支持 OCR 验证码识别
-- 🐛 修复浏览器崩溃恢复问题
-
-### v2.8.0
-
-- ✨ 优化构建系统
-- ✨ 新增配置文件化构建
-- 🐛 修复多个已知问题
-
----
+| 文档 | 内容 |
+| --- | --- |
+| [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md) | 插件开发完整指南 |
+| [plugins/README.md](plugins/README.md) | 插件目录、安装和依赖说明 |
+| [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) | Playwright 浏览器安装与排障 |
+| [docs/SYSTEM_BROWSER_SUPPORT.md](docs/SYSTEM_BROWSER_SUPPORT.md) | 系统 Chrome/Edge 支持说明 |
+| [docs/FLET_SETUP.md](docs/FLET_SETUP.md) | Flet 安装、运行时和常见问题 |
+| [docs/SSL_SETUP.md](docs/SSL_SETUP.md) | SSL 证书配置说明 |
+| [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | Windows 打包完整指南 |
+| [docs/BUILD_QUICKREF.md](docs/BUILD_QUICKREF.md) | 构建命令速查 |
+| [SYSTEM_TRAY_README.md](SYSTEM_TRAY_README.md) | 系统托盘功能说明 |
+| [CHANGELOG.md](CHANGELOG.md) | 版本更新记录 |
 
 ## 许可证
 
-本项目采用 Apache 2.0 许可证，详见 [LICENSE.txt](LICENSE.txt)。
-
----
+本项目使用 Apache License 2.0。详见 [LICENSE.txt](LICENSE.txt)。
 
 ## 致谢
 
-感谢以下开源项目和贡献者：
-
-### 核心依赖
-
-- **[Flet](https://github.com/flet-dev/flet)** - 现代化的 Python Flutter GUI 框架
-- **[Playwright](https://github.com/microsoft/playwright)** - 微软开发的浏览器自动化框架
-- **[Requests](https://github.com/psf/requests)** - 优雅的 Python HTTP 库
-
-### 特别感谢
-
-#### 🌟 WeBan 项目
-
-本项目的安全微伴（WeBan）插件基于 **[WeBan](https://github.com/hangone/WeBan)** 项目开发。
-
-**原项目作者**: [hangone](https://github.com/hangone)
-
-**WeBan** 是一个优秀的**安全微伴学习平台自动化工具**，提供了：
-
-- ✅ 自动学习课程功能
-- ✅ 智能答题系统
-- ✅ OCR 验证码识别
-- ✅ 完善的 API 客户端
-- ✅ 稳定的加密解密方案
-
-本项目的 WeBan 插件在原项目基础上进行了：
-- 🔧 插件化改造
-- 🎨 GUI 界面集成
-- 🚀 性能优化
-- 📚 文档完善
-
-**致谢原项目作者 hangone 的开源精神和优秀代码！**
-
-### 其他开源项目
-
-- **[ddddocr](https://github.com/sml2h3/ddddocr)** - 优秀的验证码识别库
-- **[loguru](https://github.com/Delgan/loguru)** - 简单易用的 Python 日志库
-- **[pycryptodome](https://github.com/Legrandin/pycryptodome)** - 强大的 Python 加密库
-
-### 社区贡献
-
-感谢所有为本项目提交 Issue、PR 和建议的开发者！
-
----
-
-## 贡献指南
-
-欢迎提交 Issue 和 Pull Request！
-
-1. Fork 本仓库
-2. 创建特性分支 (`git checkout -b feature/AmazingFeature`)
-3. 提交更改 (`git commit -m 'Add some AmazingFeature'`)
-4. 推送到分支 (`git push origin feature/AmazingFeature`)
-5. 创建 Pull Request
-
----
-
-## 联系方式
-
-- 作者: TianJiaJi
-- 邮箱: notify@mail.tianjiaji.top
-- GitHub: [https://github.com/TianJiaJi/ZX-Answering-Assistant-python](https://github.com/TianJiaJi/ZX-Answering-Assistant-python)
+感谢 Flet、Playwright、Requests、certifi、pystray、Pillow、ddddocr、DrissionPage、loguru 和 pycryptodome 等开源项目提供的基础能力。
