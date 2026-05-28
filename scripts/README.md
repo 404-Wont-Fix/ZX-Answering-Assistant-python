@@ -20,15 +20,18 @@ scripts\setup_weban.ps1
 
 **Or manually:**
 ```bash
-git clone --depth 1 https://github.com/hangone/WeBan.git plugins/weban_plugin/modules/WeBan
+WEBAN_REF=ad149ce507be66d909d908bad7905a1029636a46 ./scripts/setup_weban.sh
 ```
+
+`WEBAN_REF` defaults to `ad149ce507be66d909d908bad7905a1029636a46`. Set it to another commit, tag, or branch only when you intentionally want to update the bundled WeBan code.
 
 ### What it does
 
 1. Checks if WeBan module already exists
 2. Creates the required directory structure
-3. Clones the WeBan repository from `https://github.com/hangone/WeBan.git`
-4. Provides setup success confirmation
+3. Clones or updates the WeBan repository from `https://github.com/hangone/WeBan.git`
+4. Checks out the configured `WEBAN_REF`
+5. Provides setup success confirmation
 
 ### Troubleshooting
 
@@ -57,11 +60,11 @@ These scripts are automatically integrated into the GitHub Actions workflow:
 ## CI/CD Optimization
 
 The caching strategy uses:
-- Cache key: `weban-module-${{ hashFiles('plugins/weban_plugin/manifest.json') }}`
+- Cache key: target platform + `WEBAN_REF` + plugin manifest and requirements hash
 - Cache path: `plugins/weban_plugin/modules/WeBan`
-- Fallback keys: `weban-module-`
+- Fallback keys: target platform + `WEBAN_REF`
 
 This ensures that:
-- WeBan is only cloned when the plugin manifest changes
+- WeBan is checked out to a reproducible commit by default
 - Subsequent builds use the cached version
 - Build times are significantly reduced
