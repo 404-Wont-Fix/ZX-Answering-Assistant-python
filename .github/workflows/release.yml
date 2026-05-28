@@ -66,8 +66,11 @@ jobs:
           - name: Windows x64
             runner: windows-latest
             platform: windows-x64
-          - name: macOS arm64
-            runner: macos-26
+          - name: macOS Intel (x64)
+            runner: macos-latest
+            platform: macos-x64
+          - name: macOS Apple Silicon (arm64)
+            runner: macos-latest
             platform: macos-arm64
 
     steps:
@@ -141,7 +144,7 @@ jobs:
             exit 1
           fi
 
-          archive="release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-macos-x64.zip"
+          archive="release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-${{ matrix.platform }}.zip"
           ditto -c -k --sequesterRsrc --keepParent "${app_path}" "${archive}"
           ls -lh release-assets
 
