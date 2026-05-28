@@ -88,6 +88,27 @@ jobs:
           python -m pip install -r plugins/weban_plugin/requirements.txt
           flet --version
 
+      - name: Cache WeBan module
+        uses: actions/cache@v4
+        with:
+          path: plugins/weban_plugin/modules/WeBan
+          key: weban-module-${{ hashFiles('plugins/weban_plugin/manifest.json') }}
+          restore-keys: |
+            weban-module-
+
+      - name: Download WeBan module
+        shell: bash
+        run: |
+          if [ ! -d "plugins/weban_plugin/modules/WeBan/.git" ]; then
+            echo "📦 Cloning WeBan module for weban_plugin..."
+            mkdir -p plugins/weban_plugin/modules
+            git clone --depth 1 https://github.com/hangone/WeBan.git plugins/weban_plugin/modules/WeBan
+            echo "✅ WeBan module cloned successfully"
+          else
+            echo "✅ WeBan module found in cache"
+          fi
+          ls -la plugins/weban_plugin/modules/WeBan/
+
       - name: Build Windows app
         if: runner.os == 'Windows'
         shell: pwsh
