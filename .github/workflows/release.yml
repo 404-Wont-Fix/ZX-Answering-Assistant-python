@@ -14,6 +14,8 @@ env:
   NO_COLOR: "1"
   PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"
+  WEBAN_REPOSITORY: https://github.com/hangone/WeBan.git
+  WEBAN_REF: ${{ vars.WEBAN_REF || 'ad149ce507be66d909d908bad7905a1029636a46' }}
 
 jobs:
   metadata:
@@ -63,11 +65,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Windows x64
+          - name: Windows x86-64
             runner: windows-latest
-            platform: windows-x64
+            platform: windows-x86_64
+          - name: macOS x86-64
+            runner: macos-26-intel
+            platform: macos-x86_64
           - name: macOS arm64
-            runner: macos-13
+            runner: macos-26
             platform: macos-arm64
 
     steps:
@@ -88,26 +93,65 @@ jobs:
           python -m pip install -r plugins/weban_plugin/requirements.txt
           flet --version
 
+      - name: Show build toolchain
+        shell: bash
+        run: |
+          echo "Runner OS: ${RUNNER_OS}"
+          echo "Runner arch: ${RUNNER_ARCH}"
+          python --version
+
+          if [[ "${RUNNER_OS}" == "macOS" ]]; then
+            uname -m
+            sw_vers
+            xcodebuild -version
+          fi
+
+          if [[ "${RUNNER_OS}" == "Windows" ]]; then
+            echo "PROCESSOR_ARCHITECTURE=${PROCESSOR_ARCHITECTURE:-unknown}"
+            echo "PROCESSOR_ARCHITEW6432=${PROCESSOR_ARCHITEW6432:-unknown}"
+          fi
+
       - name: Cache WeBan module
         uses: actions/cache@v4
         with:
           path: plugins/weban_plugin/modules/WeBan
-          key: weban-module-${{ hashFiles('plugins/weban_plugin/manifest.json') }}
+          key: weban-module-${{ matrix.platform }}-${{ env.WEBAN_REF }}-${{ hashFiles('plugins/weban_plugin/manifest.json', 'plugins/weban_plugin/requirements.txt') }}
           restore-keys: |
-            weban-module-
+            weban-module-${{ matrix.platform }}-${{ env.WEBAN_REF }}-
 
       - name: Download WeBan module
         shell: bash
         run: |
-          if [ ! -d "plugins/weban_plugin/modules/WeBan/.git" ]; then
-            echo "📦 Cloning WeBan module for weban_plugin..."
-            mkdir -p plugins/weban_plugin/modules
-            git clone --depth 1 https://github.com/hangone/WeBan.git plugins/weban_plugin/modules/WeBan
-            echo "✅ WeBan module cloned successfully"
+          set -euo pipefail
+
+          target_dir="plugins/weban_plugin/modules/WeBan"
+          mkdir -p "$(dirname "${target_dir}")"
+
+          if [[ -d "${target_dir}/.git" ]]; then
+            echo "Using cached WeBan module at ${target_dir}"
+            git -C "${target_dir}" remote set-url origin "${WEBAN_REPOSITORY}"
           else
-            echo "✅ WeBan module found in cache"
+            echo "Cloning WeBan module from ${WEBAN_REPOSITORY}"
+            rm -rf "${target_dir}"
+            git clone --filter=blob:none --no-checkout "${WEBAN_REPOSITORY}" "${target_dir}"
           fi
-          ls -la plugins/weban_plugin/modules/WeBan/
+
+          echo "Fetching WeBan ref: ${WEBAN_REF}"
+          if git -C "${target_dir}" fetch --depth 1 origin "${WEBAN_REF}"; then
+            git -C "${target_dir}" checkout --force FETCH_HEAD
+          else
+            echo "Direct fetch failed; fetching branch and tag heads before checkout."
+            git -C "${target_dir}" fetch --depth 1 origin '+refs/heads/*:refs/remotes/origin/*' '+refs/tags/*:refs/tags/*'
+            git -C "${target_dir}" checkout --force "${WEBAN_REF}"
+          fi
+          git -C "${target_dir}" clean -fdx
+
+          resolved_ref="$(git -C "${target_dir}" rev-parse HEAD)"
+          echo "WEBAN_RESOLVED_REF=${resolved_ref}" >> "${GITHUB_ENV}"
+          echo "WeBan resolved commit: ${resolved_ref}"
+
+          test -f "${target_dir}/main.py"
+          test -f "${target_dir}/api.py"
 
       - name: Build Windows app
         if: runner.os == 'Windows'
@@ -140,7 +184,7 @@ jobs:
           $releaseDir = $appExe.Directory
           Write-Host "Packaging Windows app from $($releaseDir.FullName)"
 
-          $archive = "release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-windows-x64.zip"
+          $archive = "release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-${{ matrix.platform }}.zip"
           Compress-Archive -Path "$($releaseDir.FullName)/*" -DestinationPath $archive -Force
           Get-ChildItem release-assets
 
@@ -200,8 +244,23 @@ jobs:
           TARGET_SHA: ${{ github.sha }}
         shell: bash
         run: |
-          gh release create "${RELEASE_TAG}" release-assets/*.zip \
-            --title "${RELEASE_NAME}" \
-            --notes "Automated desktop build from main branch commit ${TARGET_SHA}." \
-            --target "${TARGET_SHA}" \
-            --latest
+          set -euo pipefail
+          shopt -s nullglob
+
+          assets=(release-assets/*.zip)
+          if (( ${#assets[@]} == 0 )); then
+            echo "No release assets found under release-assets/." >&2
+            exit 1
+          fi
+
+          release_notes="Automated desktop build from main branch commit ${TARGET_SHA}."
+
+          if gh release view "${RELEASE_TAG}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${assets[@]}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${assets[@]}" \
+              --title "${RELEASE_NAME}" \
+              --notes "${release_notes}" \
+              --target "${TARGET_SHA}" \
+              --latest
+          fi
