@@ -9,6 +9,12 @@ on:
 permissions:
   contents: read
 
+env:
+  FLET_CLI_NO_RICH_OUTPUT: "1"
+  NO_COLOR: "1"
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+
 jobs:
   metadata:
     name: Prepare release metadata
@@ -86,7 +92,10 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          flet build windows --project=ZX-Answering-Assistant --verbose
+          chcp 65001
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+          $OutputEncoding = [System.Text.UTF8Encoding]::new()
+          flet build windows --project=ZX-Answering-Assistant --verbose --yes --no-rich-output
 
       - name: Package Windows app
         if: runner.os == 'Windows'
@@ -110,7 +119,7 @@ jobs:
         if: runner.os == 'macOS'
         shell: bash
         run: |
-          flet build macos --project=ZX-Answering-Assistant --verbose
+          flet build macos --project=ZX-Answering-Assistant --verbose --yes --no-rich-output
 
       - name: Package macOS app
         if: runner.os == 'macOS'

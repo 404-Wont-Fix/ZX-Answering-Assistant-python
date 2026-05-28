@@ -49,6 +49,58 @@ assets = [
     "version.py",
 ]
 
+# 打包时排除仓库/开发/文档文件，保留运行所需的 main.py、version.py、src/、plugins/。
+# Flet 的 exclude 使用相对路径精确匹配，目录会递归排除。
+[tool.flet.app]
+exclude = [
+    ".git",
+    ".github",
+    ".claude",
+    ".idea",
+    ".vscode",
+    ".venv",
+    "venv",
+    "env",
+    "ENV",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist",
+    "docs",
+    "tests",
+    "downloads",
+    "logs",
+    "output",
+    "data",
+    "playwright_browsers",
+    "flet_browsers",
+    "src_compiled",
+    ".gitignore",
+    "build.bat",
+    "README.md",
+    "CHANGELOG.md",
+    "CLAUDE.md",
+    "PLUGIN_DEVELOPMENT.md",
+    "SYSTEM_TRAY_README.md",
+    "requirements.txt",
+    "plugins/README.md",
+    "plugins/PLUGIN_DEV_GUIDE.md",
+]
+
+[tool.flet.cleanup]
+app = true
+packages = true
+app_files = [
+    "**/__pycache__",
+    "**/*.pyc",
+    "**/*.pyo",
+    "**/.DS_Store",
+    "**/*.log",
+    "**/.pytest_cache",
+    "plugins/**/*.md",
+    "plugins/**/warning_config.example.json",
+]
+
 # Boot screen
 [tool.flet.app.boot_screen]
 show = true
