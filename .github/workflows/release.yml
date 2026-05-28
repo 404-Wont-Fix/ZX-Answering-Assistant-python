@@ -1,0 +1,186 @@
+name: Build Desktop Releases
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  FLET_CLI_NO_RICH_OUTPUT: "1"
+  NO_COLOR: "1"
+  PYTHONIOENCODING: utf-8
+  PYTHONUTF8: "1"
+
+jobs:
+  metadata:
+    name: Prepare release metadata
+    runs-on: ubuntu-latest
+    outputs:
+      app_version: ${{ steps.metadata.outputs.app_version }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      release_name: ${{ steps.metadata.outputs.release_name }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Read app version
+        id: metadata
+        shell: bash
+        run: |
+          APP_VERSION="$(
+            python - <<'PY'
+          import pathlib
+          import re
+
+          version_py = pathlib.Path("version.py").read_text(encoding="utf-8")
+          match = re.search(r'^VERSION\s*=\s*["\']([^"\']+)["\']', version_py, re.MULTILINE)
+
+          if not match:
+              pyproject = pathlib.Path("pyproject.toml").read_text(encoding="utf-8")
+              match = re.search(r'^version\s*=\s*["\']([^"\']+)["\']', pyproject, re.MULTILINE)
+
+          print(match.group(1) if match else "0.0.0")
+          PY
+          )"
+
+          RELEASE_TAG="v${APP_VERSION}-build.${GITHUB_RUN_NUMBER}"
+
+          {
+            echo "app_version=${APP_VERSION}"
+            echo "release_tag=${RELEASE_TAG}"
+            echo "release_name=ZX Answering Assistant ${RELEASE_TAG}"
+          } >> "${GITHUB_OUTPUT}"
+
+  build:
+    name: Build ${{ matrix.name }}
+    needs: metadata
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Windows x64
+            runner: windows-latest
+            platform: windows-x64
+          - name: macOS arm64
+            runner: macos-26
+            platform: macos-arm64
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
+          cache: pip
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip setuptools wheel
+          python -m pip install -r requirements.txt
+          python -m pip install -r plugins/weban_plugin/requirements.txt
+          flet --version
+
+      - name: Build Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          chcp 65001
+          [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new()
+          $OutputEncoding = [System.Text.UTF8Encoding]::new()
+          flet build windows --project=ZX-Answering-Assistant --verbose --yes --no-rich-output
+
+      - name: Package Windows app
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path release-assets | Out-Null
+
+          $appExe = Get-ChildItem -Path build/windows -File -Recurse -Filter "*.exe" |
+            Where-Object { $_.Name -like "*Answering*" -or $_.Name -like "*ZX*" } |
+            Select-Object -First 1
+
+          if (-not $appExe) {
+            Write-Host "No matching app executable found. Available executables:"
+            Get-ChildItem -Path build/windows -File -Recurse -Filter "*.exe" |
+              Select-Object FullName, Length |
+              Format-Table -AutoSize
+
+            throw "Could not find the Windows app executable under build/windows."
+          }
+
+          $releaseDir = $appExe.Directory
+          Write-Host "Packaging Windows app from $($releaseDir.FullName)"
+
+          $archive = "release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-windows-x64.zip"
+          Compress-Archive -Path "$($releaseDir.FullName)/*" -DestinationPath $archive -Force
+          Get-ChildItem release-assets
+
+      - name: Build macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          flet build macos --project=ZX-Answering-Assistant --verbose --yes --no-rich-output
+
+      - name: Package macOS app
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          mkdir -p release-assets
+
+          app_path="$(find build/macos -maxdepth 8 -type d -name '*.app' | head -n 1)"
+          if [[ -z "${app_path}" ]]; then
+            echo "Could not find macOS .app bundle under build/macos." >&2
+            exit 1
+          fi
+
+          archive="release-assets/ZX-Answering-Assistant-${{ needs.metadata.outputs.app_version }}-macos-x64.zip"
+          ditto -c -k --sequesterRsrc --keepParent "${app_path}" "${archive}"
+          ls -lh release-assets
+
+      - name: Upload packaged app
+        uses: actions/upload-artifact@v7
+        with:
+          name: ZX-Answering-Assistant-${{ matrix.platform }}
+          path: release-assets/*.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish GitHub Release
+    needs:
+      - metadata
+      - build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Download packaged apps
+        uses: actions/download-artifact@v8
+        with:
+          path: release-assets
+          pattern: ZX-Answering-Assistant-*
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.metadata.outputs.release_tag }}
+          RELEASE_NAME: ${{ needs.metadata.outputs.release_name }}
+          TARGET_SHA: ${{ github.sha }}
+        shell: bash
+        run: |
+          gh release create "${RELEASE_TAG}" release-assets/*.zip \
+            --title "${RELEASE_NAME}" \
+            --notes "Automated desktop build from main branch commit ${TARGET_SHA}." \
+            --target "${TARGET_SHA}" \
+            --latest
