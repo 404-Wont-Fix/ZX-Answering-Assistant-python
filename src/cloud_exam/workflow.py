@@ -504,60 +504,29 @@ class CloudExamWorkflow:
 
         try:
             # 遍历题库查找匹配的题目
-            # 支持两种题库结构：单课程和多课程
             chapters = []
-
-            # 单课程题库结构: data["class"]["course"]["chapters"]
-            if "class" in self.question_bank_data and "course" in self.question_bank_data.get("class", {}):
-                course_data = self.question_bank_data["class"].get("course", {})
-                chapters = course_data.get("chapters", [])
-                self._log(f"📚 使用单课程题库结构，章节数: {len(chapters)}")
-            # 多课程题库结构: data["chapters"]
+            if "class" in self.question_bank_data and "course" in self.question_bank_data["class"]:
+                chapters = self.question_bank_data["class"]["course"].get("chapters", [])
             elif "chapters" in self.question_bank_data:
                 chapters = self.question_bank_data["chapters"]
-                self._log(f"📚 使用多课程题库结构，章节数: {len(chapters)}")
-            else:
-                self._log(f"⚠️ 无法识别题库结构，可用键: {list(self.question_bank_data.keys())}", "warning")
-                return None
 
-            if not chapters:
-                self._log("⚠️ 题库中没有章节数据", "warning")
-                return None
-
-            # 遍历所有章节、知识点、题目
             for chapter in chapters:
                 for knowledge in chapter.get("knowledges", []):
                     for bank_question in knowledge.get("questions", []):
-                        # 检查题目ID是否匹配（支持多种ID字段名）
-                        bank_qid = (bank_question.get("QuestionID") or
-                                   bank_question.get("questionID") or
-                                   bank_question.get("questionId") or
-                                   bank_question.get("id"))
-
-                        if bank_qid == question_id:
+                        # 检查题目ID是否匹配
+                        if bank_question.get("QuestionID") == question_id:
                             # 获取正确答案的ID
                             answer_ids = []
                             for opt in bank_question.get("options", []):
                                 if opt.get("isTrue"):
-                                    # 支持多种选项ID字段名
-                                    opt_id = (opt.get("id") or
-                                             opt.get("optionID") or
-                                             opt.get("OptionID") or
-                                             opt.get("optionId"))
-                                    if opt_id:
-                                        answer_ids.append(opt_id)
+                                    answer_ids.append(opt.get("id", ""))
 
                             if answer_ids:
-                                self._log(f"✅ 找到匹配题目: {question_id[:16]}... -> {len(answer_ids)} 个答案")
                                 return answer_ids
-                            else:
-                                self._log(f"⚠️ 题目 {question_id[:16]}... 在题库中找到但无正确答案标记", "warning")
 
-            self._log(f"⚠️ 题目 {question_id[:16]}... 在题库中未找到", "warning")
             return None
 
         except Exception as e:
-            self._log(f"❌ 查找题库失败: {e}", "error")
             logger.debug(f"查找题库失败: {e}")
             return None
 
