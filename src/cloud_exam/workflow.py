@@ -323,6 +323,13 @@ class CloudExamWorkflow:
                 raw_data=exam_data
             )
 
+            # 从 epInfo 获取 examMemberID（提交答案必需参数）
+            ep_info = data.get("epInfo", {})
+            exam_paper.exam_member_id = ep_info.get("examMemberID")
+
+            if not exam_paper.exam_member_id:
+                self._log("⚠️ 未获取到 examMemberID，答案注入可能失败", "warning")
+
             # 解析每道题目
             for q_data in questions_list:
                 question = ExamQuestion(
@@ -346,6 +353,9 @@ class CloudExamWorkflow:
                 exam_paper.questions.append(question)
 
             self.exam_paper = exam_paper
+
+            if exam_paper.exam_member_id:
+                self._log(f"   考试成员ID: {exam_paper.exam_member_id[:16]}...")
 
             self._log(f"✅ 成功解析试卷:", "success")
             self._log(f"   考试ID: {exp_id[:16]}...")
@@ -494,29 +504,60 @@ class CloudExamWorkflow:
 
         try:
             # 遍历题库查找匹配的题目
+            # 支持两种题库结构：单课程和多课程
             chapters = []
-            if "class" in self.question_bank_data and "course" in self.question_bank_data["class"]:
-                chapters = self.question_bank_data["class"]["course"].get("chapters", [])
+
+            # 单课程题库结构: data["class"]["course"]["chapters"]
+            if "class" in self.question_bank_data and "course" in self.question_bank_data.get("class", {}):
+                course_data = self.question_bank_data["class"].get("course", {})
+                chapters = course_data.get("chapters", [])
+                self._log(f"📚 使用单课程题库结构，章节数: {len(chapters)}")
+            # 多课程题库结构: data["chapters"]
             elif "chapters" in self.question_bank_data:
                 chapters = self.question_bank_data["chapters"]
+                self._log(f"📚 使用多课程题库结构，章节数: {len(chapters)}")
+            else:
+                self._log(f"⚠️ 无法识别题库结构，可用键: {list(self.question_bank_data.keys())}", "warning")
+                return None
 
+            if not chapters:
+                self._log("⚠️ 题库中没有章节数据", "warning")
+                return None
+
+            # 遍历所有章节、知识点、题目
             for chapter in chapters:
                 for knowledge in chapter.get("knowledges", []):
                     for bank_question in knowledge.get("questions", []):
-                        # 检查题目ID是否匹配
-                        if bank_question.get("QuestionID") == question_id:
+                        # 检查题目ID是否匹配（支持多种ID字段名）
+                        bank_qid = (bank_question.get("QuestionID") or
+                                   bank_question.get("questionID") or
+                                   bank_question.get("questionId") or
+                                   bank_question.get("id"))
+
+                        if bank_qid == question_id:
                             # 获取正确答案的ID
                             answer_ids = []
                             for opt in bank_question.get("options", []):
                                 if opt.get("isTrue"):
-                                    answer_ids.append(opt.get("id", ""))
+                                    # 支持多种选项ID字段名
+                                    opt_id = (opt.get("id") or
+                                             opt.get("optionID") or
+                                             opt.get("OptionID") or
+                                             opt.get("optionId"))
+                                    if opt_id:
+                                        answer_ids.append(opt_id)
 
                             if answer_ids:
+                                self._log(f"✅ 找到匹配题目: {question_id[:16]}... -> {len(answer_ids)} 个答案")
                                 return answer_ids
+                            else:
+                                self._log(f"⚠️ 题目 {question_id[:16]}... 在题库中找到但无正确答案标记", "warning")
 
+            self._log(f"⚠️ 题目 {question_id[:16]}... 在题库中未找到", "warning")
             return None
 
         except Exception as e:
+            self._log(f"❌ 查找题库失败: {e}", "error")
             logger.debug(f"查找题库失败: {e}")
             return None
 
@@ -525,29 +566,17 @@ class CloudExamWorkflow:
         执行答案注入
 
         Args:
-            exam_member_id: 考试成员ID（可选，如果不提供则尝试从试卷中获取）
-
-            ⚠️ TODO: exam_member_id 参数的获取方式尚不明确（答案注入功能未完成）
-            - 该参数是提交答案所必需的，但当前不知道如何从哪里获取
-            - 可能需要从以下位置之一获取：
-              * 考试页面的某个API响应
-              * 浏览器本地存储（localStorage/sessionStorage）
-              * 页面DOM元素
-              * 某个Cookie
-            - 当前状态：功能已实现但无法测试，需要等待网站开放后分析
-            - 确定获取方式后需要更新此方法的实现
+            exam_member_id: 考试成员ID（可选，不提供则使用试卷中的）
 
         Returns:
             Dict[str, int]: 注入结果统计
-            {
-                'total': int,      # 总题数
-                'success': int,    # 成功提交数
-                'failed': int,     # 失败数
-                'skipped': int     # 跳过数
-            }
         """
         if not self.exam_paper:
             self._log("❌ 请先获取试卷", "error")
+            return {'total': 0, 'success': 0, 'failed': 0, 'skipped': 0}
+
+        if not self.exam_paper.exam_member_id and not exam_member_id:
+            self._log("❌ 缺少 examMemberID（试卷和参数均未提供），无法提交答案", "error")
             return {'total': 0, 'success': 0, 'failed': 0, 'skipped': 0}
 
         if not self.question_bank_data:
@@ -583,11 +612,12 @@ class CloudExamWorkflow:
         submitted_answers = api_client.get_student_answer_list(self.exam_paper.exp_id)
 
         if submitted_answers is not None:
-            # 标记已答题的题目
+            # 标记已答题的题目（answerID 为空字符串表示未答）
             for question in self.exam_paper.questions:
-                if question.question_id in submitted_answers:
+                qid = question.question_id
+                if qid in submitted_answers and submitted_answers[qid]:
                     question.is_answered = True
-                    question.student_answer_id = submitted_answers[question.question_id]
+                    question.student_answer_id = submitted_answers[qid]
 
             self._log(f"📋 已提交: {self.exam_paper.get_answered_questions_count()}/{self.exam_paper.get_total_questions_count()}")
 
@@ -595,7 +625,7 @@ class CloudExamWorkflow:
         result = api_client.submit_all_answers(
             self.exam_paper,
             answer_map,
-            exam_member_id or ""
+            exam_member_id=exam_member_id or self.exam_paper.exam_member_id
         )
 
         return result
