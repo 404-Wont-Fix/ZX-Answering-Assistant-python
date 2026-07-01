@@ -690,25 +690,23 @@ class CloudExamView:
         threading.Thread(target=capture_task, daemon=True).start()
 
     def _on_load_bank_click(self, e):
-        """处理加载题库按钮点击（使用 FilePicker 的异步 API）"""
+        """处理加载题库按钮点击（使用新的 FilePicker API）"""
+        # 使用 page.run_task() 来运行异步操作
         async def pick_file_async():
-            # 使用新的异步 API
+            # 使用新的 FilePicker API（async/await 模式）
             file_picker = ft.FilePicker()
             files = await file_picker.pick_files(
                 allowed_extensions=["json"],
-                dialog_title="选择JSON题库文件",
-                allow_multiple=False
+                dialog_title="选择JSON题库文件"
             )
 
             # 处理选择的文件
             if files and len(files) > 0:
-                file_path = files[0].path
-                print(f"DEBUG: 用户选择了文件: {file_path}")
-                self._process_question_bank(file_path)
+                self._process_question_bank(files[0].path)
             else:
                 print("DEBUG: 用户取消了文件选择")
 
-        # 使用 page.run_task 运行异步函数
+        # 使用 Flet 的 run_task 方法运行异步函数
         self.page.run_task(pick_file_async)
 
     def _process_question_bank(self, file_path: str):
@@ -727,35 +725,25 @@ class CloudExamView:
                     if self.exam_paper:
                         validation = workflow.validate_question_bank()
                         if not validation['valid']:
-                            # 使用 run_thread 确保 UI 更新是线程安全的
-                            def show_warning():
-                                self._show_warning_dialog(
-                                    "题库匹配度较低",
-                                    f"⚠️ 题库匹配率: {validation['match_rate']:.1%}\n\n"
-                                    f"可能不是对应的题库，请检查后再使用"
-                                )
-                            self.page.run_thread(show_warning)
+                            self._show_warning_dialog(
+                                "题库匹配度较低",
+                                f"⚠️ 题库匹配率: {validation['match_rate']:.1%}\n\n"
+                                f"可能不是对应的题库，请检查后再使用"
+                            )
 
                     # 刷新界面
-                    self.page.run_thread(self._refresh_function_panel)
+                    self._refresh_function_panel()
 
-                    # 显示成功对话框
-                    def show_success():
-                        self._show_success_dialog(
-                            "题库加载成功",
-                            f"✅ 题库文件已加载\n\n"
-                            f"文件: {Path(file_path).name}"
-                        )
-                    self.page.run_thread(show_success)
+                    self._show_success_dialog(
+                        "题库加载成功",
+                        f"✅ 题库文件已加载\n\n"
+                        f"文件: {Path(file_path).name}"
+                    )
                 else:
-                    def show_error():
-                        self._show_error_dialog("题库加载失败，请查看日志")
-                    self.page.run_thread(show_error)
+                    self._show_error_dialog("题库加载失败，请查看日志")
 
             except Exception as ex:
-                def show_exception():
-                    self._show_error_dialog(f"加载题库失败: {str(ex)}")
-                self.page.run_thread(show_exception)
+                self._show_error_dialog(f"加载题库失败: {str(ex)}")
 
         threading.Thread(target=load_task, daemon=True).start()
 
@@ -830,20 +818,11 @@ class CloudExamView:
                 # 延迟关闭对话框
                 import time
                 time.sleep(2)
+                if log_dialog in self.page.dialogs:
+                    self.page.pop_dialog()
 
-                # 使用 run_thread 确保 UI 操作是线程安全的
-                def close_dialog_and_refresh():
-                    try:
-                        # 检查对话框是否还在显示
-                        if hasattr(self.page, 'dialogs') and log_dialog in self.page.dialogs:
-                            self.page.pop_dialog()
-                    except Exception:
-                        pass  # 对话框可能已被用户手动关闭
-
-                    # 刷新界面
-                    self._refresh_function_panel()
-
-                self.page.run_thread(close_dialog_and_refresh)
+                # 刷新界面
+                self._refresh_function_panel()
 
             except Exception as ex:
                 self._append_log(f"\n❌ 注入失败: {str(ex)}", "error")
@@ -861,32 +840,9 @@ class CloudExamView:
         self.page.update()
 
     def _append_log(self, message: str, level: str = "info"):
-        """追加日志到日志对话框"""
-        # 打印到控制台
+        """追加日志（暂未实现，预留接口）"""
+        # 可以在日志对话框中显示
         print(f"[{level.upper()}] {message}")
-
-        # 更新日志对话框中的文本控件
-        if hasattr(self, '_current_log_text') and self._current_log_text:
-            # 根据级别添加图标前缀
-            icon_map = {
-                "info": "ℹ️",
-                "success": "✅",
-                "warning": "⚠️",
-                "error": "❌"
-            }
-            icon = icon_map.get(level, "")
-            log_line = f"{icon} {message}\n" if icon else f"{message}\n"
-
-            # 追加日志内容
-            current_text = self._current_log_text.value or ""
-            self._current_log_text.value = current_text + log_line
-
-            # 使用 run_thread 确保 UI 更新是线程安全的
-            try:
-                self.page.run_thread(lambda: self._current_log_text.update())
-            except Exception as e:
-                # 如果更新失败，至少保证控制台有输出
-                print(f"更新日志UI失败: {e}")
 
     def _create_log_dialog(self, title: str) -> ft.AlertDialog:
         """创建日志对话框"""
