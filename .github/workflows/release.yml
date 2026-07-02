@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - main
+    paths:
+      - version.py
   workflow_dispatch:
 
 permissions:
@@ -49,7 +51,7 @@ jobs:
           PY
           )"
 
-          RELEASE_TAG="v${APP_VERSION}-build.${GITHUB_RUN_NUMBER}"
+          RELEASE_TAG="v${APP_VERSION}"
 
           {
             echo "app_version=${APP_VERSION}"

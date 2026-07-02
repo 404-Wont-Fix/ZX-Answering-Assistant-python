@@ -31,6 +31,7 @@ class PluginContext:
         self._browser_manager = browser_manager
         self._settings_manager = settings_manager
         self._page = page
+        self._resources = []
 
     @property
     def api_client(self):
@@ -89,11 +90,43 @@ class PluginContext:
 
         page_runner = getattr(self._page, "run_thread", None) if self._page else None
         if callable(page_runner):
-            return page_runner(wrapper)
+            try:
+                return page_runner(wrapper)
+            except Exception as e:
+                print(f"[PluginContext] page.run_thread failed, falling back to thread: {e}")
 
         thread = threading.Thread(target=wrapper, daemon=True)
         thread.start()
         return thread
+
+    def register_resource(self, resource):
+        """
+        注册需要随插件上下文一起释放的资源。
+
+        资源对象可实现 cleanup()、dispose() 或 close()。
+        """
+        if resource is not None and resource not in self._resources:
+            self._resources.append(resource)
+        return resource
+
+    def cleanup(self):
+        """释放通过 register_resource() 注册的资源。"""
+        resources = list(self._resources)
+        self._resources.clear()
+
+        for resource in resources:
+            self._cleanup_resource(resource)
+
+    @staticmethod
+    def _cleanup_resource(resource):
+        for method_name in ("cleanup", "dispose", "close"):
+            cleanup = getattr(resource, method_name, None)
+            if callable(cleanup):
+                try:
+                    cleanup()
+                except Exception as e:
+                    print(f"[PluginContext] Failed to {method_name} resource: {e}")
+                return
 
     def get_plugin_config(self, key: str, default: Any = None) -> Any:
         """

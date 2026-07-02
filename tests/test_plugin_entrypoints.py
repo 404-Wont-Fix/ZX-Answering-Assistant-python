@@ -13,6 +13,20 @@ for import_path in (PLUGINS_DIR, ROOT):
 
 
 class PluginEntryPointTests(unittest.TestCase):
+    def test_plugin_entry_modules_do_not_mutate_sys_path(self):
+        offenders = []
+
+        for plugin_dir in sorted(path for path in PLUGINS_DIR.iterdir() if path.is_dir()):
+            for module_name in ("__init__.py", "ui.py", "core.py"):
+                module_path = plugin_dir / module_name
+                if not module_path.exists():
+                    continue
+                source = module_path.read_text(encoding="utf-8")
+                if "sys.path.insert" in source or "sys.path.append" in source:
+                    offenders.append(str(module_path.relative_to(ROOT)))
+
+        self.assertEqual(offenders, [])
+
     def test_enabled_plugin_entry_points_are_importable(self):
         failures = []
 

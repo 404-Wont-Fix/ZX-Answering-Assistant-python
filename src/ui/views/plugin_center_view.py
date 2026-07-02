@@ -8,6 +8,7 @@ import flet as ft
 from typing import Optional
 from src.ui.components import page_heading, secondary_button, status_chip, surface_card
 from src.ui.theme import Palette, Radius
+from src.ui.views.plugin_runtime import open_plugin_ui
 
 
 class PluginCenterView:
@@ -630,19 +631,8 @@ class PluginCenterView:
             return
 
         try:
-            from src.core.api_client import get_api_client
-            from src.core.browser import get_browser_manager
-
-            # 创建插件上下文（使用单例）
-            context = plugin_manager.create_plugin_context(
-                plugin_id=plugin_id,
-                api_client=get_api_client(),
-                browser_manager=get_browser_manager(),
-                page=self.page,
-            )
-
-            # 加载插件UI
-            plugin_ui = plugin_manager.load_plugin_ui(plugin_id, self.page, context)
+            result = open_plugin_ui(plugin_manager, plugin_id, self.page)
+            plugin_ui = result.control
 
             if plugin_ui:
                 # 保存当前插件中心视图

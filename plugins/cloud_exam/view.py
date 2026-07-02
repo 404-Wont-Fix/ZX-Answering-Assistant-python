@@ -16,7 +16,7 @@ from .workflow import CloudExamWorkflow
 class CloudExamView:
     """云考试页面视图"""
 
-    def __init__(self, page: ft.Page, main_app=None):
+    def __init__(self, page: ft.Page, main_app=None, context=None):
         """
         初始化云考试视图
 
@@ -26,6 +26,7 @@ class CloudExamView:
         """
         self.page = page
         self.main_app = main_app
+        self.context = context
         self.current_content = None  # 保存当前内容容器的引用
 
         # 登录相关
@@ -477,8 +478,8 @@ class CloudExamView:
         )
         self.page.show_dialog(self.progress_dialog)
 
-        # 使用 Flet 的线程安全方式执行登录
-        self.page.run_thread(self._perform_login, username, password)
+        # 使用统一的插件后台任务调度执行登录
+        self._run_background(self._perform_login, username, password)
 
     def _perform_login(self, username: str, password: str):
         """
@@ -860,6 +861,10 @@ class CloudExamView:
 
     def _run_background(self, target, *args, **kwargs):
         """通过 Flet Page 的线程执行器运行后台任务。"""
+        context = getattr(self, "context", None)
+        if context and hasattr(context, "run_task"):
+            return context.run_task(target, None, *args, **kwargs)
+
         if hasattr(self.page, "run_thread"):
             return self.page.run_thread(target, *args, **kwargs)
 
