@@ -8,15 +8,14 @@ ZX Answering Assistant - 云考试工作流程
 - 答案注入流程
 """
 
-import json
 import logging
 import time
 import threading
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict, List
 from urllib.parse import urlparse, parse_qs
 
-from src.cloud_exam.models import ExamPaper, ExamQuestion, QuestionOption
-from src.cloud_exam.api_client import CloudExamAPIClient
+from .models import ExamPaper, ExamQuestion, QuestionOption
+from .api_client import CloudExamAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +23,7 @@ logger = logging.getLogger(__name__)
 class NetworkMonitor:
     """网络请求监听器"""
 
-    def __init__(self, target_pattern: str = "*GetQuestionsByExpId*", log_callback=None):
+    def __init__(self, target_pattern: str = "GetQuestionsByExpId", log_callback=None):
         """
         初始化监听器
 
@@ -38,6 +37,14 @@ class NetworkMonitor:
         self.captured_responses = {}
         self._is_monitoring = False
         self._lock = threading.Lock()
+
+    def _matches_target_url(self, url: str) -> bool:
+        """判断 URL 是否为目标试卷题目接口。"""
+        if not url:
+            return False
+
+        normalized_pattern = self.target_pattern.replace("*", "").lower()
+        return normalized_pattern in url.lower()
 
     def _log(self, message: str):
         """输出日志"""
@@ -55,7 +62,7 @@ class NetworkMonitor:
         """
         def handle_route(route, request):
             """处理路由"""
-            if self.target_pattern in request.url:
+            if self._matches_target_url(request.url):
                 with self._lock:
                     self.captured_requests.append({
                         'url': request.url,
@@ -67,7 +74,7 @@ class NetworkMonitor:
 
         def handle_response(response):
             """处理响应"""
-            if self.target_pattern in response.url:
+            if self._matches_target_url(response.url):
                 try:
                     data = response.json()
                     with self._lock:
@@ -489,6 +496,36 @@ class CloudExamWorkflow:
             'total_count': total_count
         }
 
+    def _iter_question_bank_chapters(self) -> List[Dict]:
+        """收集题库中的章节，兼容单课程、顶层章节和多课程导出结构。"""
+        if not self.question_bank_data:
+            return []
+
+        chapters = []
+
+        class_info = self.question_bank_data.get("class", {})
+        course_info = class_info.get("course", {}) if isinstance(class_info, dict) else {}
+        chapters.extend(course_info.get("chapters", []))
+
+        chapters.extend(self.question_bank_data.get("chapters", []))
+
+        for course in self.question_bank_data.get("courses", []):
+            chapters.extend(course.get("chapters", []))
+
+        for course in self.question_bank_data.get("course_list", []):
+            chapters.extend(course.get("chapters", []))
+
+        return chapters
+
+    @staticmethod
+    def _read_question_id(question_data: Dict) -> str:
+        """从题库题目记录中读取题目 ID，只做字段兼容，不做标题模糊匹配。"""
+        for key in ("QuestionID", "questionID", "question_id", "id"):
+            value = question_data.get(key)
+            if value is not None:
+                return str(value).strip()
+        return ""
+
     def _find_answer_in_bank(self, question_id: str) -> Optional[List[str]]:
         """
         在题库中查找题目的答案ID
@@ -503,23 +540,19 @@ class CloudExamWorkflow:
             return None
 
         try:
-            # 遍历题库查找匹配的题目
-            chapters = []
-            if "class" in self.question_bank_data and "course" in self.question_bank_data["class"]:
-                chapters = self.question_bank_data["class"]["course"].get("chapters", [])
-            elif "chapters" in self.question_bank_data:
-                chapters = self.question_bank_data["chapters"]
+            target_question_id = str(question_id).strip()
 
-            for chapter in chapters:
+            for chapter in self._iter_question_bank_chapters():
                 for knowledge in chapter.get("knowledges", []):
                     for bank_question in knowledge.get("questions", []):
-                        # 检查题目ID是否匹配
-                        if bank_question.get("QuestionID") == question_id:
+                        if self._read_question_id(bank_question) == target_question_id:
                             # 获取正确答案的ID
                             answer_ids = []
                             for opt in bank_question.get("options", []):
                                 if opt.get("isTrue"):
-                                    answer_ids.append(opt.get("id", ""))
+                                    option_id = opt.get("id") or opt.get("answerID") or opt.get("AnswerID")
+                                    if option_id:
+                                        answer_ids.append(str(option_id).strip())
 
                             if answer_ids:
                                 return answer_ids

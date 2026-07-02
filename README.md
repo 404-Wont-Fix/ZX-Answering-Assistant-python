@@ -95,10 +95,9 @@ main.py
 | `src/auth/` | 学生端、教师端登录和 token 管理 |
 | `src/answering/` | 学生端答题流程，包含浏览器模式和 API 模式 |
 | `src/extraction/` | 教师端答案提取、导入导出和文件处理 |
-| `src/cloud_exam/` | 云考试数据模型、API 客户端和工作流 |
 | `src/certification/` | 课程认证工作流和 API 答题逻辑 |
 | `src/utils/` | 通用工具，目前主要是重试辅助 |
-| `plugins/` | 内置与外部插件目录 |
+| `plugins/` | 内置与外部插件目录，云考试等插件的 UI 与业务逻辑都位于各自插件目录 |
 | `docs/` | 浏览器、SSL、Flet、构建和系统浏览器等专题文档 |
 | `tests/` | 配置、插件和 API 客户端相关测试 |
 

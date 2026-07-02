@@ -4,15 +4,7 @@
 实现云考试的主要功能
 """
 
-import sys
-from pathlib import Path
-
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
-from src.cloud_exam.workflow import CloudExamWorkflow
+from .workflow import CloudExamWorkflow
 
 
 class Workflow:
@@ -76,10 +68,11 @@ class Workflow:
 
                 if question_bank and result['exam_paper']:
                     # 验证题库匹配率
-                    match_rate = self.workflow.validate_question_bank(result['exam_paper'])
+                    validation = self.workflow.validate_question_bank(result['exam_paper'])
+                    match_rate = validation['match_rate']
                     result['match_rate'] = match_rate
 
-                    if match_rate >= 0.3:  # 30%匹配率阈值
+                    if validation['valid']:
                         result['message'] += f"\n题库匹配率: {match_rate*100:.1f}% (满足要求)"
                         print(f"[CloudExam Plugin] 题库验证通过，匹配率: {match_rate*100:.1f}%")
                     else:
