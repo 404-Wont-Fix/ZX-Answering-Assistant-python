@@ -55,11 +55,11 @@ def _get_version() -> str:
         return version
 
     # 如果失败，使用默认值
-    return "3.2.0"
+    return "3.8.0"
 
 # VERSION = _get_version()
 
-VERSION = "3.7.4"
+VERSION = "3.8.0"
 
 
 def _get_weban_version() -> str:
