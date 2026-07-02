@@ -95,7 +95,6 @@ Flet 0.8.0+ has **massive breaking changes** from earlier versions. Many commonl
 - **[settings_view.py](src/ui/views/settings_view.py)** - Configuration management
 - **[course_certification_view.py](src/ui/views/course_certification_view.py)** - Course certification workflow
 - **[plugin_center_view.py](src/ui/views/plugin_center_view.py)** - Plugin catalog and plugin entry workspace
-- **[cloud_exam_view.py](src/ui/views/cloud_exam_view.py)** - Cloud exam page (⚠️ **Partial implementation** - answer injection blocked by missing ExamMemberID parameter)
 
 ### CLI Mode
 Traditional command-line interface via [main.py](main.py) with hierarchical menu system:
@@ -151,12 +150,13 @@ browser_manager.stop_browser()
 - **[src/certification/workflow.py](src/certification/workflow.py)** - Course certification workflow
 - **[src/certification/api_answer.py](src/certification/api_answer.py)** - API-based answering for certification
 
-### Cloud Exam Modules (Beta - Partial Implementation)
-- **[src/cloud_exam/workflow.py](src/cloud_exam/workflow.py)** - Cloud exam workflow
-- **[src/cloud_exam/api_client.py](src/cloud_exam/api_client.py)** - Cloud exam API client
-- **[src/cloud_exam/models.py](src/cloud_exam/models.py)** - Cloud exam data models
+### Cloud Exam Plugin
+- **[plugins/cloud_exam/view.py](plugins/cloud_exam/view.py)** - Cloud exam plugin UI
+- **[plugins/cloud_exam/workflow.py](plugins/cloud_exam/workflow.py)** - Cloud exam workflow
+- **[plugins/cloud_exam/api_client.py](plugins/cloud_exam/api_client.py)** - Cloud exam API client
+- **[plugins/cloud_exam/models.py](plugins/cloud_exam/models.py)** - Cloud exam data models
 
-**⚠️ Known Issue**: Answer injection is blocked by missing `ExamMemberID` parameter. This is a known limitation documented in the code.
+Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and models under `plugins/cloud_exam/` instead of adding new `src/cloud_exam/` or `src/ui/views/cloud_exam_view.py` modules.
 
 ### Data Management
 - **[src/extraction/exporter.py](src/extraction/exporter.py)** - JSON export
@@ -456,10 +456,6 @@ src/
 ├── certification/      # Course certification workflow
 │   ├── workflow.py
 │   └── api_answer.py
-├── cloud_exam/         # Cloud exam workflow (Beta)
-│   ├── workflow.py
-│   ├── api_client.py
-│   └── models.py
 ├── extraction/         # Data extraction pipeline
 │   ├── extractor.py
 │   ├── exporter.py
