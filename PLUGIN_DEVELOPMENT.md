@@ -105,12 +105,6 @@ plugins/
 # plugins/my_plugin/ui.py
 
 import flet as ft
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 
 def create_view(page: ft.Page, context):
@@ -138,14 +132,6 @@ def create_view(page: ft.Page, context):
 
 ```python
 # plugins/my_plugin/core.py
-
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 
 class Workflow:
     """插件工作流"""
@@ -241,6 +227,13 @@ plugins/
 | `dependencies` | array | ❌ | 依赖的其他插件 ID 列表 |
 | `enabled` | boolean | ❌ | 默认是否启用，默认 true |
 
+### 扫描校验规则
+
+- 插件目录名必须与 `manifest.json` 中的 `id` 完全一致，例如 `plugins/my_plugin/manifest.json` 的 `id` 必须是 `my_plugin`。
+- `entry_ui` 和 `entry_core` 只能使用一层 `模块名.函数名` / `模块名.类名`，例如 `ui.create_view`、`core.Workflow`。
+- `min_app_version` 会在扫描时和当前应用版本比较；版本不兼容的插件不会进入插件中心。
+- `dependencies` 必须是插件 ID 数组；依赖插件不存在或未启用时，当前插件不能加载。
+
 ### 图标名称
 
 使用 Material Design 图标名称，常用图标：
@@ -288,6 +281,18 @@ plugins/
 | **Disabled** | 插件已禁用 | 用户禁用插件 |
 | **Unloaded** | 插件已卸载 | 应用关闭或插件被移除 |
 
+### 资源清理
+
+如果插件 UI 或核心对象持有线程、浏览器、文件句柄、网络连接等资源，请实现以下任意一个方法：
+
+```python
+def cleanup(self):
+    """释放插件资源"""
+    ...
+```
+
+插件禁用或从插件页面返回插件中心时，`PluginManager` 会调用已加载对象上的 `cleanup()`、`dispose()` 或 `close()`。
+
 ---
 
 ## 依赖注入
@@ -319,7 +324,15 @@ class PluginContext:
         pass
 
     def run_task(self, func: Callable, callback: Callable = None):
-        """在后台线程安全地执行耗时操作"""
+        """在后台线程安全地执行耗时操作，并在回调后调度 UI 更新"""
+        pass
+
+    def register_resource(self, resource: Any):
+        """注册随插件卸载一起清理的 view、线程控制器或外部资源"""
+        pass
+
+    def cleanup(self):
+        """释放已注册资源"""
         pass
 
     def get_plugin_config(self, key: str) -> Any:
@@ -390,18 +403,12 @@ def create_view(page: ft.Page, context) -> ft.Control:
 如果插件复用现有的视图组件：
 
 ```python
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 from src.ui.views.my_view import MyView
 
 
 def create_view(page, context):
     view = MyView(page, main_app=None)
+    context.register_resource(view)
     return view.get_content()
 ```
 
@@ -409,12 +416,6 @@ def create_view(page, context):
 
 ```python
 import flet as ft
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 
 def create_view(page: ft.Page, context):
@@ -490,7 +491,6 @@ class Workflow:
 def create_view(page: ft.Page, context):
     def on_task_complete(result):
         status_text.value = f"任务完成: {result}"
-        page.update()
 
     def start_task(e):
         status_text.value = "任务执行中..."
@@ -510,6 +510,8 @@ def create_view(page: ft.Page, context):
         status_text,
     ])
 ```
+
+`context.run_task()` 会优先使用 Flet `page.run_thread()` 执行后台任务，并在回调后调用 `page.schedule_update()`。因此回调里只需要修改控件状态，不需要再手动刷新页面。
 
 ---
 
@@ -604,12 +606,6 @@ class Workflow:
 创建独立的测试脚本测试插件功能：
 
 ```python
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent
-sys.path.insert(0, str(project_root))
-
 from src.core.plugin_context import PluginContext
 
 class MockContext:
@@ -655,30 +651,18 @@ print(result)
 **ui.py**
 ```python
 import flet as ft
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 from src.ui.views.course_certification_view import CourseCertificationView
 
 
 def create_view(page, context):
     view = CourseCertificationView(page, main_app=None)
+    context.register_resource(view)
     return view.get_content()
 ```
 
 **core.py**
 ```python
-import sys
-from pathlib import Path
-
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
-
 from src.certification.workflow import get_access_token, start_answering
 
 
@@ -713,19 +697,19 @@ class Workflow:
 
 **原因**: `manifest.json` 格式错误或缺少必要字段
 
-**解决方案**: 检查 `manifest.json` 格式，确保包含 `id`、`name`、`version`、`entry_ui` 字段。
+**解决方案**: 检查 `manifest.json` 格式，确保包含 `id`、`name`、`version`、`entry_ui` 字段，并确保插件目录名与 `id` 一致。
 
 ### 2. 插件加载失败
 
 **原因**: 模块导入路径错误
 
-**解决方案**: 确保 `ui.py` 和 `core.py` 中正确设置了项目根目录路径：
+**解决方案**: 确保 `entry_ui` / `entry_core` 指向插件包内存在的模块和对象，例如：
 
 ```python
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+from .core import Workflow
 ```
+
+可选第三方模块应在实际使用时懒加载，并捕获 `Exception` 返回“不可用”状态，避免插件入口导入失败导致整个插件中心无法加载。
 
 ### 3. 依赖注入失败
 

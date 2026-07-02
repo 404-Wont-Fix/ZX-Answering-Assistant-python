@@ -8,15 +8,9 @@ WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
 import flet as ft
 import threading
 import asyncio
-from pathlib import Path
 from typing import Optional
-import sys
 
-# 导入插件内部的 weban_adapter
-weban_adapter_path = Path(__file__).parent / "weban_adapter.py"
-spec = __import__('importlib.util').util.spec_from_file_location("weban_adapter", weban_adapter_path)
-weban_adapter = __import__('importlib.util').util.module_from_spec(spec)
-spec.loader.exec_module(weban_adapter)
+from . import weban_adapter
 
 # 导入对话框（从主项目）
 try:
@@ -32,7 +26,7 @@ from src.core.config import get_settings_manager
 class WeBanView:
     """WeBan 视图类"""
 
-    def __init__(self, page: ft.Page, settings_manager=None):
+    def __init__(self, page: ft.Page, settings_manager=None, context=None):
         """
         初始化视图
 
@@ -40,6 +34,7 @@ class WeBanView:
             page: Flet 页面对象
         """
         self.page = page
+        self.context = context
 
         # 创建输入对话框（如果可用）
         if HAS_INPUT_DIALOG and WeBanInputDialog:
@@ -540,7 +535,7 @@ class WeBanView:
                     )
                 self.page.run_thread(show_error)
 
-        threading.Thread(target=validate_school, daemon=True).start()
+        self._run_background(validate_school)
 
     def _show_validation_dialog(self, title: str, message: str, color: ft.Colors):
         """显示验证结果对话框"""
@@ -666,8 +661,7 @@ class WeBanView:
 
                 self.page.run_thread(update_final_state)
 
-        self.task_thread = threading.Thread(target=run_task, daemon=True)
-        self.task_thread.start()
+        self.task_thread = self._run_background(run_task)
 
     def _on_console_stop(self, e):
         """控制台停止按钮点击事件"""
@@ -801,3 +795,20 @@ class WeBanView:
         # 等待用户输入
         input_event.wait()
         return input_result[0]
+
+    def _run_background(self, target, *args, **kwargs):
+        """通过插件上下文运行后台任务，独立预览时回落到普通线程。"""
+        if self.context and hasattr(self.context, "run_task"):
+            return self.context.run_task(target, None, *args, **kwargs)
+
+        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
+        thread.start()
+        return thread
+
+    def cleanup(self):
+        """插件卸载时停止正在运行的 WeBan 任务。"""
+        try:
+            self.adapter.stop()
+        except Exception as e:
+            print(f"[WeBan] 清理任务失败: {e}")
+        self.is_running = False
