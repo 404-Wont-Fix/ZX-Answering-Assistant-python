@@ -630,17 +630,15 @@ class PluginCenterView:
             return
 
         try:
-            from src.core.plugin_context import PluginContext
             from src.core.api_client import get_api_client
             from src.core.browser import get_browser_manager
-            from src.core.config import get_settings_manager
 
             # 创建插件上下文（使用单例）
-            context = PluginContext(
+            context = plugin_manager.create_plugin_context(
                 plugin_id=plugin_id,
                 api_client=get_api_client(),
                 browser_manager=get_browser_manager(),
-                settings_manager=get_settings_manager(),
+                page=self.page,
             )
 
             # 加载插件UI
@@ -720,6 +718,10 @@ class PluginCenterView:
             return
 
         plugin_manager = self.main_app.plugin_manager
+        current_plugin_id = self.current_plugin_ui
+        if current_plugin_id:
+            plugin_manager.unload_plugin(current_plugin_id)
+
         plugins = plugin_manager.get_all_plugins()
 
         # 重新构建插件中心视图

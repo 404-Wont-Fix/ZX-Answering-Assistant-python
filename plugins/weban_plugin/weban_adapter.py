@@ -7,6 +7,7 @@ ensuring code separation and independent functionality.
 
 import sys
 import os
+import importlib
 from pathlib import Path
 import json
 import threading
@@ -50,30 +51,46 @@ def _find_weban_path() -> Optional[Path]:
     return None
 
 
-# 自动查找并设置 WeBan 路径
+# 只在模块导入时定位路径；外部 WeBan 代码在真正使用时再懒加载。
 weban_path = _find_weban_path()
+WEBAN_AVAILABLE = False
+WEBAN_IMPORT_ERROR: Optional[Exception] = None
+WeBanClient = None
+WeBanAPI = None
 
-if weban_path:
+
+def _load_weban_classes() -> bool:
+    """懒加载外部 WeBan 类，避免插件入口导入被可选依赖拖垮。"""
+    global weban_path, WEBAN_AVAILABLE, WEBAN_IMPORT_ERROR, WeBanClient, WeBanAPI
+
+    if WEBAN_AVAILABLE and WeBanClient is not None and WeBanAPI is not None:
+        return True
+
+    weban_path = _find_weban_path()
+    if not weban_path:
+        WEBAN_AVAILABLE = False
+        WEBAN_IMPORT_ERROR = None
+        WeBanClient = None
+        WeBanAPI = None
+        return False
+
     if str(weban_path) not in sys.path:
         sys.path.insert(0, str(weban_path))
+
     try:
-        from client import WeBanClient
-        from api import WeBanAPI
+        client_module = importlib.import_module("client")
+        api_module = importlib.import_module("api")
+        WeBanClient = client_module.WeBanClient
+        WeBanAPI = api_module.WeBanAPI
         WEBAN_AVAILABLE = True
-    except ImportError as e:
-        print(f"⚠️ WeBan 模块导入失败: {e}")
-        print(f"   WeBan路径: {weban_path}")
-        print(f"   请确保WeBan依赖包已安装: pip install ddddocr loguru pycryptodome requests")
+        WEBAN_IMPORT_ERROR = None
+        return True
+    except Exception as e:
         WEBAN_AVAILABLE = False
         WeBanClient = None
         WeBanAPI = None
-else:
-    print("⚠️ 未找到 WeBan 模块")
-    print("   WeBan 插件将不可用")
-    print("   如需使用此插件，请确保 WeBan 项目存在")
-    WEBAN_AVAILABLE = False
-    WeBanClient = None
-    WeBanAPI = None
+        WEBAN_IMPORT_ERROR = e
+        return False
 
 
 class WeBanAdapter:
@@ -100,7 +117,7 @@ class WeBanAdapter:
         self._config: List[Dict[str, Any]] = []
 
         # 检查 WeBan 是否可用
-        if not WEBAN_AVAILABLE:
+        if not self._ensure_weban_available():
             self._log("WeBan 模块不可用，插件功能受限", "warning")
             return
 
@@ -114,6 +131,20 @@ class WeBanAdapter:
             WeBanClient._weban_adapter_input = self.input_callback
         except AttributeError as e:
             self._log(f"无法设置 WeBanClient 回调: {e}", "warning")
+
+    def _ensure_weban_available(self) -> bool:
+        """确保外部 WeBan 模块已经成功加载。"""
+        if _load_weban_classes():
+            return True
+
+        if weban_path:
+            self._log(f"WeBan 模块导入失败: {WEBAN_IMPORT_ERROR}", "warning")
+            self._log(f"WeBan路径: {weban_path}", "warning")
+            self._log("请确保WeBan依赖包已安装: pip install ddddocr loguru pycryptodome requests", "warning")
+        else:
+            self._log("未找到 WeBan 模块，插件将不可用", "warning")
+            self._log("如需使用此插件，请确保 WeBan 项目存在", "warning")
+        return False
 
     def _default_callback(self, message: str, level: str = "info"):
         """默认进度回调"""
@@ -139,7 +170,7 @@ class WeBanAdapter:
 
     def check_available(self) -> bool:
         """检查 WeBan 模块是否可用"""
-        return WEBAN_AVAILABLE
+        return _load_weban_classes()
 
     def get_dependencies(self) -> List[str]:
         """获取 WeBan 模块依赖"""
@@ -156,7 +187,7 @@ class WeBanAdapter:
 
         通过动态替换 WeBanClient 的方法，在关键循环点注入停止检查
         """
-        if not WEBAN_AVAILABLE:
+        if not _load_weban_classes():
             return
 
         # 使用类级别标志确保 Monkey Patch 只应用一次
@@ -550,7 +581,7 @@ class WeBanAdapter:
 
         将 WeBan 模块中的 input() 调用和 _prompt() 方法替换为回调函数
         """
-        if not WEBAN_AVAILABLE:
+        if not _load_weban_classes():
             return
 
         # 使用类级别标志确保 Monkey Patch 只应用一次
@@ -683,7 +714,7 @@ class WeBanAdapter:
         Returns:
             验证结果，格式: {"success": bool, "message": str, "data": dict}
         """
-        if not WEBAN_AVAILABLE:
+        if not self._ensure_weban_available():
             return {
                 "success": False,
                 "message": "WeBan 模块不可用，请检查依赖是否安装",
@@ -728,7 +759,7 @@ class WeBanAdapter:
             self._log(f"账号 {account_index+1}: 用户中断", "warning")
             return False
 
-        if not WEBAN_AVAILABLE:
+        if not self._ensure_weban_available():
             self._log("WeBan 模块不可用", "error")
             return False
 
