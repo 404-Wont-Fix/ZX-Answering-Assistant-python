@@ -5,15 +5,8 @@ WeBan Plugin Core - 安全微伴插件核心功能
 """
 
 from typing import Optional, Dict, Any
-import sys
-from pathlib import Path
 
-# 添加插件目录到Python路径（weban_adapter 现在在插件根目录）
-plugin_dir = Path(__file__).parent
-if str(plugin_dir) not in sys.path:
-    sys.path.insert(0, str(plugin_dir))
-
-from weban_adapter import get_weban_adapter
+from .weban_adapter import get_weban_adapter
 
 
 class WeBanPluginCore:

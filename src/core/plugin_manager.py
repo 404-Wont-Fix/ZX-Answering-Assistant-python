@@ -10,6 +10,7 @@ import importlib
 import importlib.metadata as importlib_metadata
 import re
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -166,14 +167,64 @@ class PluginManager:
         return True
 
     @staticmethod
-    def _validate_plugin_info(plugin_info: PluginInfo) -> None:
+    @contextmanager
+    def _temporary_import_path(path: Path):
+        """临时添加导入路径，避免插件加载污染全局 sys.path。"""
+        original_sys_path = list(sys.path)
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+        try:
+            yield
+        finally:
+            sys.path[:] = original_sys_path
+
+    @staticmethod
+    def _validate_entry_point(entry_point: str, field_name: str) -> None:
+        """校验入口点使用 '<module>.<callable>' 格式。"""
+        if not entry_point or entry_point.count(".") != 1:
+            raise ValueError(f"{field_name} must use '<module>.<callable>' format")
+
+        module_name, attr_name = entry_point.split(".")
+        if not module_name or not attr_name:
+            raise ValueError(f"{field_name} must use '<module>.<callable>' format")
+
+    @staticmethod
+    def _version_tuple(version: str) -> tuple:
+        """将语义化版本转成可比较的数字元组。"""
+        parts = re.findall(r"\d+", version or "")
+        if not parts:
+            raise ValueError(f"invalid version: {version}")
+        return tuple(int(part) for part in parts)
+
+    @classmethod
+    def _is_app_version_compatible(cls, min_app_version: Optional[str]) -> bool:
+        """判断当前应用版本是否满足插件最低版本要求。"""
+        if not min_app_version:
+            return True
+
+        from version import VERSION
+
+        current = cls._version_tuple(VERSION)
+        required = cls._version_tuple(min_app_version)
+        max_len = max(len(current), len(required))
+        current += (0,) * (max_len - len(current))
+        required += (0,) * (max_len - len(required))
+        return current >= required
+
+    @classmethod
+    def _validate_plugin_info(cls, plugin_info: PluginInfo) -> None:
         """校验加载和路由所依赖的最低限度 manifest 字段。"""
         if not re.fullmatch(r"[a-z0-9_]+", plugin_info.id):
             raise ValueError("plugin id must contain only lowercase letters, digits, and underscores")
         if not plugin_info.name:
             raise ValueError("plugin name is required")
-        if "." not in plugin_info.entry_ui:
-            raise ValueError("entry_ui must use '<module>.<callable>' format")
+        cls._validate_entry_point(plugin_info.entry_ui, "entry_ui")
+        if plugin_info.entry_core:
+            cls._validate_entry_point(plugin_info.entry_core, "entry_core")
+        if not isinstance(plugin_info.dependencies, list):
+            raise ValueError("dependencies must be a list")
 
     def scan_plugins(self, plugins_dir: Path = None) -> int:
         """
@@ -208,6 +259,12 @@ class PluginManager:
             try:
                 plugin_info = PluginInfo.from_manifest(manifest_file)
                 self._validate_plugin_info(plugin_info)
+                if plugin_info.id != plugin_dir.name:
+                    raise ValueError("plugin id must match plugin directory name")
+                if not self._is_app_version_compatible(plugin_info.min_app_version):
+                    raise ValueError(
+                        f"plugin requires app version >= {plugin_info.min_app_version}"
+                    )
                 if plugin_info.id in self._plugins:
                     raise ValueError(f"duplicate plugin id: {plugin_info.id}")
 
@@ -290,19 +347,19 @@ class PluginManager:
             # 解析入口点
             module_name, func_name = plugin_info.entry_ui.split('.')
 
-            # 添加插件目录到 Python 路径
+            # 添加插件父目录到 Python 路径
             plugin_path = plugin_info.path
-            if str(plugin_path.parent) not in sys.path:
-                sys.path.insert(0, str(plugin_path.parent))
 
             # 导入插件模块
-            module = importlib.import_module(f"{plugin_id}.{module_name}")
+            with self._temporary_import_path(plugin_path.parent):
+                module = importlib.import_module(f"{plugin_id}.{module_name}")
 
             # 获取 UI 创建函数
             create_func = getattr(module, func_name)
 
             # 创建 UI
             ui_control = create_func(page, context)
+            self._loaded_plugins.setdefault(plugin_id, {})["ui"] = ui_control
 
             print(f"[PluginManager] Plugin UI loaded successfully: {plugin_id}")
             return ui_control
@@ -344,19 +401,19 @@ class PluginManager:
             # 解析入口点
             module_name, class_name = plugin_info.entry_core.split('.')
 
-            # 添加插件目录到 Python 路径
+            # 添加插件父目录到 Python 路径
             plugin_path = plugin_info.path
-            if str(plugin_path.parent) not in sys.path:
-                sys.path.insert(0, str(plugin_path.parent))
 
             # 导入插件模块
-            module = importlib.import_module(f"{plugin_id}.{module_name}")
+            with self._temporary_import_path(plugin_path.parent):
+                module = importlib.import_module(f"{plugin_id}.{module_name}")
 
             # 获取核心类
             core_class = getattr(module, class_name)
 
             # 创建实例（传递 context）
             core_instance = core_class(context)
+            self._loaded_plugins.setdefault(plugin_id, {})["core"] = core_instance
 
             print(f"[PluginManager] Plugin core loaded successfully: {plugin_id}")
             return core_instance
@@ -427,12 +484,43 @@ class PluginManager:
 
         success = self.settings_manager.set_plugin_enabled(plugin_id, False)
         if success:
+            self.unload_plugin(plugin_id)
             self._plugins[plugin_id].enabled = False
             print(f"[PluginManager] Plugin disabled: {plugin_id}")
 
         return success
 
-    def create_plugin_context(self, plugin_id: str, api_client, browser_manager) -> PluginContext:
+    def unload_plugin(self, plugin_id: str) -> None:
+        """
+        卸载插件已加载的 UI/core/context 资源。
+
+        插件对象可选择实现 cleanup()、dispose() 或 close() 之一作为释放钩子。
+        """
+        resources = self._loaded_plugins.pop(plugin_id, {})
+        context = self._contexts.pop(plugin_id, None)
+        seen = set()
+
+        for resource in list(resources.values()) + [context]:
+            if resource is None or id(resource) in seen:
+                continue
+            seen.add(id(resource))
+            self._cleanup_resource(plugin_id, resource)
+
+    @staticmethod
+    def _cleanup_resource(plugin_id: str, resource) -> None:
+        for method_name in ("cleanup", "dispose", "close"):
+            cleanup = getattr(resource, method_name, None)
+            if callable(cleanup):
+                try:
+                    cleanup()
+                except Exception as e:
+                    print(
+                        f"[PluginManager] Failed to {method_name} plugin resource "
+                        f"{plugin_id}: {e}"
+                    )
+                return
+
+    def create_plugin_context(self, plugin_id: str, api_client, browser_manager, page=None) -> PluginContext:
         """
         为插件创建上下文
 
@@ -440,6 +528,7 @@ class PluginManager:
             plugin_id: 插件ID
             api_client: APIClient 实例
             browser_manager: BrowserManager 实例
+            page: Flet Page 实例，用于安全调度 UI 更新
 
         Returns:
             PluginContext 实例
@@ -448,7 +537,8 @@ class PluginManager:
             plugin_id=plugin_id,
             api_client=api_client,
             browser_manager=browser_manager,
-            settings_manager=self.settings_manager
+            settings_manager=self.settings_manager,
+            page=page,
         )
 
         self._contexts[plugin_id] = context

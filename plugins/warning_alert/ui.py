@@ -6,15 +6,9 @@
 
 import flet as ft
 import json
-import sys
 import threading
 import time
 from pathlib import Path
-
-# 添加项目根目录到Python路径
-project_root = Path(__file__).parent.parent.parent
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
 
 
 class WarningAlertPlugin:
@@ -155,12 +149,8 @@ class WarningAlertPlugin:
                     self.is_loop_running = True
                 print(f"[WarningAlert] 循环弹窗模式已启动")
 
-            # 在新线程中运行tkinter窗口，避免阻塞Flet UI
-            warning_thread = threading.Thread(
-                target=self._run_tkinter_window,
-                daemon=True
-            )
-            warning_thread.start()
+            # 在后台运行 tkinter 窗口，避免阻塞 Flet UI。
+            self._run_background(self._run_tkinter_window)
 
             print(f"[WarningAlert] Tkinter警告窗口已启动")
 
@@ -197,6 +187,15 @@ class WarningAlertPlugin:
                     self.page.update()
                 except Exception as ui_ex:
                     print(f"[WarningAlert] 显示错误消息失败: {ui_ex}")
+
+    def _run_background(self, target, *args, **kwargs):
+        """通过插件上下文运行后台任务，独立预览时回落到普通线程。"""
+        if self.context and hasattr(self.context, "run_task"):
+            return self.context.run_task(target, None, *args, **kwargs)
+
+        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
+        thread.start()
+        return thread
 
     def _schedule_next_window(self):
         """安排下一次弹窗"""
@@ -1318,6 +1317,10 @@ class WarningAlertPlugin:
 
         return self.main_content
 
+    def cleanup(self):
+        """插件卸载时停止循环弹窗。"""
+        self.stop_loop()
+
 
 def create_view(page, context):
     """
@@ -1331,4 +1334,6 @@ def create_view(page, context):
         ft.Control: 警告提示器的根控件
     """
     plugin = WarningAlertPlugin(page, context)
+    if hasattr(context, "register_resource"):
+        context.register_resource(plugin)
     return plugin.get_content()

@@ -5,18 +5,18 @@ This module contains the UI components for the cloud exam page.
 """
 
 import flet as ft
-import threading
 from pathlib import Path
-from src.cloud_exam.workflow import CloudExamWorkflow, NetworkMonitor
 from src.core.config import get_settings_manager
 from src.core.browser import BrowserType
 from src.auth.student import get_student_access_token
+
+from .workflow import CloudExamWorkflow
 
 
 class CloudExamView:
     """云考试页面视图"""
 
-    def __init__(self, page: ft.Page, main_app=None):
+    def __init__(self, page: ft.Page, main_app=None, context=None):
         """
         初始化云考试视图
 
@@ -26,6 +26,7 @@ class CloudExamView:
         """
         self.page = page
         self.main_app = main_app
+        self.context = context
         self.current_content = None  # 保存当前内容容器的引用
 
         # 登录相关
@@ -199,7 +200,7 @@ class CloudExamView:
                 alignment=ft.MainAxisAlignment.CENTER,
             ),
             width=400,
-            border=ft.border.all(1, ft.Colors.GREY_400),
+            border=ft.Border.all(1, ft.Colors.GREY_400),
             border_radius=4,
             padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
         )
@@ -477,8 +478,8 @@ class CloudExamView:
         )
         self.page.show_dialog(self.progress_dialog)
 
-        # 使用 Flet 的线程安全方式执行登录
-        self.page.run_thread(self._perform_login, username, password)
+        # 使用统一的插件后台任务调度执行登录
+        self._run_background(self._perform_login, username, password)
 
     def _perform_login(self, username: str, password: str):
         """
@@ -522,7 +523,6 @@ class CloudExamView:
                 self.page.update()
 
                 # 初始化工作流程（但不启动网络监听器）
-                from src.cloud_exam.workflow import CloudExamWorkflow
                 workflow = CloudExamWorkflow(log_callback=self._append_log)
                 self.workflow = workflow
                 workflow.access_token = access_token
@@ -687,7 +687,7 @@ class CloudExamView:
                 import traceback
                 traceback.print_exc()
 
-        threading.Thread(target=capture_task, daemon=True).start()
+        self._run_background(capture_task)
 
     def _on_load_bank_click(self, e):
         """处理加载题库按钮点击（使用新的 FilePicker API）"""
@@ -745,7 +745,7 @@ class CloudExamView:
             except Exception as ex:
                 self._show_error_dialog(f"加载题库失败: {str(ex)}")
 
-        threading.Thread(target=load_task, daemon=True).start()
+        self._run_background(load_task)
 
     def _on_inject_click(self, e):
         """处理答案注入按钮点击"""
@@ -829,7 +829,7 @@ class CloudExamView:
                 import traceback
                 self._append_log(f"详细错误: {traceback.format_exc()}")
 
-        threading.Thread(target=inject_task, daemon=True).start()
+        self._run_background(inject_task)
 
     # ==================== 辅助方法 ====================
 
@@ -840,9 +840,39 @@ class CloudExamView:
         self.page.update()
 
     def _append_log(self, message: str, level: str = "info"):
-        """追加日志（暂未实现，预留接口）"""
-        # 可以在日志对话框中显示
+        """追加日志到当前日志弹窗，并触发页面刷新。"""
         print(f"[{level.upper()}] {message}")
+
+        log_text = getattr(self, "_current_log_text", None)
+        if not log_text:
+            return
+
+        current_value = log_text.value or ""
+        next_line = str(message)
+        log_text.value = f"{current_value}\n{next_line}" if current_value else next_line
+        self._update_page()
+
+    def _update_page(self):
+        """刷新 Flet 页面，后台线程优先使用可调度更新。"""
+        if hasattr(self.page, "schedule_update"):
+            self.page.schedule_update()
+        else:
+            self.page.update()
+
+    def _run_background(self, target, *args, **kwargs):
+        """通过 Flet Page 的线程执行器运行后台任务。"""
+        context = getattr(self, "context", None)
+        if context and hasattr(context, "run_task"):
+            return context.run_task(target, None, *args, **kwargs)
+
+        if hasattr(self.page, "run_thread"):
+            return self.page.run_thread(target, *args, **kwargs)
+
+        import threading
+
+        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
+        thread.start()
+        return thread
 
     def _create_log_dialog(self, title: str) -> ft.AlertDialog:
         """创建日志对话框"""
@@ -873,7 +903,7 @@ class CloudExamView:
                             width=500,
                             height=300,
                             bgcolor=ft.Colors.GREY_100,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border=ft.Border.all(1, ft.Colors.GREY_300),
                             border_radius=8,
                             padding=10,
                         ),
