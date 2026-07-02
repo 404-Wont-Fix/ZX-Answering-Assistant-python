@@ -1,4 +1,5 @@
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -6,6 +7,7 @@ from pathlib import Path
 from src.core.config import SettingsManager
 from src.core.plugin_context import PluginContext
 from src.core.plugin_manager import PluginInfo, PluginManager
+from src.ui.views.plugin_runtime import open_plugin_ui
 
 
 class SettingsManagerTests(unittest.TestCase):
@@ -160,6 +162,41 @@ class PluginManagerTests(unittest.TestCase):
         self.assertTrue(resource.cleaned)
         self.assertNotIn("demo", self.manager._loaded_plugins)
 
+    def test_load_plugin_ui_does_not_persist_plugin_parent_in_sys_path(self):
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            plugins_dir = Path(tmp_dir)
+            plugin_dir = plugins_dir / "isolated_plugin"
+            plugin_dir.mkdir()
+            (plugin_dir / "__init__.py").write_text("", encoding="utf-8")
+            (plugin_dir / "ui.py").write_text(
+                "def create_view(page, context):\n"
+                "    return 'loaded'\n",
+                encoding="utf-8",
+            )
+            (plugin_dir / "manifest.json").write_text(
+                json.dumps({
+                    "id": "isolated_plugin",
+                    "name": "Isolated",
+                    "entry_ui": "ui.create_view",
+                    "dependencies": [],
+                }),
+                encoding="utf-8",
+            )
+
+            sys.modules.pop("isolated_plugin", None)
+            sys.modules.pop("isolated_plugin.ui", None)
+            original_sys_path = list(sys.path)
+            try:
+                self.assertEqual(self.manager.scan_plugins(plugins_dir), 1)
+                self.assertEqual(
+                    self.manager.load_plugin_ui("isolated_plugin", page=None, context=None),
+                    "loaded",
+                )
+                self.assertEqual(sys.path, original_sys_path)
+            finally:
+                sys.modules.pop("isolated_plugin", None)
+                sys.modules.pop("isolated_plugin.ui", None)
+
 
 class FakePage:
     def __init__(self):
@@ -172,6 +209,12 @@ class FakePage:
 
     def schedule_update(self):
         self.scheduled_updates += 1
+
+
+class FailingPage(FakePage):
+    def run_thread(self, handler, *args, **kwargs):
+        self.run_thread_calls.append((handler, args, kwargs))
+        raise RuntimeError("executor unavailable")
 
 
 class PluginContextTests(unittest.TestCase):
@@ -191,6 +234,112 @@ class PluginContextTests(unittest.TestCase):
         self.assertEqual(callback_results, [42])
         self.assertEqual(len(page.run_thread_calls), 1)
         self.assertEqual(page.scheduled_updates, 1)
+
+    def test_run_task_falls_back_when_page_executor_fails(self):
+        page = FailingPage()
+        context = PluginContext(
+            "demo",
+            api_client=None,
+            browser_manager=None,
+            settings_manager=None,
+            page=page,
+        )
+        callback_results = []
+
+        thread = context.run_task(lambda: "ok", callback_results.append)
+        thread.join(timeout=2)
+
+        self.assertEqual(callback_results, ["ok"])
+        self.assertEqual(len(page.run_thread_calls), 1)
+        self.assertEqual(page.scheduled_updates, 1)
+
+    def test_registered_resources_are_cleaned_with_context(self):
+        class Resource:
+            def __init__(self):
+                self.cleaned = False
+
+            def cleanup(self):
+                self.cleaned = True
+
+        context = PluginContext(
+            "demo",
+            api_client=None,
+            browser_manager=None,
+            settings_manager=None,
+        )
+        resource = Resource()
+
+        context.register_resource(resource)
+        context.cleanup()
+
+        self.assertTrue(resource.cleaned)
+
+
+class PluginRuntimeTests(unittest.TestCase):
+    def test_open_plugin_ui_builds_context_and_loads_control(self):
+        class RuntimeManager:
+            def __init__(self):
+                self.info = plugin_info("demo")
+                self.context_args = None
+                self.load_args = None
+
+            def get_plugin_info(self, plugin_id):
+                return self.info if plugin_id == "demo" else None
+
+            def create_plugin_context(self, **kwargs):
+                self.context_args = kwargs
+                return "context"
+
+            def load_plugin_ui(self, plugin_id, page, context):
+                self.load_args = (plugin_id, page, context)
+                return "control"
+
+        manager = RuntimeManager()
+        page = object()
+        api_client = object()
+        browser_manager = object()
+
+        result = open_plugin_ui(
+            manager,
+            "demo",
+            page,
+            api_client=api_client,
+            browser_manager=browser_manager,
+        )
+
+        self.assertTrue(result.loaded)
+        self.assertEqual(result.plugin_info, manager.info)
+        self.assertEqual(result.control, "control")
+        self.assertEqual(manager.load_args, ("demo", page, "context"))
+        self.assertEqual(
+            manager.context_args,
+            {
+                "plugin_id": "demo",
+                "api_client": api_client,
+                "browser_manager": browser_manager,
+                "page": page,
+            },
+        )
+
+    def test_open_plugin_ui_reports_disabled_plugin_without_loading(self):
+        class RuntimeManager:
+            def __init__(self):
+                self.info = plugin_info("demo", enabled=False)
+                self.load_called = False
+
+            def get_plugin_info(self, plugin_id):
+                return self.info
+
+            def load_plugin_ui(self, plugin_id, page, context):
+                self.load_called = True
+
+        manager = RuntimeManager()
+
+        result = open_plugin_ui(manager, "demo", object(), api_client=None, browser_manager=None)
+
+        self.assertFalse(result.loaded)
+        self.assertEqual(result.status, "disabled")
+        self.assertFalse(manager.load_called)
 
 
 if __name__ == "__main__":

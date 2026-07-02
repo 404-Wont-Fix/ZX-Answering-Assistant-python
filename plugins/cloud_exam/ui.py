@@ -21,5 +21,7 @@ def create_view(page, context):
         ft.Control: 云考试的根控件
     """
     # 创建云考试视图（适配插件系统）
-    view = CloudExamView(page, main_app=None)
+    view = CloudExamView(page, main_app=None, context=context)
+    if hasattr(context, "register_resource"):
+        context.register_resource(view)
     return view.get_content()

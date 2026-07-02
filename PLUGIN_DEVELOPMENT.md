@@ -327,6 +327,14 @@ class PluginContext:
         """在后台线程安全地执行耗时操作，并在回调后调度 UI 更新"""
         pass
 
+    def register_resource(self, resource: Any):
+        """注册随插件卸载一起清理的 view、线程控制器或外部资源"""
+        pass
+
+    def cleanup(self):
+        """释放已注册资源"""
+        pass
+
     def get_plugin_config(self, key: str) -> Any:
         """获取插件特定配置"""
         pass
@@ -400,6 +408,7 @@ from src.ui.views.my_view import MyView
 
 def create_view(page, context):
     view = MyView(page, main_app=None)
+    context.register_resource(view)
     return view.get_content()
 ```
 
@@ -648,6 +657,7 @@ from src.ui.views.course_certification_view import CourseCertificationView
 
 def create_view(page, context):
     view = CourseCertificationView(page, main_app=None)
+    context.register_resource(view)
     return view.get_content()
 ```
 

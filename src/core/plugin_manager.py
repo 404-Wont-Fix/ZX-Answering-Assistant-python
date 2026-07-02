@@ -10,6 +10,7 @@ import importlib
 import importlib.metadata as importlib_metadata
 import re
 import threading
+from contextlib import contextmanager
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass
@@ -164,6 +165,20 @@ class PluginManager:
             )
             return False
         return True
+
+    @staticmethod
+    @contextmanager
+    def _temporary_import_path(path: Path):
+        """临时添加导入路径，避免插件加载污染全局 sys.path。"""
+        original_sys_path = list(sys.path)
+        path_str = str(path)
+        if path_str not in sys.path:
+            sys.path.insert(0, path_str)
+
+        try:
+            yield
+        finally:
+            sys.path[:] = original_sys_path
 
     @staticmethod
     def _validate_entry_point(entry_point: str, field_name: str) -> None:
@@ -332,13 +347,12 @@ class PluginManager:
             # 解析入口点
             module_name, func_name = plugin_info.entry_ui.split('.')
 
-            # 添加插件目录到 Python 路径
+            # 添加插件父目录到 Python 路径
             plugin_path = plugin_info.path
-            if str(plugin_path.parent) not in sys.path:
-                sys.path.insert(0, str(plugin_path.parent))
 
             # 导入插件模块
-            module = importlib.import_module(f"{plugin_id}.{module_name}")
+            with self._temporary_import_path(plugin_path.parent):
+                module = importlib.import_module(f"{plugin_id}.{module_name}")
 
             # 获取 UI 创建函数
             create_func = getattr(module, func_name)
@@ -387,13 +401,12 @@ class PluginManager:
             # 解析入口点
             module_name, class_name = plugin_info.entry_core.split('.')
 
-            # 添加插件目录到 Python 路径
+            # 添加插件父目录到 Python 路径
             plugin_path = plugin_info.path
-            if str(plugin_path.parent) not in sys.path:
-                sys.path.insert(0, str(plugin_path.parent))
 
             # 导入插件模块
-            module = importlib.import_module(f"{plugin_id}.{module_name}")
+            with self._temporary_import_path(plugin_path.parent):
+                module = importlib.import_module(f"{plugin_id}.{module_name}")
 
             # 获取核心类
             core_class = getattr(module, class_name)
