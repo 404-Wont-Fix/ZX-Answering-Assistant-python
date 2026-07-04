@@ -72,6 +72,24 @@ Flet 0.8.0+ has **massive breaking changes** from earlier versions. Many commonl
    - Control properties and event handlers may have different signatures
    - Some controls deprecated or replaced with new ones
 
+   > ⚠️ **CONFIRMED PITFALL (Flet 0.82.x) — `Dropdown.on_change` was REMOVED.**
+   > In Flet 0.8.0+ the `Dropdown` control **no longer accepts `on_change`** — passing it raises
+   > `TypeError: Dropdown.__init__() got an unexpected keyword argument 'on_change'` at runtime
+   > (this exact bug already bit the `lazy_ai_grading` plugin). The replacements are:
+   > - **`on_select`** — fires when the user picks an option (this is what `on_change` used to do)
+   > - `on_text_change` — fires when the editable text input changes
+   > - `on_focus` / `on_blur`
+   >
+   > Read the selected value via `e.control.value` inside the `on_select` handler — it returns the
+   > selected option's **`key`** (not `text`). Options are now `ft.DropdownOption(key=..., text=...)`
+   > (alias `ft.dropdown.Option`). Verified against installed source:
+   > `.venv/.../flet/controls/material/dropdown.py`.
+   >
+   > **General rule for ALL Flet event handlers in 0.8.0+:** event-handler kwarg names are NOT stable
+   > across versions. Before wiring *any* `on_*` handler, confirm the exact name against the installed
+   > Flet source or Context7 — do **not** copy `on_change` / `on_click` blindly from training data.
+   > A quick check: `python -c "import flet as ft, inspect; print([p for p in inspect.signature(ft.Dropdown.__init__).parameters if p.startswith('on')])"`
+
 **Example workflow when adding UI components:**
 ```
 1. Need to add a new control (e.g., DatePicker, DataTable, etc.)
