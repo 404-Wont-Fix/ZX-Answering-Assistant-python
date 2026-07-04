@@ -5,8 +5,11 @@
 - ProjectResult：GetClassProjectResult 学生成果列表项
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Optional
+import json as _json
+import re as _re
+import html as _html
 
 
 def _truncate_date(value: Optional[str]) -> str:
@@ -109,6 +112,8 @@ class ProjectResult:
     result_description: str  # HTML 实训报告正文
     screenshot_raw: str  # 截图 JSON 字符串（项目截图列表）
     enclosure_raw: str  # 附件 JSON 字符串
+    # 来自 GetStudentResultWithLogsByRid 时才有值（基础列表接口为空列表）
+    commit_logs_raw: list = field(default_factory=list)
 
     # ---------- 计算属性 ----------
 
@@ -134,6 +139,46 @@ class ProjectResult:
         """学生姓名首字（用于列表头像占位）。"""
         return (self.student_name or "?")[:1]
 
+    # ---------- 评分辅助属性 ----------
+
+    @property
+    def screenshot_count(self) -> int:
+        """实际截图数（第一张封面不算）。"""
+        try:
+            items = _json.loads(self.screenshot_raw) if self.screenshot_raw else []
+            return max(0, len(items) - 1)
+        except (_json.JSONDecodeError, TypeError):
+            return 0
+
+    @property
+    def desc_char_count(self) -> int:
+        """心得正文字数（去 HTML 标签后的纯文本长度）。"""
+        text = _re.sub(r'<[^>]+>', '', self.result_description or "")
+        text = _html.unescape(text)
+        return len(text.strip())
+
+    @property
+    def has_attachment(self) -> bool:
+        """enclosure 是否包含真实文件（非空对象）。"""
+        raw = (self.enclosure_raw or "").strip()
+        if not raw or raw == "{}":
+            return False
+        try:
+            d = _json.loads(raw)
+            return bool(d.get("id") or d.get("fileName"))
+        except (_json.JSONDecodeError, TypeError):
+            return False
+
+    @property
+    def log_stage_count(self) -> int:
+        """commitLogs 阶段数（需先通过详情接口填充 commit_logs_raw）。"""
+        return len(self.commit_logs_raw)
+
+    @property
+    def log_total_chars(self) -> int:
+        """commitLogs 所有 note 的总字数。"""
+        return sum(len((log.get("note") or "").strip()) for log in self.commit_logs_raw)
+
     # ---------- 反序列化 ----------
 
     @classmethod
@@ -152,4 +197,6 @@ class ProjectResult:
             result_description=raw.get("resultDescription", "") or "",
             screenshot_raw=raw.get("projectScreenshot", "") or "",
             enclosure_raw=raw.get("enclosure", "") or "",
+            # 仅 GetStudentResultWithLogsByRid 响应才包含此字段
+            commit_logs_raw=raw.get("commitLogs") or [],
         )
