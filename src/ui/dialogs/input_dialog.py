@@ -8,6 +8,8 @@ import flet as ft
 import threading
 from typing import Optional, List
 
+from src.ui.theme import Fonts
+
 # 尝试导入 pyperclip，如果不可用则禁用复制按钮
 try:
     import pyperclip
@@ -123,7 +125,7 @@ class WeBanInputDialog:
                     max_lines=15,
                     width=500,
                     read_only=True,  # 只读，但可以选择和复制
-                    text_style=ft.TextStyle(size=12),
+                    text_style=Fonts.text(size=12),
                 )
 
                 # 答案输入框

@@ -1,5 +1,5 @@
 """
-ZX Answering Assistant - 懒狗一键评分视图模块
+ZX Answering Assistant - 摸鱼速评助手视图模块
 
 This module contains the UI components for the lazy AI grading page.
 - 落地页：功能介绍 + 开始评分入口
@@ -42,11 +42,11 @@ from .scoring import (
 
 
 class LazyAIGradingView:
-    """懒狗一键评分页面视图"""
+    """摸鱼速评助手页面视图"""
 
     def __init__(self, page: ft.Page, main_app=None, context=None):
         """
-        初始化懒狗一键评分视图
+        初始化摸鱼速评助手视图
 
         Args:
             page (ft.Page): Flet 页面对象
@@ -120,7 +120,7 @@ class LazyAIGradingView:
 
     def get_content(self) -> ft.Column:
         """
-        获取懒狗一键评分页面的内容
+        获取摸鱼速评助手页面的内容
 
         Returns:
             ft.Column: 页面内容组件
@@ -168,23 +168,23 @@ class LazyAIGradingView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(weight=ft.FontWeight.W_600, font_family=Fonts.get_system_font()),
+                text_style=Fonts.text(weight=ft.FontWeight.W_600),
             ),
         )
         return ft.Column(
             [
                 page_heading(
-                    "懒狗一键评分",
+                    "摸鱼速评助手",
                     "轮椅式批改 · 躺平也能把活干完 · 摸鱼神器 YYDS",
                     ft.Icons.AUTO_AWESOME,
                 ),
                 hero_panel(
-                    "一眼丁真，发现混子",
-                    "截图不够？字数凑？附件没交？通通拿捏。自动检测敷衍选手，精准识别摆烂达人，让混子无所遁形。",
+                    "学生都在用 AI 写作业，你还在纯手动批改？",
+                    "评分+批语一键搞定，活干得漂亮，鱼摸得安心，工资对得起自己",
                     action=start_button,
                     chips=[
                         status_chip(
-                            "轮椅批改",
+                            "轮椅式批改",
                             color=Palette.SURFACE,
                             bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),
@@ -231,7 +231,7 @@ class LazyAIGradingView:
                             content=workflow_step(
                                 "03",
                                 "一键梭哈",
-                                "AI 自动评分 + 批语，坐等收工就行",
+                                "自动评分 + 预制批语，坐等收工就行",
                                 ft.Icons.BOLT_OUTLINED,
                             ),
                             col={"xs": 12, "md": 4},
@@ -1257,10 +1257,9 @@ class LazyAIGradingView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(
+                text_style=Fonts.text(
                     size=14,
                     weight=ft.FontWeight.W_600,
-                    font_family=Fonts.get_system_font(),
                 ),
             ),
         )
@@ -2062,6 +2061,6 @@ def _quick_btn(label: str, icon, on_click) -> ft.OutlinedButton:
             side=ft.BorderSide(1, Palette.BORDER_STRONG),
             shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-            text_style=ft.TextStyle(size=12, weight=ft.FontWeight.W_500, font_family=Fonts.get_system_font()),
+            text_style=Fonts.text(size=12, weight=ft.FontWeight.W_500),
         ),
     )

@@ -7,7 +7,7 @@ This module contains the UI components for the settings page.
 import flet as ft
 from src.core.config import get_settings_manager, APIRateLevel
 from src.ui.components import page_heading, primary_button, secondary_button
-from src.ui.theme import Palette, Radius
+from src.ui.theme import Fonts, Palette, Radius
 
 
 class SettingsView:
@@ -457,7 +457,7 @@ class SettingsView:
             value=rate_level.value,
             width=400,
             leading_icon=ft.Icons.SPEED,
-            text_style=ft.TextStyle(size=14),
+            text_style=Fonts.text(size=14),
         )
 
         # 创建重试次数输入框

@@ -37,7 +37,7 @@ from src.ui.views.settings_view import SettingsView
 from src.ui.views.plugin_center_view import PluginCenterView
 from src.ui.views.about_view import AboutView
 from src.ui.components import status_chip
-from src.ui.theme import Palette, Radius, configure_page
+from src.ui.theme import Fonts, Palette, Radius, configure_page
 
 from src.core.browser import get_browser_manager
 from src.core.app_state import get_app_state
@@ -517,11 +517,11 @@ class MainApp:
             bgcolor=Palette.NAV,
             indicator_color=Palette.NAV_SELECTED,
             group_alignment=-0.8,
-            selected_label_text_style=ft.TextStyle(
+            selected_label_text_style=Fonts.text(
                 color=Palette.SURFACE,
                 weight=ft.FontWeight.W_600,
             ),
-            unselected_label_text_style=ft.TextStyle(color=Palette.NAV_TEXT),
+            unselected_label_text_style=Fonts.text(color=Palette.NAV_TEXT),
             destinations=[
                 ft.NavigationRailDestination(
                     icon=ft.Icon(ft.Icons.CHECK_CIRCLE_OUTLINE, color=nav_icon_color),

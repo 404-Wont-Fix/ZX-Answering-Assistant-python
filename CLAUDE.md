@@ -90,6 +90,33 @@ Flet 0.8.0+ has **massive breaking changes** from earlier versions. Many commonl
    > Flet source or Context7 — do **not** copy `on_change` / `on_click` blindly from training data.
    > A quick check: `python -c "import flet as ft, inspect; print([p for p in inspect.signature(ft.Dropdown.__init__).parameters if p.startswith('on')])"`
 
+   > ⚠️ **CONFIRMED PITFALL (Flet 0.80.x) — `Icon.name` was REMOVED, use `Icon.icon`.**
+   > In Flet 0.8.0+ the `Icon` control's first positional argument and property is **`icon`**,
+   > not `name`. Writing `icon_control.name = ft.Icons.XXX` silently creates a bogus Python
+   > attribute that Flet ignores — the displayed icon never changes.
+   > The correct assignment is: `icon_control.icon = ft.Icons.XXX`
+   > (this exact bug already bit the `one_click_rating_for_projects` plugin's checkbox).
+   > Quick check: `python -c "import flet as ft; print('icon' in ft.Icon.__dataclass_fields__, 'name' in ft.Icon.__dataclass_fields__)"`
+
+   > ⚠️ **CONFIRMED PITFALL (Flet 0.80.x) — `ft.TextStyle` without `font_family` causes blurry
+   > CJK text on Windows.** When `ButtonStyle.text_style` or `TextField.text_style` specifies
+   > `weight`/`size` but omits `font_family`, the Flutter engine falls back to "Segoe UI" and
+   > synthesizes bold for CJK characters — rendering looks thick and blurry on Windows (macOS
+   > renders fine, so it's easy to miss during development).
+   >
+   > **Always use `Fonts.text(...)` instead of `ft.TextStyle(...)` for style overrides.**
+   > It's a thin wrapper in `src/ui/theme.py` that auto-injects the platform font:
+   > ```python
+   > # CORRECT — uses system font automatically
+   > text_style=Fonts.text(size=14, weight=ft.FontWeight.W_600)
+   > text_style=Fonts.text(italic=True)
+   >
+   > # WRONG — no font_family, blurry on Windows
+   > text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600)
+   > ```
+   > `Fonts.text()` accepts all `ft.TextStyle` kwargs; pass `font_family=...` explicitly to
+   > override the system default if needed.
+
 **Example workflow when adding UI components:**
 ```
 1. Need to add a new control (e.g., DatePicker, DataTable, etc.)
