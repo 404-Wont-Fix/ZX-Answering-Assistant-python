@@ -1,5 +1,5 @@
 """
-ZX Answering Assistant - 懒狗一键AI评分视图模块
+ZX Answering Assistant - 懒狗一键评分视图模块
 
 This module contains the UI components for the lazy AI grading page.
 - 落地页：功能介绍 + 开始评分入口
@@ -32,11 +32,11 @@ from .models import ClassProject
 
 
 class LazyAIGradingView:
-    """懒狗一键AI评分页面视图"""
+    """懒狗一键评分页面视图"""
 
     def __init__(self, page: ft.Page, main_app=None, context=None):
         """
-        初始化懒狗一键AI评分视图
+        初始化懒狗一键评分视图
 
         Args:
             page (ft.Page): Flet 页面对象
@@ -88,7 +88,7 @@ class LazyAIGradingView:
 
     def get_content(self) -> ft.Column:
         """
-        获取懒狗一键AI评分页面的内容
+        获取懒狗一键评分页面的内容
 
         Returns:
             ft.Column: 页面内容组件
@@ -142,13 +142,13 @@ class LazyAIGradingView:
         return ft.Column(
             [
                 page_heading(
-                    "懒狗一键AI评分",
-                    "自动批改产教融合项目的分数，一键完成 AI 智能评分",
+                    "懒狗一键评分",
+                    "自动批改产教融合项目的分数，一键完成 评分评分",
                     ft.Icons.AUTO_AWESOME,
                 ),
                 hero_panel(
                     "一键智能批改产教融合项目",
-                    "登录账号、选择待评分项目，由 AI 自动完成产教融合项目的分数批改。",
+                    "登录账号、选择待评分项目，由 评分完成产教融合项目的分数批改。",
                     action=start_button,
                     chips=[
                         status_chip(
@@ -157,7 +157,7 @@ class LazyAIGradingView:
                             bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),
                         status_chip(
-                            "AI 智能评分",
+                            "评分评分",
                             color=Palette.SURFACE,
                             bgcolor=ft.Colors.with_opacity(0.12, Palette.SURFACE),
                         ),

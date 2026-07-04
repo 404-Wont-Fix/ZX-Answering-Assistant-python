@@ -1,5 +1,5 @@
 """
-懒狗一键AI评分插件 API 客户端
+懒狗一键评分插件 API 客户端
 
 封装产教融合项目列表接口 GetTeacherClassProject，
 复用主程序的统一 HTTP 客户端（含速率限制/重试）。
