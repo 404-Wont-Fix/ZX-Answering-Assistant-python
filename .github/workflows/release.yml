@@ -218,6 +218,7 @@ jobs:
           name: ZX-Answering-Assistant-${{ matrix.platform }}
           path: release-assets/*.zip
           if-no-files-found: error
+          archive: false
 
   release:
     name: Publish GitHub Release
