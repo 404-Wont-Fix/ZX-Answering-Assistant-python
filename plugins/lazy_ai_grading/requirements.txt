@@ -1,4 +1,4 @@
-# 懒狗一键AI评分插件依赖配置
+# 懒狗一键评分插件依赖配置
 # Lazy AI Grading Plugin Dependencies
 
 # 此插件目前不需要额外的依赖
