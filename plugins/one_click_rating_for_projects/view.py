@@ -1345,10 +1345,12 @@ class LazyAIGradingView:
         if not refs:
             return
         selected = result_id in self.selected_result_ids
-        refs["icon"].name = ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+        # ⚠️ Flet 0.8.0+ 把 Icon 的属性名从 `name` 改成了 `icon`。
+        # 写 `.name = ...` 只会设置一个 Flet 忽略的无效属性，图标永远不会变。
+        refs["icon"].icon = ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
         refs["icon"].color = Palette.PRIMARY if selected else Palette.TEXT_SOFT
         refs["container"].bgcolor = Palette.PRIMARY_SOFT if selected else Palette.SURFACE
-        refs["container"].border = ft.border.all(1, Palette.PRIMARY if selected else Palette.BORDER)
+        refs["container"].border = ft.Border.all(1, Palette.PRIMARY if selected else Palette.BORDER)
 
     def _sync_all_cards(self):
         """批量同步所有卡片的选中状态（不重建控件）"""
