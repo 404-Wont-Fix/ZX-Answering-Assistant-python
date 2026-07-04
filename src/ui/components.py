@@ -4,7 +4,7 @@ from typing import Callable, Optional
 
 import flet as ft
 
-from src.ui.theme import Palette, Radius
+from src.ui.theme import Fonts, Palette, Radius
 
 
 def surface_card(
@@ -122,7 +122,11 @@ def primary_button(label: str, icon, on_click: Callable, *, width: Optional[int]
         style=ft.ButtonStyle(
             shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
             padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-            text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600),
+            text_style=ft.TextStyle(
+                size=14,
+                weight=ft.FontWeight.W_600,
+                font_family=Fonts.get_system_font(),
+            ),
         ),
     )
 

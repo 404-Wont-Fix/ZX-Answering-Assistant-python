@@ -25,7 +25,7 @@ from src.ui.components import (
     surface_card,
     workflow_step,
 )
-from src.ui.theme import Palette, Radius
+from src.ui.theme import Fonts, Palette, Radius
 
 from .api_client import LazyGradingAPIClient
 from .models import ClassProject, ProjectResult
@@ -168,7 +168,7 @@ class LazyAIGradingView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+                text_style=ft.TextStyle(weight=ft.FontWeight.W_600, font_family=Fonts.get_system_font()),
             ),
         )
         return ft.Column(
@@ -1240,7 +1240,7 @@ class LazyAIGradingView:
 
         # ---- 操作按钮 ----
         grade_all_btn = primary_button(
-            "一键 AI 评分（全部）",
+            "一键评分（全部）",
             ft.Icons.AUTO_AWESOME,
             lambda ev: self._on_grade_all_click(ev),
             width=280,
@@ -1257,7 +1257,11 @@ class LazyAIGradingView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600),
+                text_style=ft.TextStyle(
+                    size=14,
+                    weight=ft.FontWeight.W_600,
+                    font_family=Fonts.get_system_font(),
+                ),
             ),
         )
 
@@ -1438,7 +1442,7 @@ class LazyAIGradingView:
         save_strictness(self._strictness)
 
     def _on_grade_all_click(self, e):
-        """一键 AI 评分（全部）→ 筛选未评分 + 进度100% 的学生"""
+        """一键评分（全部）→ 筛选未评分 + 进度100% 的学生"""
         targets = [
             r for r in self.result_list
             if not r.is_graded and r.project_progress >= 100
@@ -2058,6 +2062,6 @@ def _quick_btn(label: str, icon, on_click) -> ft.OutlinedButton:
             side=ft.BorderSide(1, Palette.BORDER_STRONG),
             shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
             padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-            text_style=ft.TextStyle(size=12, weight=ft.FontWeight.W_500),
+            text_style=ft.TextStyle(size=12, weight=ft.FontWeight.W_500, font_family=Fonts.get_system_font()),
         ),
     )
