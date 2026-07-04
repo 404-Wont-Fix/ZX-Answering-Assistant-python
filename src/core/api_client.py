@@ -6,10 +6,8 @@ API请求模块
 import requests
 import time
 import logging
-import hashlib
-import json
 import threading
-from typing import Optional, Dict, Any
+from typing import Optional
 
 from src.core.config import get_settings_manager
 
@@ -29,83 +27,6 @@ class APIClient:
         self.settings_manager = settings_manager or get_settings_manager()
         self._last_request_time = 0
         self._rate_lock = threading.Lock()
-        # 缓存存储: {cache_key: (data, expiry_time)}
-        self._cache = {}
-        self._cache_lock = threading.Lock()
-
-    def _generate_cache_key(self, method: str, url: str, **kwargs) -> str:
-        """
-        生成缓存键
-
-        Args:
-            method: 请求方法
-            url: 请求URL
-            **kwargs: 请求参数
-
-        Returns:
-            str: 缓存键
-        """
-        # 创建一个包含请求详情的字符串
-        cache_data = {
-            'method': method.upper(),
-            'url': url,
-            'params': kwargs.get('params', {}),
-            'json': kwargs.get('json', {}),
-            'data': kwargs.get('data', {}),
-            # 授权头和 Cookie 决定了响应归属，必须参与缓存隔离。
-            'headers': kwargs.get('headers', {}),
-            'cookies': kwargs.get('cookies', {}),
-        }
-        # 转换为JSON并哈希
-        cache_str = json.dumps(cache_data, sort_keys=True, default=str)
-        return hashlib.sha256(cache_str.encode()).hexdigest()
-
-    def _get_cached(self, cache_key: str) -> Optional[Any]:
-        """
-        从缓存获取数据
-
-        Args:
-            cache_key: 缓存键
-
-        Returns:
-            Optional[Any]: 缓存的数据，如果不存在或已过期则返回None
-        """
-        with self._cache_lock:
-            if cache_key in self._cache:
-                data, expiry_time = self._cache[cache_key]
-                if time.time() < expiry_time:
-                    logger.debug(f"缓存命中: {cache_key}")
-                    return data
-                else:
-                    # 缓存已过期，删除
-                    del self._cache[cache_key]
-                    logger.debug(f"缓存已过期: {cache_key}")
-        return None
-
-    def _set_cached(self, cache_key: str, data: Any, ttl: int = 300):
-        """
-        设置缓存
-
-        Args:
-            cache_key: 缓存键
-            data: 要缓存的数据
-            ttl: 缓存生存时间（秒），默认5分钟
-        """
-        with self._cache_lock:
-            expiry_time = time.time() + ttl
-            self._cache[cache_key] = (data, expiry_time)
-            logger.debug(f"数据已缓存: {cache_key}, TTL: {ttl}秒")
-
-    def clear_cache(self):
-        """清空所有缓存"""
-        with self._cache_lock:
-            self._cache.clear()
-        logger.info("API缓存已清空")
-
-    def get_cache_size(self) -> int:
-        """获取缓存大小"""
-        with self._cache_lock:
-            return len(self._cache)
 
     def _apply_rate_limit(self):
         """应用速率限制"""
@@ -179,32 +100,21 @@ class APIClient:
                 url: str,
                 max_retries: Optional[int] = None,
                 rate_limit: bool = True,
-                use_cache: bool = False,
-                cache_ttl: int = 300,
                 **kwargs) -> Optional[requests.Response]:
         """
         发送HTTP请求
 
         Args:
-            method: 请求方法 (GET, POST, PUT, DELETE等)
+            method: 请求方法 (GET, POST等)
             url: 请求URL
             max_retries: 最大请求尝试次数，如果不提供则从配置读取；0 仍会发起一次请求
             rate_limit: 是否应用速率限制
-            use_cache: 是否使用缓存（仅对GET请求有效）
-            cache_ttl: 缓存生存时间（秒），默认5分钟
             **kwargs: 其他requests.request参数
 
         Returns:
             Optional[requests.Response]: 响应对象，如果失败则返回None
         """
         method = method.upper()
-
-        # 对于GET请求，检查缓存
-        if use_cache and method == "GET":
-            cache_key = self._generate_cache_key(method, url, **kwargs)
-            cached_response = self._get_cached(cache_key)
-            if cached_response is not None:
-                return cached_response
 
         if max_retries is None:
             max_retries = self.settings_manager.get_max_retries()
@@ -226,10 +136,6 @@ class APIClient:
 
                 # 检查响应状态
                 if 200 <= response.status_code < 300:
-                    # 对于GET请求，缓存响应
-                    if use_cache and method == "GET":
-                        cache_key = self._generate_cache_key(method, url, **kwargs)
-                        self._set_cached(cache_key, response, cache_ttl)
                     return response
 
                 # 判断是否需要重试（非200状态码也要检查是否重试）
@@ -273,61 +179,6 @@ class APIClient:
         """发送POST请求"""
         return self.request("POST", url, **kwargs)
 
-    def put(self, url: str, **kwargs) -> Optional[requests.Response]:
-        """发送PUT请求"""
-        return self.request("PUT", url, **kwargs)
-
-    def delete(self, url: str, **kwargs) -> Optional[requests.Response]:
-        """发送DELETE请求"""
-        return self.request("DELETE", url, **kwargs)
-
-    def get_json(self, url: str, **kwargs) -> Optional[Dict]:
-        """
-        发送GET请求并解析JSON响应
-
-        Args:
-            url: 请求URL
-            **kwargs: 其他requests.get参数
-
-        Returns:
-            Optional[Dict]: 解析后的JSON数据，如果失败则返回None
-        """
-        response = self.get(url, **kwargs)
-        if response is not None and 200 <= response.status_code < 300:
-            try:
-                return response.json()
-            except Exception as e:
-                logger.error(f"❌ 解析JSON响应失败: {str(e)}")
-                return None
-        return None
-
-    def post_json(self, url: str, data: Dict = None, json_data: Dict = None, **kwargs) -> Optional[Dict]:
-        """
-        发送POST请求并解析JSON响应
-
-        Args:
-            url: 请求URL
-            data: 表单数据
-            json_data: JSON数据
-            **kwargs: 其他requests.post参数
-
-        Returns:
-            Optional[Dict]: 解析后的JSON数据，如果失败则返回None
-        """
-        if json_data is not None:
-            kwargs['json'] = json_data
-        if data is not None:
-            kwargs['data'] = data
-
-        response = self.post(url, **kwargs)
-        if response is not None and 200 <= response.status_code < 300:
-            try:
-                return response.json()
-            except Exception as e:
-                logger.error(f"❌ 解析JSON响应失败: {str(e)}")
-                return None
-        return None
-
 
 # 创建全局API客户端实例
 _api_client: Optional[APIClient] = None
@@ -339,9 +190,3 @@ def get_api_client() -> APIClient:
     if _api_client is None:
         _api_client = APIClient()
     return _api_client
-
-
-def reset_api_client():
-    """重置全局API客户端实例"""
-    global _api_client
-    _api_client = None

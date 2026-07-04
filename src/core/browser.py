@@ -876,14 +876,6 @@ class BrowserManager:
         except Exception as e:
             logger.debug(f"强制终止子进程树失败: {e}")
 
-    def _is_in_asyncio_context(self) -> bool:
-        """检测是否在 asyncio 事件循环中运行"""
-        try:
-            asyncio.get_running_loop()
-            return True
-        except RuntimeError:
-            return False
-
     def _ensure_worker_thread(self):
         """确保工作线程已启动"""
         with self._worker_lock:
@@ -1096,66 +1088,6 @@ def get_browser_manager() -> BrowserManager:
             if _manager_instance is None:
                 _manager_instance = BrowserManager()
     return _manager_instance
-
-
-def start_browser(headless: bool = False) -> Browser:
-    """快捷方式：启动浏览器"""
-    return get_browser_manager().start_browser(headless=headless)
-
-
-def get_browser() -> Optional[Browser]:
-    """快捷方式：获取浏览器实例"""
-    return get_browser_manager().get_browser()
-
-
-def create_context(browser_type: BrowserType, **kwargs) -> BrowserContext:
-    """快捷方式：创建上下文"""
-    return get_browser_manager().create_context(browser_type, **kwargs)
-
-
-def get_context(browser_type: BrowserType) -> Optional[BrowserContext]:
-    """快捷方式：获取上下文"""
-    return get_browser_manager().get_context(browser_type)
-
-
-def create_page(browser_type: BrowserType) -> Page:
-    """快捷方式：创建页面"""
-    return get_browser_manager().create_page(browser_type)
-
-
-def get_page(browser_type: BrowserType) -> Optional[Page]:
-    """快捷方式：获取页面"""
-    return get_browser_manager().get_page(browser_type)
-
-
-def get_context_and_page(browser_type: BrowserType) -> Tuple[Optional[BrowserContext], Optional[Page]]:
-    """快捷方式：获取上下文和页面"""
-    return get_browser_manager().get_context_and_page(browser_type)
-
-
-def close_context(browser_type: BrowserType):
-    """快捷方式：关闭上下文"""
-    get_browser_manager().close_context(browser_type)
-
-
-def close_browser():
-    """快捷方式：关闭浏览器"""
-    get_browser_manager().close_browser()
-
-
-def force_kill_process_tree(timeout: float = 2.0) -> None:
-    """快捷方式：强制终止 Playwright/浏览器子进程树（退出兜底）。"""
-    get_browser_manager().force_kill_process_tree(timeout=timeout)
-
-
-def is_browser_alive() -> bool:
-    """快捷方式：检查浏览器是否存活"""
-    return get_browser_manager().is_browser_alive()
-
-
-def is_context_alive(browser_type: BrowserType) -> bool:
-    """快捷方式：检查上下文是否存活"""
-    return get_browser_manager().is_context_alive(browser_type)
 
 
 # ============================================================================
