@@ -36,14 +36,12 @@ certificate verify failed: unable to get local issuer certificate (_ssl.c:1000)>
 
 ### 技术细节
 
-自动配置位于：`src/core/ssl_helper.py`
+自动配置位于：`main.py` 中的 `_setup_ssl()` 函数
 
 主要功能：
-- `setup_ssl_auto_config()` - 一步式自动配置
-- `configure_ssl_certificate()` - 配置全局 SSL 证书
-- `configure_urllib_ssl()` - 配置 urllib SSL（Flet 下载）
-- `configure_requests_ssl()` - 配置 requests SSL
-- `install_certifi_if_missing()` - 自动安装 certifi
+- 检测 `certifi` 是否可用
+- 设置 `SSL_CERT_FILE`、`REQUESTS_CA_BUNDLE`、`CURL_CA_BUNDLE` 环境变量
+- 配置 Python 全局 SSL 默认上下文
 
 ### 手动配置（如果自动配置失败）
 
@@ -170,7 +168,7 @@ pip install -r requirements.txt
 
 ## 相关文件
 
-- SSL 配置模块: `src/core/ssl_helper.py`
+- SSL 配置: `main.py` 中的 `_setup_ssl()` 函数
 - 主入口: `main.py` (调用 SSL 配置)
 - 依赖包: `requirements.txt` (包含 certifi)
 
