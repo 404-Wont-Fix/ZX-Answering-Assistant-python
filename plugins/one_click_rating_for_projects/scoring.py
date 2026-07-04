@@ -219,7 +219,13 @@ def _quality_factor(
     factors.append(min(screenshot_count / 10.0, 1.0))
     factors.append(min(desc_char_count / 600.0, 1.0))
 
-    if log_stage_count > 0:
+    if log_stage_count == 0:
+        factors.append(0.0)
+    elif log_stage_count < 3:
+        # 一把梭哈：阶段不足3个，直接给极低分
+        factors.append(0.08)
+    else:
+        # 3个阶段以上才正常评估
         stage_score = min(log_stage_count / 5.0, 1.0)
         avg = log_total_chars / log_stage_count
         if avg < 30:
@@ -233,10 +239,14 @@ def _quality_factor(
         else:
             per_quality = 0.5
         factors.append(stage_score * per_quality)
-    else:
-        factors.append(0.0)
 
-    return sum(factors) / len(factors) if factors else 0.0
+    quality = sum(factors) / len(factors) if factors else 0.0
+
+    # 阶段不足3个时，额外打折（不论其他维度多好）
+    if log_stage_count < 3:
+        quality *= 0.45
+
+    return quality
 
 
 def calculate_score(
@@ -276,7 +286,13 @@ def calculate_score(
     else:
         low, high = cfg["tier1"]
 
-    return max(low, min(high, int(low + quality * (high - low))))
+    score = max(low, min(high, int(low + quality * (high - low))))
+
+    # 阶段不足3个 → 不能进入最高分段（tier3），上限卡死到 tier2 顶部
+    if log_stage_count < 3:
+        score = min(score, cfg["tier2"][1])
+
+    return score
 
 
 def enforce_distribution_limits(scored_items: list) -> list:
