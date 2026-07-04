@@ -28,7 +28,7 @@ from src.ui.components import (
 from src.ui.theme import Palette, Radius
 
 from .api_client import LazyGradingAPIClient
-from .models import ClassProject
+from .models import ClassProject, ProjectResult
 
 
 class LazyAIGradingView:
@@ -80,6 +80,18 @@ class LazyAIGradingView:
         self.prev_btn = None
         self.next_btn = None
         self.list_container = None
+
+        # 学生成果屏状态
+        self.current_project = None  # 当前选中的 ClassProject 实例
+        self.result_list: list[ProjectResult] = []  # 当前项目的学生成果
+        self.result_loading = False  # 成果列表加载中
+        self.result_error = None  # 成果列表错误信息
+        self.selected_result_ids: set[int] = set()  # 已选中的成果记录 ID
+
+        # 成果屏动态控件引用
+        self.result_list_view = None  # ft.ListView
+        self.result_count_text = None  # 总人数统计文本
+        self.result_action_column = None  # 右侧功能按钮面板容器
 
         # 设置管理器
         self.settings_manager = get_settings_manager()
@@ -792,11 +804,556 @@ class LazyAIGradingView:
         self._load_projects()
 
     def _on_project_click(self, e, project: ClassProject):
-        """点击项目卡片 - 占位（AI 评分逻辑待开发）"""
+        """点击项目卡片 → 切换到学生成果屏并后台拉取数据"""
+        self.current_project = project
+        self.result_list = []
+        self.result_error = None
+        self.selected_result_ids = set()
+        self.current_content.content = self._get_project_results_content()
+        self.page.update()
+        self._load_results()
+
+    # ==================== 学生成果屏 ====================
+
+    def _get_project_results_content(self) -> ft.Column:
+        """
+        获取学生成果屏内容：左右分栏布局
+        - 左侧：学生成果列表（可滚动，可勾选）
+        - 右侧：统计摘要 + 功能操作按钮
+        """
+        project = self.current_project
+        title = project.pro_name if project else "项目成果"
+        subtitle = (
+            f"{project.class_name} · {project.time_window}"
+            if project
+            else ""
+        )
+
+        # ---------- 左侧：学生列表 ----------
+        # 总人数统计文本（局部刷新时更新）
+        self.result_count_text = ft.Text(
+            self._result_count_value(), size=13, color=Palette.TEXT_MUTED
+        )
+        # ListView 容器（独立滚动）
+        self.result_list_view = ft.ListView(expand=True, spacing=10, padding=0)
+        self._fill_result_list_view()
+
+        left_panel = surface_card(
+            ft.Column(
+                [
+                    ft.Row(
+                        [
+                            ft.Text(
+                                "学生提交列表",
+                                size=16,
+                                weight=ft.FontWeight.W_600,
+                                color=Palette.TEXT,
+                            ),
+                            ft.Container(expand=True),
+                            self.result_count_text,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    ft.Divider(height=1, color=Palette.BORDER),
+                    self.result_list_view,
+                ],
+                spacing=12,
+                expand=True,
+            ),
+            padding=18,
+        )
+        left_panel.expand = 2
+
+        # ---------- 右侧：功能按钮面板 ----------
+        self.result_action_column = self._build_result_action_panel()
+        right_panel = ft.Column(
+            [
+                self.result_action_column,
+            ],
+            spacing=14,
+            scroll=ft.ScrollMode.AUTO,
+            expand=1,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+
+        return ft.Column(
+            [
+                page_heading(
+                    title,
+                    subtitle or "查看学生提交的项目成果",
+                    ft.Icons.GROUP_OUTLINED,
+                ),
+                ft.Row(
+                    [
+                        secondary_button(
+                            "返回项目列表",
+                            ft.Icons.ARROW_BACK,
+                            lambda ev: self._back_to_project_list(ev),
+                        ),
+                        ft.Container(expand=True),
+                        secondary_button(
+                            "刷新",
+                            ft.Icons.REFRESH,
+                            lambda ev: self._load_results(),
+                        ),
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                ft.Row(
+                    [left_panel, right_panel],
+                    height=620,
+                    spacing=14,
+                    vertical_alignment=ft.CrossAxisAlignment.STRETCH,
+                ),
+            ],
+            spacing=18,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+
+    def _result_count_value(self) -> str:
+        """左侧列表头的统计文案"""
+        total = len(self.result_list)
+        selected = len(self.selected_result_ids)
+        if selected > 0:
+            return f"共 {total} 人 · 已选 {selected} 人"
+        return f"共 {total} 人"
+
+    # ---------- 列表填充与局部刷新 ----------
+
+    def _fill_result_list_view(self):
+        """用当前状态（加载中/错误/空态/卡片列表）填充左侧 ListView"""
+        if self.result_list_view is None:
+            return
+
+        if self.result_loading:
+            self.result_list_view.controls = [
+                ft.Row(
+                    [ft.ProgressRing(stroke_width=4)],
+                    alignment=ft.MainAxisAlignment.CENTER,
+                ),
+                ft.Text(
+                    "正在加载学生成果...",
+                    size=13,
+                    color=Palette.TEXT_MUTED,
+                    text_align=ft.TextAlign.CENTER,
+                ),
+            ]
+            return
+
+        if self.result_error:
+            self.result_list_view.controls = [
+                ft.Column(
+                    [
+                        ft.Icon(ft.Icons.ERROR_OUTLINE, size=30, color=Palette.DANGER),
+                        ft.Text(
+                            self.result_error,
+                            size=13,
+                            color=Palette.TEXT_MUTED,
+                            text_align=ft.TextAlign.CENTER,
+                        ),
+                        primary_button(
+                            "重试",
+                            ft.Icons.REFRESH,
+                            lambda ev: self._load_results(),
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=10,
+                )
+            ]
+            return
+
+        if not self.result_list:
+            self.result_list_view.controls = [
+                ft.Column(
+                    [
+                        ft.Icon(ft.Icons.INBOX_OUTLINED, size=30, color=Palette.TEXT_SOFT),
+                        ft.Text(
+                            "暂无学生提交记录",
+                            size=13,
+                            color=Palette.TEXT_MUTED,
+                        ),
+                    ],
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    spacing=10,
+                )
+            ]
+            return
+
+        self.result_list_view.controls = [
+            self._build_student_card(r) for r in self.result_list
+        ]
+
+    def _refresh_results_area(self):
+        """局部刷新成果屏的动态区域（列表 + 统计 + 右侧面板）"""
+        self._fill_result_list_view()
+        if self.result_count_text is not None:
+            self.result_count_text.value = self._result_count_value()
+        if self.result_action_column is not None:
+            new_panel = self._build_result_action_panel()
+            self.result_action_column.controls = new_panel.controls
+        try:
+            self.page.update()
+        except Exception:
+            pass
+
+    # ---------- 数据加载 ----------
+
+    def _load_results(self):
+        """触发后台加载学生成果（先展示加载态，再后台取数）"""
+        if self.api_client is None or self.current_project is None:
+            return
+        self.result_loading = True
+        self.result_error = None
+        self._refresh_results_area()
+        self._run_background(self._fetch_results)
+
+    def _fetch_results(self):
+        """后台执行：调用 API 获取当前项目的学生成果"""
+        try:
+            project = self.current_project
+            items = self.api_client.get_class_project_result(
+                source_id=project.source_id,
+                class_id=project.class_id,
+                project_id=project.project_id,
+            )
+            self.result_list = items
+            self.result_error = None
+        except Exception as ex:
+            self.result_error = str(ex)
+            self.result_list = []
+        finally:
+            self.result_loading = False
+            # 持久化的选择可能已不在列表里，清理一下
+            existing_ids = {r.id for r in self.result_list}
+            self.selected_result_ids &= existing_ids
+            self._refresh_results_area()
+
+    # ---------- 学生卡片 ----------
+
+    def _build_student_card(self, r: ProjectResult) -> ft.Control:
+        """构建单条学生成果卡片（带左侧勾选图标，整体可点击切换选择）"""
+        selected = r.id in self.selected_result_ids
+
+        # 选择状态图标（被动图标，点击由外层 GestureDetector 处理，
+        # 避免 Checkbox + GestureDetector 双事件 toggle 冲突）
+        check_icon = ft.Icon(
+            ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK,
+            size=22,
+            color=Palette.PRIMARY if selected else Palette.TEXT_SOFT,
+        )
+
+        # 头像占位：姓名首字
+        avatar = ft.Container(
+            content=ft.Text(
+                r.initial,
+                size=15,
+                weight=ft.FontWeight.BOLD,
+                color=Palette.SURFACE,
+            ),
+            width=40,
+            height=40,
+            alignment=ft.Alignment(0, 0),
+            bgcolor=Palette.PRIMARY,
+            border_radius=Radius.SMALL,
+        )
+
+        # 左侧文本区
+        name_col = ft.Column(
+            [
+                ft.Text(
+                    r.student_name or "未知",
+                    size=14,
+                    weight=ft.FontWeight.W_600,
+                    color=Palette.TEXT,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                ),
+                ft.Text(
+                    f"学号: {r.student_id[:8]}…" if len(r.student_id) > 8 else f"学号: {r.student_id}",
+                    size=11,
+                    color=Palette.TEXT_SOFT,
+                ),
+            ],
+            spacing=2,
+            expand=True,
+        )
+
+        # 右侧状态 chips
+        if r.is_graded:
+            # 已评分：直接显示分数，状态标为"已评分"
+            score_color, score_bg = Palette.ACCENT, Palette.ACCENT_SOFT
+            score_label = f"评分 {r.pro_score}"
+            status_label = "已评分"
+            status_color, status_bg = Palette.ACCENT, Palette.ACCENT_SOFT
+        else:
+            # 未评分：分数区显示"—"，状态标为"待评分"
+            score_color, score_bg = Palette.TEXT_MUTED, Palette.SURFACE_ALT
+            score_label = "—"
+            status_label = "待评分"
+            status_color, status_bg = Palette.WARNING, Palette.WARNING_SOFT
+        status_chip_ctl = status_chip(status_label, color=status_color, bgcolor=status_bg)
+        score_chip_ctl = status_chip(score_label, color=score_color, bgcolor=score_bg)
+
+        chips_col = ft.Column(
+            [status_chip_ctl, score_chip_ctl],
+            spacing=4,
+            horizontal_alignment=ft.CrossAxisAlignment.END,
+        )
+
+        # 提交时间（小字）
+        submit_text = ft.Text(
+            r.submit_date or "未提交",
+            size=11,
+            color=Palette.TEXT_SOFT,
+        )
+
+        card_bg = Palette.PRIMARY_SOFT if selected else Palette.SURFACE
+        card_border = Palette.PRIMARY if selected else Palette.BORDER
+
+        card = ft.GestureDetector(
+            content=ft.Container(
+                content=ft.Row(
+                    [
+                        check_icon,
+                        avatar,
+                        ft.VerticalDivider(width=1, color=Palette.BORDER),
+                        name_col,
+                        ft.Column(
+                            [submit_text, chips_col],
+                            spacing=4,
+                            horizontal_alignment=ft.CrossAxisAlignment.END,
+                        ),
+                    ],
+                    spacing=10,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+                padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+                bgcolor=card_bg,
+                border=ft.border.all(1, card_border),
+                border_radius=Radius.MEDIUM,
+            ),
+            on_tap=lambda ev, rid=r.id: self._on_student_check(ev, rid),
+            mouse_cursor=ft.MouseCursor.CLICK,
+        )
+        return card
+
+    # ---------- 右侧功能面板 ----------
+
+    def _build_result_action_panel(self) -> ft.Column:
+        """构建右侧统计摘要 + 快速选择 + 功能操作按钮面板"""
+        total = len(self.result_list)
+        graded = sum(1 for r in self.result_list if r.is_graded)
+        ungraded = total - graded
+        completed = sum(1 for r in self.result_list if r.project_progress >= 100)
+        selected = len(self.selected_result_ids)
+
+        # 统计摘要卡片
+        stats_card = surface_card(
+            ft.Column(
+                [
+                    ft.Text(
+                        "统计概览",
+                        size=15,
+                        weight=ft.FontWeight.W_600,
+                        color=Palette.TEXT,
+                    ),
+                    ft.Divider(height=1, color=Palette.BORDER),
+                    _stat_row("总提交人数", str(total)),
+                    _stat_row("已评分", str(graded)),
+                    _stat_row("未评分", str(ungraded)),
+                    _stat_row("进度100%", str(completed)),
+                    ft.Divider(height=1, color=Palette.BORDER),
+                    _stat_row("当前已选", str(selected)),
+                ],
+                spacing=10,
+            ),
+            padding=18,
+        )
+
+        # ---- 操作按钮 ----
+        grade_all_btn = primary_button(
+            "一键 AI 评分（全部）",
+            ft.Icons.AUTO_AWESOME,
+            lambda ev: self._on_grade_all_click(ev),
+            width=280,
+        )
+        grade_selected_btn = ft.FilledButton(
+            "评分已选学生",
+            icon=ft.Icons.CHECKLIST,
+            width=280,
+            disabled=selected == 0,
+            bgcolor=Palette.PRIMARY,
+            color=Palette.SURFACE,
+            on_click=lambda ev: self._on_grade_selected_click(ev),
+            style=ft.ButtonStyle(
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=16),
+                text_style=ft.TextStyle(size=14, weight=ft.FontWeight.W_600),
+            ),
+        )
+
+        # ---- 快速选择按钮组 ----
+        select_section = ft.Column(
+            [
+                ft.Text(
+                    "快速选择",
+                    size=13,
+                    weight=ft.FontWeight.W_600,
+                    color=Palette.TEXT,
+                ),
+                ft.Row(
+                    [
+                        _quick_btn(
+                            "全选",
+                            ft.Icons.CHECKLIST_RTL,
+                            lambda ev: self._on_select_all(ev),
+                        ),
+                        _quick_btn(
+                            "取消选择",
+                            ft.Icons.CLEAR_ALL,
+                            lambda ev: self._on_deselect_all(ev),
+                        ),
+                    ],
+                    spacing=8,
+                    wrap=True,
+                    run_spacing=8,
+                ),
+                ft.Row(
+                    [
+                        _quick_btn(
+                            f"未评分（{ungraded}）",
+                            ft.Icons.HOURGLASS_EMPTY,
+                            lambda ev: self._on_select_ungraded(ev),
+                        ),
+                        _quick_btn(
+                            f"进度100%（{completed}）",
+                            ft.Icons.TASK_ALT,
+                            lambda ev: self._on_select_completed(ev),
+                        ),
+                    ],
+                    spacing=8,
+                    wrap=True,
+                    run_spacing=8,
+                ),
+            ],
+            spacing=10,
+        )
+
+        refresh_btn = secondary_button(
+            "刷新列表",
+            ft.Icons.REFRESH,
+            lambda ev: self._load_results(),
+            width=280,
+        )
+
+        return ft.Column(
+            [
+                stats_card,
+                ft.Divider(height=1, color=Palette.BORDER),
+                select_section,
+                ft.Divider(height=1, color=Palette.BORDER),
+                grade_all_btn,
+                grade_selected_btn,
+                ft.Divider(height=1, color=Palette.BORDER),
+                refresh_btn,
+            ],
+            spacing=12,
+            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+        )
+
+    # ---------- 选择与功能按钮事件 ----------
+
+    def _on_student_check(self, e, result_id: int):
+        """学生卡片点击切换勾选"""
+        if result_id in self.selected_result_ids:
+            self.selected_result_ids.discard(result_id)
+        else:
+            self.selected_result_ids.add(result_id)
+        self._refresh_results_area()
+
+    def _on_select_all(self, e):
+        """全选"""
+        self.selected_result_ids = {r.id for r in self.result_list}
+        self._refresh_results_area()
+
+    def _on_deselect_all(self, e):
+        """取消全部选择"""
+        self.selected_result_ids.clear()
+        self._refresh_results_area()
+
+    def _on_select_ungraded(self, e):
+        """选取未评分的学生（pro_score 为 0）"""
+        self.selected_result_ids = {r.id for r in self.result_list if not r.is_graded}
+        self._refresh_results_area()
+
+    def _on_select_completed(self, e):
+        """选取项目进度 100% 且未评分的学生"""
+        self.selected_result_ids = {
+            r.id for r in self.result_list
+            if r.project_progress >= 100 and not r.is_graded
+        }
+        self._refresh_results_area()
+
+    def _on_grade_all_click(self, e):
+        """一键 AI 评分（全部）- 占位"""
         snack = ft.SnackBar(
-            content=ft.Text(f"已选择：{project.pro_name}（AI 评分功能开发中）"),
+            content=ft.Text(
+                f"「一键 AI 评分」功能开发中（共 {len(self.result_list)} 名学生）"
+            ),
             bgcolor=ft.Colors.ORANGE,
         )
         self.page.snack_bar = snack
         snack.open = True
         self.page.update()
+
+    def _on_grade_selected_click(self, e):
+        """评分已选学生 - 占位"""
+        count = len(self.selected_result_ids)
+        snack = ft.SnackBar(
+            content=ft.Text(f"「评分已选学生」功能开发中（已选 {count} 名学生）"),
+            bgcolor=ft.Colors.ORANGE,
+        )
+        self.page.snack_bar = snack
+        snack.open = True
+        self.page.update()
+
+    def _back_to_project_list(self, e):
+        """返回项目列表屏"""
+        self.current_project = None
+        self.result_list = []
+        self.selected_result_ids = set()
+        self.result_error = None
+        self.current_content.content = self._get_project_list_content()
+        self.page.update()
+        # 如果列表数据为空则刷新
+        if not self.project_list:
+            self._load_projects()
+
+
+def _stat_row(label: str, value: str) -> ft.Row:
+    """统计面板中的一行 key-value（模块级函数，避免干扰类结构）。"""
+    return ft.Row(
+        [
+            ft.Text(label, size=13, color=Palette.TEXT_MUTED),
+            ft.Container(expand=True),
+            ft.Text(value, size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+        ],
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+
+
+def _quick_btn(label: str, icon, on_click) -> ft.OutlinedButton:
+    """快速选择区域的紧凑小按钮（模块级辅助函数）。"""
+    return ft.OutlinedButton(
+        label,
+        icon=icon,
+        on_click=on_click,
+        style=ft.ButtonStyle(
+            color=Palette.TEXT,
+            side=ft.BorderSide(1, Palette.BORDER_STRONG),
+            shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+            text_style=ft.TextStyle(size=12, weight=ft.FontWeight.W_500),
+        ),
+    )

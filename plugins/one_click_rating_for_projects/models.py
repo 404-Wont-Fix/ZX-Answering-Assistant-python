@@ -1,8 +1,8 @@
 """
 懒狗一键评分插件数据模型
 
-封装产教融合项目（GetTeacherClassProject）列表项的字段映射，
-避免视图层直接消费后端原始 dict。
+- ClassProject：GetTeacherClassProject 列表项
+- ProjectResult：GetClassProjectResult 学生成果列表项
 """
 
 from dataclasses import dataclass
@@ -18,9 +18,17 @@ def _truncate_date(value: Optional[str]) -> str:
 
 @dataclass
 class ClassProject:
-    """产教融合项目列表项（仅保留展示所需字段）。"""
+    """
+    产教融合项目列表项（GetTeacherClassProject）。
 
-    id: int
+    字段命名说明
+    - source_id：GetClassProjectResult 接口的 sourceid 入参（班级项目记录ID）
+    - project_id：GetClassProjectResult 接口的 projectID 入参（项目库ID）
+    - class_id：GetClassProjectResult 接口的 classID 入参
+    """
+
+    source_id: int  # raw["id"] → GetClassProjectResult.sourceid
+    project_id: int  # raw["projiectLibID"] / projectLib.id → GetClassProjectResult.projectID
     class_id: str
     class_name: str
     pro_name: str
@@ -47,14 +55,17 @@ class ClassProject:
     def from_api(cls, raw: dict) -> "ClassProject":
         """从后端原始 item dict 解析出 ClassProject。"""
         status_info = raw.get("statusStr") or {}
+        project_lib = raw.get("projectLib") or {}
         return cls(
-            id=raw.get("id", 0),
+            source_id=raw.get("id", 0) or 0,
+            # 响应字段名是 projiectLibID（后端拼写错误），回退到 projectLib.id
+            project_id=raw.get("projiectLibID") or project_lib.get("id") or 0,
             class_id=raw.get("classID", "") or "",
             class_name=raw.get("className", "") or "",
             # 优先用顶层 proName，缺失时回落到 projectLib.name
             pro_name=(
                 raw.get("proName")
-                or (raw.get("projectLib") or {}).get("name")
+                or project_lib.get("name")
                 or ""
             ),
             project_type_name=raw.get("projectTypeName", "") or "",
@@ -66,4 +77,79 @@ class ClassProject:
             has_ok_count=raw.get("hasOkCount", 0) or 0,
             status_str=status_info.get("Str", "") or "",
             status_code=status_info.get("code", 0) or 0,
+        )
+
+
+# 审核状态码 → 可读文案（仅在无法确认时给出合理默认值）
+_AUDIT_STATUS_TEXT: dict[int, str] = {
+    0: "未提交",
+    1: "待评审",
+    2: "已通过",
+    3: "未通过",
+}
+
+
+@dataclass
+class ProjectResult:
+    """
+    学生项目成果（GetClassProjectResult 列表项）。
+
+    包含学生提交的实训报告、截图、附件、评分等全部字段。
+    """
+
+    id: int  # 成果记录ID
+    project_id: int
+    student_id: str
+    student_name: str
+    project_progress: int  # 项目进度 0-100
+    submit_time: str  # ISO 格式
+    pro_score: int  # 教师评分（0=未评分）
+    audit_status: int  # 审核状态码
+    review_comments: Optional[str]
+    result_description: str  # HTML 实训报告正文
+    screenshot_raw: str  # 截图 JSON 字符串（项目截图列表）
+    enclosure_raw: str  # 附件 JSON 字符串
+
+    # ---------- 计算属性 ----------
+
+    @property
+    def submit_date(self) -> str:
+        """'2026-06-24T20:43:54' → '2026-06-24 20:43'。"""
+        if not self.submit_time:
+            return ""
+        return self.submit_time.replace("T", " ")[:16]
+
+    @property
+    def status_text(self) -> str:
+        """审核状态可读文案。"""
+        return _AUDIT_STATUS_TEXT.get(self.audit_status, "未知")
+
+    @property
+    def is_graded(self) -> bool:
+        """是否已被教师评分（pro_score > 0）。"""
+        return self.pro_score > 0
+
+    @property
+    def initial(self) -> str:
+        """学生姓名首字（用于列表头像占位）。"""
+        return (self.student_name or "?")[:1]
+
+    # ---------- 反序列化 ----------
+
+    @classmethod
+    def from_api(cls, raw: dict) -> "ProjectResult":
+        """从后端原始 item dict 解析出 ProjectResult。"""
+        return cls(
+            id=raw.get("id", 0) or 0,
+            project_id=raw.get("projectID", 0) or 0,
+            student_id=raw.get("studentID", "") or "",
+            student_name=raw.get("studentName", "") or "",
+            project_progress=raw.get("projectProgress", 0) or 0,
+            submit_time=raw.get("submitTime", "") or "",
+            pro_score=raw.get("proScore", 0) or 0,
+            audit_status=raw.get("auditStatus", 0) or 0,
+            review_comments=raw.get("reviewComments"),
+            result_description=raw.get("resultDescription", "") or "",
+            screenshot_raw=raw.get("projectScreenshot", "") or "",
+            enclosure_raw=raw.get("enclosure", "") or "",
         )
