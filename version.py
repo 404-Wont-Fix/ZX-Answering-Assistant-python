@@ -59,7 +59,7 @@ def _get_version() -> str:
 
 # VERSION = _get_version()
 
-VERSION = "3.9.4"
+VERSION = "3.9.5"
 
 
 def _get_weban_version() -> str:
