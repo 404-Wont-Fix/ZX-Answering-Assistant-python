@@ -279,46 +279,16 @@ def setup_playwright_browser(silent=False):
 # 注册退出时的清理函数
 def cleanup_on_exit():
     """
-    程序退出时的清理函数
+    程序退出时的清理函数（atexit 兜底）。
 
-    由 atexit 自动调用，确保所有浏览器资源被正确释放
-    避免 Node.js 进程挂起
+    正常情况下 main.py 的 finally 已用 os._exit(0) 结束进程，atexit 不会执行；
+    此函数仅在其它退出路径（如显式 sys.exit）下作为最后兜底，强杀子进程树。
     """
     try:
-        # 尝试使用浏览器管理器清理
         from src.core.browser import get_browser_manager
-        manager = get_browser_manager()
-        if manager._browser is not None:
-            print("🔄 [atexit] 正在清理浏览器资源...")
-            manager.close_browser()
-            print("✅ [atexit] 浏览器资源已清理")
+        get_browser_manager().force_kill_process_tree()
     except Exception as e:
         print(f"⚠️ [atexit] 清理浏览器时出错: {e}")
-
-    # 强制终止残留的 Node.js 进程
-    try:
-        import psutil
-        current_pid = os.getpid()
-        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'ppid']):
-            try:
-                # 查找 Playwright Node.js driver 进程
-                if proc.info['name'] and 'node.exe' in proc.info['name'].lower():
-                    # 检查是否是当前进程的子进程
-                    if proc.info['ppid'] == current_pid:
-                        # 检查命令行中是否包含 playwright
-                        cmdline = proc.info['cmdline']
-                        if cmdline and any('playwright' in str(cmd).lower() for cmd in cmdline):
-                            print(f"🔄 [atexit] 终止残留的 Node.js 进程 (PID: {proc.info['pid']})...")
-                            proc.terminate()
-                            print("✅ [atexit] Node.js 进程已终止")
-            except (psutil.NoSuchProcess, psutil.AccessDenied):
-                pass
-    except ImportError:
-        # psutil 未安装，跳过强制终止
-        pass
-    except Exception as e:
-        # 忽略其他错误
-        pass
 
 
 def register_cleanup_handlers():
@@ -422,17 +392,26 @@ def run_gui_mode():
         # 确保 GUI 退出时清理所有 Playwright 浏览器
         print()
         print("🔄 正在清理浏览器资源...")
+        # 直接强杀整棵子进程树（Node driver + 浏览器 + 渲染进程）。
+        # 注意：不再调用 cleanup_browser()/close_browser()/manager.close_browser()——
+        # 它们会派发到 Playwright 工作线程，submit_task 内部 future.result(timeout=300)
+        # 在工作线程卡住时会阻塞最多 5 分钟，反而拖慢甚至卡死退出流程。
+        # force_kill_process_tree 已能彻底清理（递归杀掉全部后代进程）。
         try:
-            from src.auth.student import cleanup_browser
-            cleanup_browser()
-        except:
-            pass
-        try:
-            from src.certification.workflow import close_browser
-            close_browser()
-        except:
+            from src.core.browser import get_browser_manager
+            get_browser_manager().force_kill_process_tree()
+        except Exception:
             pass
         print("✅ 浏览器资源清理完成")
+        # 终极兜底：直接强制退出进程。
+        # Flet + Playwright 在 Windows 上退出时，asyncio 管道与守护线程可能让解释器无法自然退出，
+        # 导致终端挂起。资源已在上面清理完毕，此处 os._exit 保证进程立即结束。
+        try:
+            sys.stdout.flush()
+        except Exception:
+            pass
+        import os as _os
+        _os._exit(0)
 
 
 def show_startup_banner():
