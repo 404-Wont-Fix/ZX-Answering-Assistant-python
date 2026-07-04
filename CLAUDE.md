@@ -363,7 +363,7 @@ python main.py
 See detailed guide: [SSL_SETUP.md](docs/SSL_SETUP.md)
 
 **Technical details**:
-- SSL auto-configuration module: `src/core/ssl_helper.py`
+- SSL auto-configuration: `main.py` 中的 `_setup_ssl()` 函数（使用 `certifi` 设置环境变量）
 - Configured at startup in `main.py` before any network operations
 - Uses `certifi` package for root certificates
 - Affects urllib, requests, and all HTTPS connections
@@ -490,10 +490,9 @@ fix(api): resolve rate limiting issue
 src/
 ├── core/               # Core utilities and singletons
 │   ├── api_client.py   # Unified HTTP client with rate limiting
-│   ├── app_state.py    # Thread-safe global state manager
 │   ├── browser.py      # BrowserManager singleton
 │   ├── config.py       # CLI settings management
-│   └── constants.py    # Application constants
+│   └── plugin_manager.py # Plugin system management
 ├── auth/               # Authentication modules
 │   ├── student.py      # Student portal login
 │   ├── teacher.py      # Teacher portal login

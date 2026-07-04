@@ -213,12 +213,11 @@ jobs:
           ls -lh release-assets
 
       - name: Upload packaged app
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: ZX-Answering-Assistant-${{ matrix.platform }}
           path: release-assets/*.zip
           if-no-files-found: error
-          archive: false
 
   release:
     name: Publish GitHub Release
@@ -233,7 +232,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Download packaged apps
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           path: release-assets
           pattern: ZX-Answering-Assistant-*

@@ -9,7 +9,7 @@
 [![Playwright](https://img.shields.io/badge/Playwright-1.57%2B-green.svg)](https://playwright.dev/python/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)](#预构建发布包)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Version](https://img.shields.io/badge/Version-v3.7.4-green.svg)](version.py)
+[![Version](https://img.shields.io/badge/Version-v3.9.6-green.svg)](version.py)
 
 一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
@@ -32,7 +32,7 @@ ZX Answering Assistant 是一个桌面端自动化工作台，面向在线学习
 | 工作台界面 | Flet 桌面应用，包含评估答题、答案提取、插件中心、系统设置和关于页面 |
 | 插件化扩展 | 自动扫描 `plugins/`，通过 `manifest.json` 和入口点动态加载插件 UI 与核心逻辑 |
 | 浏览器自动化 | `BrowserManager` 统一管理 Playwright，支持系统 Chrome、Edge、Playwright Chromium 和打包浏览器 |
-| API 请求治理 | `APIClient` 提供限速、重试、GET 缓存和统一请求入口 |
+| API 请求治理 | `APIClient` 提供限速、重试和统一请求入口 |
 | 配置持久化 | `SettingsManager` 将账号、浏览器、限速、插件和托盘设置保存到用户配置目录 |
 | 题库与答案处理 | 支持学生端答题、教师端答案提取、题库导入导出等基础流程 |
 | Windows 托盘 | Windows 环境下支持最小化到托盘和关闭到托盘 |
@@ -73,7 +73,7 @@ main.py
                                │
 ┌──────────────────────────────▼─────────────────────────────┐
 │ 核心服务层                                                  │
-│ SettingsManager, APIClient, BrowserManager, AppState, Tray  │
+│ SettingsManager, APIClient, BrowserManager, Tray              │
 └──────────────────────────────┬─────────────────────────────┘
                                │
 ┌──────────────────────────────▼─────────────────────────────┐
@@ -91,12 +91,12 @@ main.py
 | `version.py` | 应用版本、构建信息和可选 WeBan 模块版本读取 |
 | `src/main_gui.py` | Flet 主工作台，负责导航、页面缓存、插件初始化和托盘调度 |
 | `src/ui/` | 共享主题、组件和工作台内置视图 |
-| `src/core/` | 核心单例服务：配置、API、浏览器、插件、托盘、SSL 和应用状态 |
+| `src/core/` | 核心单例服务：配置、API、浏览器、插件、托盘 |
 | `src/auth/` | 学生端、教师端登录和 token 管理 |
 | `src/answering/` | 学生端答题流程，包含浏览器模式和 API 模式 |
 | `src/extraction/` | 教师端答案提取、导入导出和文件处理 |
 | `src/certification/` | 课程认证工作流和 API 答题逻辑 |
-| `src/utils/` | 通用工具，目前主要是重试辅助 |
+| `src/utils/` | 通用工具函数 |
 | `plugins/` | 内置与外部插件目录，云考试等插件的 UI 与业务逻辑都位于各自插件目录 |
 | `docs/` | 浏览器、SSL、Flet、构建和系统浏览器等专题文档 |
 | `tests/` | 配置、插件和 API 客户端相关测试 |
@@ -120,6 +120,7 @@ main.py
 | `plugins/cloud_exam` | 云考试助手 | `ui.create_view`, `core.Workflow` | 云考试试卷获取、题库匹配和答案注入 |
 | `plugins/course_certification` | 课程认证助手 | `ui.create_view`, `core.Workflow` | 教师课程认证答题流程 |
 | `plugins/evaluation` | 评估出题助手 | `ui.create_view`, `core.Workflow` | 评估出题、试题生成和编辑入口 |
+| `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view`, `core.Workflow` | 自动批改产教融合项目评分，一键完成评分 |
 | `plugins/weban_plugin` | 安全微伴 | `ui.create_view`, `core.WeBanPluginCore` | 安全微伴学习、考试和外部 WeBan 模块接入 |
 | `plugins/warning_alert` | 警告提示器 | `ui.create_view` | 自定义警告窗口和循环提醒 |
 
@@ -377,7 +378,7 @@ python -m playwright install chromium
 
 ### SSL 证书校验失败
 
-程序启动时会先执行 `src/core/ssl_helper.py` 中的 SSL 自动配置。若仍失败，先更新证书包：
+程序启动时会自动通过 `certifi` 配置 SSL 证书环境变量。若仍失败，先更新证书包：
 
 ```bash
 python -m pip install --upgrade certifi

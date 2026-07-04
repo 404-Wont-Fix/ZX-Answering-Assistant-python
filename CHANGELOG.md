@@ -1,5 +1,113 @@
 # 更新日志
 
+## [v3.9.6] - 2026-07-05
+
+### 代码清理与瘦身
+
+通过全仓库审计，移除 4 个废弃模块和大量死代码，净删减约 1,100 行。
+
+#### 删除废弃模块（-737 行）
+
+- 移除 `src/utils/retry.py`：259 行重试装饰器，从未被任何代码调用
+- 移除 `src/core/constants.py`：113 行常量定义，全部废弃或与 `config.py` 重复
+- 移除 `src/core/ssl_helper.py`：239 行 SSL 配置模块，核心逻辑已内联到 `main.py`
+- 移除 `src/core/app_state.py`：127 行全局状态管理器，仅被导入但从未实际读写
+
+#### 清理存活文件中的死代码（-368 行）
+
+- `api_client.py`：移除从未被使用的缓存子系统（`use_cache` 从未传入 `True`）和未被调用的方法（`put`、`delete`、`get_json`、`post_json`、`reset_api_client`）
+- `browser.py`：移除 12 个无人调用的模块级包装函数（`start_browser`、`get_browser` 等）和从未被调用的 `_is_in_asyncio_context` 方法
+- `answering_view.py`：移除 `_on_json_file_selected()` 死代码（已被 `_process_selected_json_file()` 取代）
+- `workflow.py`：移除 `hello_world()` 测试桩
+- 清理 `browser_answer.py`、`extractor.py`、`workflow.py` 中未使用的导入（`sys`、`os`、`sync_playwright`、`asyncio`、`requests`）
+
+#### SSL 配置简化
+
+原 `ssl_helper.py` 的 239 行模块替换为 `main.py` 中 12 行的 `_setup_ssl()` 内联函数，通过 `certifi` 设置环境变量实现同等功能。
+
+#### 文档同步
+
+- 更新 `README.md`：删除对已移除模块的引用，补全插件列表（新增摸鱼速评助手）
+- 更新 `CLAUDE.md`：同步项目结构和 SSL 配置说明
+- 更新 `docs/SSL_SETUP.md`：指向新的内联配置方式
+
+---
+
+## [v3.9.5] - 2026-07-05
+
+### 维护
+
+- 关闭 GitHub Actions release 打包时的自动归档
+
+---
+
+## [v3.9.0] - 2026-07-05
+
+### 新增功能
+
+#### 摸鱼速评助手插件（v2.4.0）
+
+- 新增学生项目成果查看与批量评分功能
+- 实现完整一键评分功能，支持自动计算分数和批语
+- 重构评分系统，新增多严格度配置与长评语模板
+
+### 改进
+
+- 统一按钮字体为系统字体，优化文案显示
+- 重构进程清理逻辑，统一子进程树强制终止方案
+- 修复 Flet 版本升级后的图标和边框渲染问题
+
+---
+
+## [v3.8.0] - 2026-06-28
+
+### 新增功能
+
+#### 摸鱼速评助手插件
+
+- 新增懒狗一键 AI 评分插件，支持自动批改产教融合项目
+- 后续调整插件名称，移除 AI 相关字样
+
+### 重构
+
+#### 云考试模块插件化
+
+- 将云考试模块重构为独立插件 `plugins/cloud_exam/`
+- 简化题库查找逻辑并优化 UI 线程处理
+- 修复线程安全问题
+
+#### 插件系统优化
+
+- 重构插件系统，优化上下文与加载流程
+- 完成插件系统资源管理与导入路径优化
+
+### 维护
+
+- 重构 WeBan 模块安装与 CI 缓存策略
+
+---
+
+## [v3.7.4] - 2026-06-04
+
+### 新增功能
+
+#### GitHub Actions 桌面发布
+
+- 新增 Windows、macOS Intel、macOS Apple Silicon 三平台自动构建与发布工作流
+- 配置 Flet 打包排除项和构建参数
+
+### 改进
+
+- 添加跨平台适配的字体配置，改善 macOS 渲染效果
+- 优化应用退出流程
+
+### 维护
+
+- 更新 macOS runner 版本并修复 Windows 打包逻辑
+- 调整 macOS 构建平台为 arm64
+
+---
+
 ## [v3.7.2] - 2026-05-26
 
 ### 界面统一与修复
