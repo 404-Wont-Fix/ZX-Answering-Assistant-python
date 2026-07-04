@@ -8,9 +8,6 @@ from importlib import import_module
 
 
 _EXPORTS = {
-    # 状态管理
-    'AppState': ('src.core.app_state', 'AppState'),
-    'get_app_state': ('src.core.app_state', 'get_app_state'),
     # 浏览器
     'BrowserManager': ('src.core.browser', 'BrowserManager'),
     'get_browser_manager': ('src.core.browser', 'get_browser_manager'),
@@ -24,16 +21,11 @@ _EXPORTS = {
     'APIRateLevel': ('src.core.config', 'APIRateLevel'),
 }
 
-__all__ = ['constants', *list(_EXPORTS)]
+__all__ = list(_EXPORTS)
 
 
 def __getattr__(name):
     """按需加载兼容导出，避免 import src.core 时触发重依赖导入。"""
-    if name == 'constants':
-        value = import_module('src.core.constants')
-        globals()[name] = value
-        return value
-
     if name not in _EXPORTS:
         raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 

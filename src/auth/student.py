@@ -25,7 +25,20 @@ from src.core.browser import (
 
 # 导入Token管理器
 from src.auth.token_manager import get_token_manager
-from src.core.constants import STUDENT_LOGIN_LOG_FILE, get_log_dir
+
+# 日志目录（原 src.core.constants，已内联）
+import os
+from pathlib import Path
+def get_log_dir() -> Path:
+    if sys.platform == "win32":
+        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
+        return base / "ZX-Answering-Assistant" / "Logs"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Logs" / "ZX-Answering-Assistant"
+    base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
+    return base / "ZX-Answering-Assistant" / "logs"
+
+STUDENT_LOGIN_LOG_FILE = "student_login.log"
 
 # 创建自定义的 StreamHandler 来处理 Unicode 编码
 class UTF8StreamHandler(logging.StreamHandler):

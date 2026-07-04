@@ -17,8 +17,6 @@ _EXPORTS = {
     'SettingsManager': ('src.core.config', 'SettingsManager'),
     'get_settings_manager': ('src.core.config', 'get_settings_manager'),
     'APIRateLevel': ('src.core.config', 'APIRateLevel'),
-    'AppState': ('src.core.app_state', 'AppState'),
-    'get_app_state': ('src.core.app_state', 'get_app_state'),
 
     # 认证模块
     'teacher_get_access_token': ('src.auth.teacher', 'get_access_token'),
@@ -53,10 +51,6 @@ _EXPORTS = {
     'get_question_bank': ('src.certification.workflow', 'get_question_bank'),
     'APICourseAnswer': ('src.certification.api_answer', 'APICourseAnswer'),
 
-    # 工具模块
-    'retry': ('src.utils.retry', 'retry'),
-    'RetryConfig': ('src.utils.retry', 'RetryConfig'),
-    'retry_on_exception': ('src.utils.retry', 'retry_on_exception'),
 }
 
 __all__ = list(_EXPORTS)

@@ -3,11 +3,8 @@
 用于从系统中提取题目数据
 """
 
-from playwright.sync_api import sync_playwright
 from typing import Optional, List, Dict
 import time
-import requests
-import asyncio
 
 # 导入浏览器管理器
 from src.core.browser import get_browser_manager, BrowserType

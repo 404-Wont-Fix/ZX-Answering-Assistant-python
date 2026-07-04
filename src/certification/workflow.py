@@ -12,7 +12,6 @@
 from playwright.sync_api import Page
 from typing import Optional, List, Dict
 import time
-import requests
 import logging
 import threading
 from src.core.api_client import get_api_client
@@ -228,15 +227,6 @@ def get_question_bank() -> Optional[Dict]:
         Optional[Dict]: 题库数据，如果未导入则返回None
     """
     return _question_bank_cache.get('current')
-
-
-def hello_world():
-    """测试函数 - 打印 Hello World"""
-    print("\n" + "=" * 50)
-    print("🎉 Hello World!")
-    print("=" * 50)
-    print("[OK] 课程认证模块运行成功！")
-    print("=" * 50)
 
 
 def close_browser():

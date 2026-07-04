@@ -45,17 +45,22 @@ sys.path.insert(0, str(project_root))
 
 # 【重要】在所有网络操作之前配置 SSL 证书
 # 这必须在导入 Flet 或 Playwright 之前完成
-from src.core.ssl_helper import setup_ssl_auto_config
-setup_ssl_auto_config(silent=False)
+def _setup_ssl():
+    """配置 SSL 证书，解决 Windows 下 certifi 根证书问题"""
+    try:
+        import certifi, ssl as _ssl
+        cert_path = certifi.where()
+        os.environ['SSL_CERT_FILE'] = cert_path
+        os.environ['REQUESTS_CA_BUNDLE'] = cert_path
+        os.environ['CURL_CA_BUNDLE'] = cert_path
+        _ssl._create_default_https_context = lambda: _ssl.create_default_context(cafile=cert_path)
+    except ImportError:
+        pass  # certifi 未安装时使用系统证书
+
+_setup_ssl()
 
 # 导入版本信息
 import version
-
-# 导入应用状态管理器
-from src.core.app_state import get_app_state
-
-# 获取应用状态管理器实例
-app_state = get_app_state()
 
 # 显示版本信息
 version.print_version_info()
@@ -313,8 +318,12 @@ def setup_flet_executable(silent=False):
     try:
         # 【重要】在 Flet 尝试下载可执行文件之前配置 SSL
         # Flet 首次运行时会从 GitHub 下载可执行文件，需要正确的 SSL 证书
-        from src.core.ssl_helper import configure_urllib_ssl
-        configure_urllib_ssl()
+        import ssl, urllib.request
+        try:
+            import certifi
+            urllib.request.ssl_context = ssl.create_default_context(cafile=certifi.where())
+        except ImportError:
+            pass
         if not silent:
             log("[OK] SSL 证书已配置（用于 Flet 下载）")
 

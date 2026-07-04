@@ -9,8 +9,6 @@ import re
 import time
 import logging
 import threading
-import sys
-import os
 
 logger = logging.getLogger(__name__)
 

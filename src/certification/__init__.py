@@ -15,11 +15,10 @@ def get_api_course_answer():
 from src.certification.workflow import (
     import_question_bank,
     get_question_bank,
-    hello_world,
 )
 from src.certification.api_answer import APICourseAnswer
 
 __all__ = [
-    'import_question_bank', 'get_question_bank', 'hello_world', 'APICourseAnswer',
+    'import_question_bank', 'get_question_bank', 'APICourseAnswer',
     'get_api_course_answer',
 ]

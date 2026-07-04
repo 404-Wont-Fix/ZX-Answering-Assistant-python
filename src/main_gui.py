@@ -40,7 +40,6 @@ from src.ui.components import status_chip
 from src.ui.theme import Fonts, Palette, Radius, configure_page
 
 from src.core.browser import get_browser_manager
-from src.core.app_state import get_app_state
 from src.core.plugin_manager import get_plugin_manager
 from src.core.api_client import get_api_client
 from src.core.config import get_settings_manager
