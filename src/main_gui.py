@@ -116,6 +116,9 @@ class MainApp:
         # 在页面加载完成后居中窗口
         self._center_window_async()
 
+        # 注册窗口关闭看门狗（退出兜底，不依赖 Flet 事件循环）
+        self._setup_window_close_watchdog()
+
     def _setup_page(self):
         """配置页面属性"""
         self.page.title = "ZX Answering Assistant"
@@ -299,6 +302,105 @@ class MainApp:
             self._manual_tray_session = False
             self.apply_tray_settings()
 
+    def _setup_window_close_watchdog(self) -> None:
+        """
+        注册窗口关闭看门狗：桌面客户端进程退出后强制清理并退出。
+
+        关键问题（桌面模式）：用户点窗口 X 时，
+          - on_disconnect 是 web 模式专用事件（见其 docstring："Called when a
+            web user disconnects"），桌面模式不会触发；
+          - prevent_close=False 时窗口直接关闭，不会派发 window.on_event(CLOSE)；
+          - Flet 管道断裂让 asyncio 卡住（ProactorBasePipeTransport 的
+            ConnectionResetError），ft.run(main) 不返回，main.py 的 finally 也进不到。
+        于是 _quit_app、finally、断连看门狗全部失效，进程挂起、浏览器残留。
+
+        本看门狗彻底绕开 Flet 事件系统：flet 桌面客户端是当前 Python 进程的子进程，
+        用户关窗时它退出；独立守护线程轮询该子进程是否存在，消失即判定窗口已关闭，
+        强杀整棵子进程树并 os._exit。该线程只用 time.sleep + psutil，不依赖 asyncio。
+        """
+        import os
+        import threading
+        import time
+
+        def _direct_child_pids():
+            """返回直接子进程 PID 集合；枚举失败返回 None（与「确无子进程」的空集区分）。"""
+            try:
+                import psutil
+                return {c.pid for c in psutil.Process(os.getpid()).children(recursive=False)}
+            except Exception:
+                return None
+
+        def _flet_client_pids() -> set:
+            """识别 flet 桌面客户端子进程（按可执行路径/名称含 'flet' 过滤）。"""
+            try:
+                import psutil
+                pids = set()
+                for c in psutil.Process(os.getpid()).children(recursive=False):
+                    try:
+                        exe = (c.exe() or "").lower()
+                        name = (c.name() or "").lower()
+                        if "flet" in exe or "flet" in name:
+                            pids.add(c.pid)
+                    except (psutil.NoSuchProcess, psutil.AccessDenied):
+                        pass
+                return pids
+            except Exception:
+                return set()
+
+        # 在 MainApp 初始化时刻快照：此时插件还没启动浏览器，直接子进程只有 flet 客户端。
+        # 这样后续插件派生的 node.exe / chrome.exe 不会进入监控集合，避免误判。
+        targets = _flet_client_pids() or _direct_child_pids()
+
+        # 同时注册 on_disconnect 作为 web 模式的备用信号（桌面模式下不会触发，无副作用）
+        self._disconnect_event = threading.Event()
+
+        def _on_disconnect(_e):
+            try:
+                self._disconnect_event.set()
+            except Exception:
+                pass
+
+        try:
+            self.page.on_disconnect = _on_disconnect
+        except Exception:
+            pass
+
+        def _force_exit():
+            print("[MainApp] Window closed — forcing exit.")
+            try:
+                from src.core.browser import get_browser_manager
+                get_browser_manager().force_kill_process_tree()
+            except Exception:
+                pass
+            try:
+                import sys as _sys
+                _sys.stdout.flush()
+            except Exception:
+                pass
+            os._exit(0)
+
+        def _watch():
+            if not targets:
+                print("[MainApp] Window-close watchdog: no client process to monitor.")
+                return
+            while True:
+                time.sleep(1.5)
+                # 信号 A：web 模式 on_disconnect
+                if self._disconnect_event.is_set():
+                    time.sleep(1.0)
+                    _force_exit()
+                    return
+                # 信号 B：桌面模式 flet 客户端子进程消失
+                current = _direct_child_pids()
+                if current is None:
+                    continue  # psutil 枚举失败：跳过本轮，避免误判为窗口关闭
+                if not (targets & current):
+                    time.sleep(1.0)  # 短暂等待，给优雅路径最后的机会
+                    _force_exit()
+                    return
+
+        threading.Thread(target=_watch, daemon=True).start()
+
     async def _quit_app(self) -> None:
         """从窗口或托盘菜单正常退出应用。"""
         if self._quitting:
@@ -313,17 +415,84 @@ class MainApp:
         self._quitting = True
         self.page.window.prevent_close = False
 
-        # 关闭窗口
+        # 1) 立即启动看门狗（必须在任何 await 之前）。
+        #    窗口关闭后 Flet 与子进程的管道会被强行打断，触发 ProactorBasePipeTransport
+        #    的 ConnectionResetError，后续 await 可能永远完不成。看门狗在独立线程里计时，
+        #    到点强杀整棵子进程树并 os._exit，确保进程一定退出、浏览器不会成为孤儿。
+        self._start_exit_watchdog()
+
+        # 2) 关闭窗口（给用户视觉反馈；即便此处挂起，看门狗也会兜底）
         try:
             await self.page.window.close()
         except Exception as e:
             print(f"[MainApp] Error closing window: {e}")
 
-        # 退出应用
+        # 3) 在独立线程中清理浏览器 + 强杀子进程树
+        import asyncio
+        await asyncio.to_thread(self._cleanup_browser_before_exit)
+
+        # 4) 销毁页面连接
         try:
             self.page.destroy()
         except Exception as e:
             print(f"[MainApp] Error destroying page: {e}")
+
+    def _cleanup_browser_before_exit(self) -> None:
+        """退出前尽力清理 Playwright 浏览器，并强杀整棵子进程树（带超时保护）。"""
+        import threading
+
+        # 1) 优雅关闭浏览器（close_browser 内部派发到工作线程，这里再加一层超时）
+        try:
+            from src.core.browser import get_browser_manager
+            manager = get_browser_manager()
+            if manager._browser is not None or manager._playwright is not None:
+                print("[MainApp] Closing browser before exit...")
+                done = threading.Event()
+
+                def _do_close():
+                    try:
+                        manager.close_browser()
+                    except Exception as exc:
+                        print(f"[MainApp] Browser close error (ignored): {exc}")
+                    finally:
+                        done.set()
+
+                threading.Thread(target=_do_close, daemon=True).start()
+                done.wait(timeout=2.0)  # 最多等 2 秒，避免阻塞退出流程
+        except Exception as exc:
+            print(f"[MainApp] Browser cleanup skipped: {exc}")
+
+        # 2) 强杀整棵子进程树：Playwright Node driver 是当前进程的子进程，
+        #    但浏览器（Chrome/Edge）由 Node 派生属于孙进程，只优雅关闭或只杀 node.exe
+        #    会让浏览器成为孤儿继续驻留。递归杀掉全部后代才能彻底清理。
+        try:
+            from src.core.browser import get_browser_manager
+            get_browser_manager().force_kill_process_tree()
+        except Exception as exc:
+            print(f"[MainApp] Process tree cleanup skipped: {exc}")
+
+    def _start_exit_watchdog(self, delay: float = 3.0) -> None:
+        """启动看门狗守护线程：超时后强杀子进程树并强制结束进程，确保终端不会挂起。"""
+        import os
+        import threading
+        import time
+
+        def _watchdog():
+            time.sleep(delay)
+            print("[MainApp] Forcing process exit (watchdog).")
+            try:
+                from src.core.browser import get_browser_manager
+                get_browser_manager().force_kill_process_tree()
+            except Exception:
+                pass
+            try:
+                import sys as _sys
+                _sys.stdout.flush()
+            except Exception:
+                pass
+            os._exit(0)
+
+        threading.Thread(target=_watchdog, daemon=True).start()
 
     def _show_tray_error(self) -> None:
         """在无法进入后台模式时向用户说明原因。"""

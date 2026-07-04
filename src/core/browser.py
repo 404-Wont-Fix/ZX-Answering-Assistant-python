@@ -835,6 +835,47 @@ class BrowserManager:
 
         logger.info("浏览器资源已完全清理")
 
+    def force_kill_process_tree(self, timeout: float = 2.0) -> None:
+        """
+        强制终止当前 Python 进程派生的所有子进程（递归整棵树）。
+
+        Playwright 的 Node driver 是当前进程的子进程，而浏览器（Chrome/Edge）由 Node driver
+        派生，属于孙进程——只杀 node.exe 会让浏览器成为孤儿继续驻留。这里用 psutil 递归杀掉
+        全部后代，作为退出流程的兜底，确保不残留孤儿浏览器进程。
+
+        Args:
+            timeout: terminate 后等待进程退出的超时时间，超时则升级为 kill。
+        """
+        try:
+            import psutil
+        except ImportError:
+            logger.debug("psutil 未安装，跳过子进程树强制终止")
+            return
+
+        try:
+            parent = psutil.Process(os.getpid())
+            children = parent.children(recursive=True)
+            if not children:
+                return
+
+            logger.info(f"强制终止 {len(children)} 个子进程（Playwright/浏览器进程树）")
+            for proc in children:
+                try:
+                    proc.terminate()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+
+            gone, alive = psutil.wait_procs(children, timeout=timeout)
+            for proc in alive:
+                try:
+                    proc.kill()
+                except (psutil.NoSuchProcess, psutil.AccessDenied):
+                    pass
+        except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
+            logger.debug(f"获取子进程列表失败: {e}")
+        except Exception as e:
+            logger.debug(f"强制终止子进程树失败: {e}")
+
     def _is_in_asyncio_context(self) -> bool:
         """检测是否在 asyncio 事件循环中运行"""
         try:
@@ -1100,6 +1141,11 @@ def close_context(browser_type: BrowserType):
 def close_browser():
     """快捷方式：关闭浏览器"""
     get_browser_manager().close_browser()
+
+
+def force_kill_process_tree(timeout: float = 2.0) -> None:
+    """快捷方式：强制终止 Playwright/浏览器子进程树（退出兜底）。"""
+    get_browser_manager().force_kill_process_tree(timeout=timeout)
 
 
 def is_browser_alive() -> bool:

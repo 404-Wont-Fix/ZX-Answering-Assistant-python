@@ -102,6 +102,10 @@ class LazyAIGradingView:
         self.result_list_view = None  # ft.ListView
         self.result_count_text = None  # 总人数统计文本
         self.result_action_column = None  # 右侧功能按钮面板容器
+        # 右侧面板中需要随勾选状态动态更新的控件（持有引用以做定向刷新，
+        # 避免每次点击学生都重建整块面板 + 触发整页 update 造成卡顿）
+        self._stat_selected_text = None  # 「当前已选」数值文本
+        self._grade_selected_btn = None  # 「评分已选学生」按钮（按已选数量切换禁用态）
 
         # 评分状态
         self._comment_picker = None  # CommentPicker 实例（评分会话内复用）
@@ -1199,6 +1203,11 @@ class LazyAIGradingView:
         completed = sum(1 for r in self.result_list if r.project_progress >= 100)
         selected = len(self.selected_result_ids)
 
+        # 「当前已选」数值需要随勾选实时变化，持有引用以便局部刷新
+        self._stat_selected_text = ft.Text(
+            str(selected), size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT
+        )
+
         # 统计摘要卡片
         stats_card = surface_card(
             ft.Column(
@@ -1215,7 +1224,14 @@ class LazyAIGradingView:
                     _stat_row("未评分", str(ungraded)),
                     _stat_row("进度100%", str(completed)),
                     ft.Divider(height=1, color=Palette.BORDER),
-                    _stat_row("当前已选", str(selected)),
+                    ft.Row(
+                        [
+                            ft.Text("当前已选", size=13, color=Palette.TEXT_MUTED),
+                            ft.Container(expand=True),
+                            self._stat_selected_text,
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
                 ],
                 spacing=10,
             ),
@@ -1229,7 +1245,8 @@ class LazyAIGradingView:
             lambda ev: self._on_grade_all_click(ev),
             width=280,
         )
-        grade_selected_btn = ft.FilledButton(
+        # 持有引用：勾选状态变化时只改 disabled 属性，不重建按钮
+        self._grade_selected_btn = ft.FilledButton(
             "评分已选学生",
             icon=ft.Icons.CHECKLIST,
             width=280,
@@ -1311,7 +1328,7 @@ class LazyAIGradingView:
                 select_section,
                 ft.Divider(height=1, color=Palette.BORDER),
                 grade_all_btn,
-                grade_selected_btn,
+                self._grade_selected_btn,
                 ft.Divider(height=1, color=Palette.BORDER),
                 refresh_btn,
                 comment_settings_btn,
@@ -1339,25 +1356,48 @@ class LazyAIGradingView:
             self._update_single_card(rid)
 
     def _update_selection_stats(self):
-        """只更新统计文本和右侧面板（不重建学生列表）"""
+        """
+        只更新随勾选状态变化的动态控件属性（不重建右侧面板）。
+
+        重建整块面板会创建十余个控件，再配合 page.update() 触发整页 diff，
+        是学生列表点击卡顿的主因。这里改为只改属性，由调用方决定推送范围。
+        """
+        selected = len(self.selected_result_ids)
         if self.result_count_text is not None:
             self.result_count_text.value = self._result_count_value()
-        if self.result_action_column is not None:
-            new_panel = self._build_result_action_panel()
-            self.result_action_column.controls = new_panel.controls
+        if self._stat_selected_text is not None:
+            self._stat_selected_text.value = str(selected)
+        if self._grade_selected_btn is not None:
+            self._grade_selected_btn.disabled = selected == 0
+
+    @staticmethod
+    def _safe_update(ctrl) -> None:
+        """单控件定向推送；任何单个控件更新失败不影响其他控件。"""
+        if ctrl is None:
+            return
+        try:
+            ctrl.update()
+        except Exception:
+            pass
 
     def _on_student_check(self, e, result_id: int):
-        """学生卡片点击切换勾选（只更新单张卡片，不重建列表）"""
+        """学生卡片点击切换勾选（逐控件定向推送，不触发整页 update）"""
         if result_id in self.selected_result_ids:
             self.selected_result_ids.discard(result_id)
         else:
             self.selected_result_ids.add(result_id)
         self._update_single_card(result_id)
         self._update_selection_stats()
-        try:
-            self.page.update()
-        except Exception:
-            pass
+        # 关键：图标是叶子控件，必须显式 icon.update() 才会刷新 name/color。
+        # 用 page.update(container) 在部分 Flet 版本下不会把嵌套在列表里的子控件
+        # 属性变更下发（list diff 只识别增删移动），导致复选框空心→实心不生效。
+        # 逐个 control.update() 是 Flet 官方推荐写法，最稳。
+        refs = self._student_card_refs.get(result_id, {})
+        self._safe_update(refs.get("icon"))
+        self._safe_update(refs.get("container"))
+        self._safe_update(self.result_count_text)
+        self._safe_update(self._stat_selected_text)
+        self._safe_update(self._grade_selected_btn)
 
     def _on_select_all(self, e):
         """全选"""
