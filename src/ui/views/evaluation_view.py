@@ -6,6 +6,8 @@ This module contains the UI components for the evaluation page.
 
 import flet as ft
 
+from src.ui.theme import Fonts
+
 
 class EvaluationView:
     """评估出题页面视图"""
@@ -65,7 +67,7 @@ class EvaluationView:
                                     "敬请期待后续版本更新",
                                     size=16,
                                     color=ft.Colors.GREY_500,
-                                    style=ft.TextStyle(italic=True),
+                                    style=Fonts.text(italic=True),
                                 ),
                                 ft.Divider(height=40, color=ft.Colors.TRANSPARENT),
                                 ft.Row(

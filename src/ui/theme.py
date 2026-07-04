@@ -25,6 +25,20 @@ class Fonts:
         else:
             return Fonts.LINUX
 
+    @staticmethod
+    def text(**kwargs) -> "ft.TextStyle":
+        """
+        创建带系统字体的 ft.TextStyle，避免在 Windows 上因字体回退
+        产生中文伪粗体渲染（又粗又糊）。
+
+        用法：
+            Fonts.text(size=14, weight=ft.FontWeight.W_600)
+            Fonts.text(italic=True)
+        kwargs 直接透传给 ft.TextStyle（font_family 自动注入，无需手动传）。
+        """
+        kwargs.setdefault("font_family", Fonts.get_system_font())
+        return ft.TextStyle(**kwargs)
+
 
 class Palette:
     """Color tokens used by the modern application shell and core views."""

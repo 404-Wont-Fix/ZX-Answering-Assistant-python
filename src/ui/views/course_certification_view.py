@@ -19,7 +19,7 @@ from src.ui.components import (
     surface_card,
     workflow_step,
 )
-from src.ui.theme import Palette, Radius
+from src.ui.theme import Fonts, Palette, Radius
 
 
 class CourseCertificationView:
@@ -95,7 +95,7 @@ class CourseCertificationView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+                text_style=Fonts.text(weight=ft.FontWeight.W_600),
             ),
         )
         return ft.Column(

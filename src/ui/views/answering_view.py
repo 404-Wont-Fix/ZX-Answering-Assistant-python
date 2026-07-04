@@ -31,7 +31,7 @@ from src.ui.components import (
     surface_card,
     workflow_step,
 )
-from src.ui.theme import Palette, Radius
+from src.ui.theme import Fonts, Palette, Radius
 
 
 class AnsweringView:
@@ -119,7 +119,7 @@ class AnsweringView:
             style=ft.ButtonStyle(
                 shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
                 padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=ft.TextStyle(weight=ft.FontWeight.W_600),
+                text_style=Fonts.text(weight=ft.FontWeight.W_600),
             ),
         )
         return ft.Column(
@@ -1320,7 +1320,7 @@ class AnsweringView:
                             "💡 详细题库信息已输出到控制台",
                             size=11,
                             color=ft.Colors.BLUE_700,
-                            style=ft.TextStyle(italic=True),
+                            style=Fonts.text(italic=True),
                         ),
                     ],
                     spacing=5,
