@@ -9,10 +9,12 @@ from typing import List, Tuple
 
 from src.core.api_client import get_api_client
 
-from .models import ClassProject
+from .models import ClassProject, ProjectResult
 
 # 产教融合项目列表接口（教师端 admin 站点下的 prodedu 模块）
 PROJECT_LIST_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/GetTeacherClassProject"
+# 学生项目成果接口
+PROJECT_RESULT_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/GetClassProjectResult"
 
 
 class LazyGradingAPIClient:
@@ -99,3 +101,72 @@ class LazyGradingAPIClient:
         items = [ClassProject.from_api(item) for item in raw_items]
         self._data_count = payload.get("dataCount", self._data_count) or 0
         return items, self._data_count
+
+    # ------------------------------------------------------------------
+    # 学生项目成果
+    # ------------------------------------------------------------------
+
+    def get_class_project_result(
+        self,
+        *,
+        source_id: int,
+        class_id: str,
+        project_id: int,
+        key_word: str = "",
+        source_type: int = 1,
+    ) -> List[ProjectResult]:
+        """
+        获取某班级项目的学生成果列表（不分页，一次性返回全部提交记录）。
+
+        Args:
+            source_id: 班级项目记录ID（ClassProject.source_id，接口参数名 sourceid）
+            class_id: 班级ID（ClassProject.class_id）
+            project_id: 项目库ID（ClassProject.project_id，接口参数名 projectID）
+            key_word: 搜索关键字（可选，按学生姓名匹配）
+            source_type: 来源类型（1=产教融合）
+
+        Returns:
+            学生成果列表（按提交时间排序）
+
+        Raises:
+            RuntimeError: 网络/HTTP/业务失败
+        """
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "authorization": f"Bearer {self.access_token}",
+            "referer": "https://admin.cqzuxia.com/",
+        }
+        params = {
+            "sourceid": source_id,
+            "classID": class_id,
+            "projectID": project_id,
+            "sourceType": source_type,
+            "keyWord": key_word,
+        }
+
+        response = get_api_client().get(
+            PROJECT_RESULT_URL,
+            headers=headers,
+            params=params,
+            rate_limit=False,
+        )
+
+        if response is None:
+            raise RuntimeError("获取学生成果失败：网络错误或已超时，请重试或重新登录")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"获取学生成果失败：服务器返回 {response.status_code}"
+            )
+
+        body = {}
+        try:
+            body = response.json() or {}
+        except ValueError:
+            raise RuntimeError("获取学生成果失败：响应不是合法的 JSON")
+
+        if body.get("code") != 0 and not body.get("success"):
+            raise RuntimeError(body.get("msg") or "获取学生成果失败")
+
+        # GetClassProjectResult 的 data 字段直接就是列表（非分页结构）
+        raw_items = body.get("data") or []
+        return [ProjectResult.from_api(item) for item in raw_items]
