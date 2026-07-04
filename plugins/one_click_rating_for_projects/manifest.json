@@ -1,7 +1,7 @@
 {
   "id": "one_click_rating_for_projects",
   "name": "懒狗一键评分",
-  "version": "1.8.0",
+  "version": "2.0.0",
   "description": "自动批改产教融合项目的分数，一键完成 评分评分",
   "icon": "auto_awesome",
   "author": "TianJiaJi",
