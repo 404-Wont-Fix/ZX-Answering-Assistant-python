@@ -73,14 +73,11 @@ class LazyGradingAPIClient:
             "sourceType": source_type,
         }
 
-        # rate_limit=False：默认 very_high 档为 10s/请求，翻页/搜索会非常卡；
-        # 此处均为用户主动触发的单次请求，无突发风险，故对该接口关闭限流。
-        # use_cache 保持默认 False：分页不可缓存。
+        # 遵循主程序速率限制设置（由 cli_config.json api_settings.rate_level 控制）
         response = get_api_client().get(
             PROJECT_LIST_URL,
             headers=headers,
             params=params,
-            rate_limit=False,
         )
 
         if response is None:
@@ -152,7 +149,6 @@ class LazyGradingAPIClient:
             PROJECT_RESULT_URL,
             headers=headers,
             params=params,
-            rate_limit=False,
         )
 
         if response is None:
@@ -203,7 +199,6 @@ class LazyGradingAPIClient:
             STUDENT_DETAIL_URL,
             headers=headers,
             params=params,
-            rate_limit=False,
         )
 
         if response is None:
@@ -268,7 +263,6 @@ class LazyGradingAPIClient:
             AUDIT_RESULT_URL,
             headers=headers,
             json=payload,
-            rate_limit=False,
         )
 
         if response is None:
