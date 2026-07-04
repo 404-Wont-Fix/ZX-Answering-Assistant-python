@@ -15,6 +15,10 @@ from .models import ClassProject, ProjectResult
 PROJECT_LIST_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/GetTeacherClassProject"
 # 学生项目成果接口
 PROJECT_RESULT_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/GetClassProjectResult"
+# 学生详情接口（含阶段日志）
+STUDENT_DETAIL_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/GetStudentResultWithLogsByRid"
+# 提交评分接口
+AUDIT_RESULT_URL = "https://admin.cqzuxia.com/prodedu/api/Admin/AuditResult"
 
 
 class LazyGradingAPIClient:
@@ -170,3 +174,117 @@ class LazyGradingAPIClient:
         # GetClassProjectResult 的 data 字段直接就是列表（非分页结构）
         raw_items = body.get("data") or []
         return [ProjectResult.from_api(item) for item in raw_items]
+
+    # ------------------------------------------------------------------
+    # 学生详情（含阶段日志）
+    # ------------------------------------------------------------------
+
+    def get_student_result_with_logs(self, rid: int) -> dict:
+        """
+        获取单个学生的完整成果详情（含 commitLogs 阶段日志）。
+
+        Args:
+            rid: 学生成果记录ID（ProjectResult.id）
+
+        Returns:
+            原始响应 dict，包含 commitLogs 等字段
+
+        Raises:
+            RuntimeError: 网络/HTTP/业务失败
+        """
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "authorization": f"Bearer {self.access_token}",
+            "referer": "https://admin.cqzuxia.com/",
+        }
+        params = {"rid": rid}
+
+        response = get_api_client().get(
+            STUDENT_DETAIL_URL,
+            headers=headers,
+            params=params,
+            rate_limit=False,
+        )
+
+        if response is None:
+            raise RuntimeError(f"获取学生详情失败（rid={rid}）：网络错误")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"获取学生详情失败（rid={rid}）：服务器返回 {response.status_code}"
+            )
+
+        body = {}
+        try:
+            body = response.json() or {}
+        except ValueError:
+            raise RuntimeError(f"获取学生详情失败（rid={rid}）：响应不是合法的 JSON")
+
+        if body.get("code") != 0 and not body.get("success"):
+            raise RuntimeError(body.get("msg") or f"获取学生详情失败（rid={rid}）")
+
+        return body.get("data") or {}
+
+    # ------------------------------------------------------------------
+    # 提交评分
+    # ------------------------------------------------------------------
+
+    def audit_result(
+        self,
+        rid: int,
+        pro_score: str,
+        review_comments: str,
+        audit_status: int = 3,
+    ) -> dict:
+        """
+        提交学生项目评分。
+
+        Args:
+            rid: 学生成果记录ID
+            pro_score: 分数（字符串，如 "86"）
+            review_comments: 审核批语
+            audit_status: 审核状态码（3 = 已评审）
+
+        Returns:
+            更新后的学生成果原始 dict
+
+        Raises:
+            RuntimeError: 网络/HTTP/业务失败
+        """
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "authorization": f"Bearer {self.access_token}",
+            "content-type": "application/json",
+            "origin": "https://admin.cqzuxia.com",
+            "referer": "https://admin.cqzuxia.com/",
+        }
+        payload = {
+            "rid": rid,
+            "proScore": pro_score,
+            "reviewComments": review_comments,
+            "auditStatus": audit_status,
+        }
+
+        response = get_api_client().post(
+            AUDIT_RESULT_URL,
+            headers=headers,
+            json=payload,
+            rate_limit=False,
+        )
+
+        if response is None:
+            raise RuntimeError(f"提交评分失败（rid={rid}）：网络错误")
+        if response.status_code != 200:
+            raise RuntimeError(
+                f"提交评分失败（rid={rid}）：服务器返回 {response.status_code}"
+            )
+
+        body = {}
+        try:
+            body = response.json() or {}
+        except ValueError:
+            raise RuntimeError(f"提交评分失败（rid={rid}）：响应不是合法的 JSON")
+
+        if body.get("code") != 0 and not body.get("success"):
+            raise RuntimeError(body.get("msg") or f"提交评分失败（rid={rid}）")
+
+        return body.get("data") or {}

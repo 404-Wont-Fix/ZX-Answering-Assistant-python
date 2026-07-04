@@ -29,6 +29,7 @@ from src.ui.theme import Palette, Radius
 
 from .api_client import LazyGradingAPIClient
 from .models import ClassProject, ProjectResult
+from .scoring import calculate_score, CommentPicker, load_templates, save_templates
 
 
 class LazyAIGradingView:
@@ -92,6 +93,11 @@ class LazyAIGradingView:
         self.result_list_view = None  # ft.ListView
         self.result_count_text = None  # 总人数统计文本
         self.result_action_column = None  # 右侧功能按钮面板容器
+
+        # 评分状态
+        self._comment_picker = None  # CommentPicker 实例（评分会话内复用）
+        self._grading_in_progress = False  # 防止重复触发
+        self._student_card_refs: dict = {}  # {result_id: {'icon': Icon, 'container': Container}}
 
         # 设置管理器
         self.settings_manager = get_settings_manager()
@@ -924,6 +930,7 @@ class LazyAIGradingView:
         """用当前状态（加载中/错误/空态/卡片列表）填充左侧 ListView"""
         if self.result_list_view is None:
             return
+        self._student_card_refs.clear()  # 重建前清空旧引用
 
         if self.result_loading:
             self.result_list_view.controls = [
@@ -1111,28 +1118,33 @@ class LazyAIGradingView:
         card_bg = Palette.PRIMARY_SOFT if selected else Palette.SURFACE
         card_border = Palette.PRIMARY if selected else Palette.BORDER
 
-        card = ft.GestureDetector(
-            content=ft.Container(
-                content=ft.Row(
-                    [
-                        check_icon,
-                        avatar,
-                        ft.VerticalDivider(width=1, color=Palette.BORDER),
-                        name_col,
-                        ft.Column(
-                            [submit_text, chips_col],
-                            spacing=4,
-                            horizontal_alignment=ft.CrossAxisAlignment.END,
-                        ),
-                    ],
-                    spacing=10,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                padding=ft.Padding.symmetric(horizontal=12, vertical=10),
-                bgcolor=card_bg,
-                border=ft.border.all(1, card_border),
-                border_radius=Radius.MEDIUM,
+        # 提取容器为变量，以便后续单独更新属性（不重建控件）
+        container = ft.Container(
+            content=ft.Row(
+                [
+                    check_icon,
+                    avatar,
+                    ft.VerticalDivider(width=1, color=Palette.BORDER),
+                    name_col,
+                    ft.Column(
+                        [submit_text, chips_col],
+                        spacing=4,
+                        horizontal_alignment=ft.CrossAxisAlignment.END,
+                    ),
+                ],
+                spacing=10,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
+            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
+            bgcolor=card_bg,
+            border=ft.border.all(1, card_border),
+            border_radius=Radius.MEDIUM,
+        )
+        # 存储引用供 _update_single_card 使用
+        self._student_card_refs[r.id] = {"icon": check_icon, "container": container}
+
+        card = ft.GestureDetector(
+            content=container,
             on_tap=lambda ev, rid=r.id: self._on_student_check(ev, rid),
             mouse_cursor=ft.MouseCursor.CLICK,
         )
@@ -1246,6 +1258,12 @@ class LazyAIGradingView:
             lambda ev: self._load_results(),
             width=280,
         )
+        comment_settings_btn = secondary_button(
+            "批语模板设置",
+            ft.Icons.SETTINGS,
+            lambda ev: self._show_comment_settings(ev),
+            width=280,
+        )
 
         return ft.Column(
             [
@@ -1257,6 +1275,7 @@ class LazyAIGradingView:
                 grade_selected_btn,
                 ft.Divider(height=1, color=Palette.BORDER),
                 refresh_btn,
+                comment_settings_btn,
             ],
             spacing=12,
             horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
@@ -1264,28 +1283,63 @@ class LazyAIGradingView:
 
     # ---------- 选择与功能按钮事件 ----------
 
+    def _update_single_card(self, result_id: int):
+        """只更新指定卡片的图标和背景色（不重建控件）"""
+        refs = self._student_card_refs.get(result_id)
+        if not refs:
+            return
+        selected = result_id in self.selected_result_ids
+        refs["icon"].name = ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK
+        refs["icon"].color = Palette.PRIMARY if selected else Palette.TEXT_SOFT
+        refs["container"].bgcolor = Palette.PRIMARY_SOFT if selected else Palette.SURFACE
+        refs["container"].border = ft.border.all(1, Palette.PRIMARY if selected else Palette.BORDER)
+
+    def _sync_all_cards(self):
+        """批量同步所有卡片的选中状态（不重建控件）"""
+        for rid in self._student_card_refs:
+            self._update_single_card(rid)
+
+    def _update_selection_stats(self):
+        """只更新统计文本和右侧面板（不重建学生列表）"""
+        if self.result_count_text is not None:
+            self.result_count_text.value = self._result_count_value()
+        if self.result_action_column is not None:
+            new_panel = self._build_result_action_panel()
+            self.result_action_column.controls = new_panel.controls
+
     def _on_student_check(self, e, result_id: int):
-        """学生卡片点击切换勾选"""
+        """学生卡片点击切换勾选（只更新单张卡片，不重建列表）"""
         if result_id in self.selected_result_ids:
             self.selected_result_ids.discard(result_id)
         else:
             self.selected_result_ids.add(result_id)
-        self._refresh_results_area()
+        self._update_single_card(result_id)
+        self._update_selection_stats()
+        try:
+            self.page.update()
+        except Exception:
+            pass
 
     def _on_select_all(self, e):
         """全选"""
         self.selected_result_ids = {r.id for r in self.result_list}
-        self._refresh_results_area()
+        self._sync_all_cards()
+        self._update_selection_stats()
+        self.page.update()
 
     def _on_deselect_all(self, e):
         """取消全部选择"""
         self.selected_result_ids.clear()
-        self._refresh_results_area()
+        self._sync_all_cards()
+        self._update_selection_stats()
+        self.page.update()
 
     def _on_select_ungraded(self, e):
         """选取未评分的学生（pro_score 为 0）"""
         self.selected_result_ids = {r.id for r in self.result_list if not r.is_graded}
-        self._refresh_results_area()
+        self._sync_all_cards()
+        self._update_selection_stats()
+        self.page.update()
 
     def _on_select_completed(self, e):
         """选取项目进度 100% 且未评分的学生"""
@@ -1293,30 +1347,280 @@ class LazyAIGradingView:
             r.id for r in self.result_list
             if r.project_progress >= 100 and not r.is_graded
         }
-        self._refresh_results_area()
+        self._sync_all_cards()
+        self._update_selection_stats()
+        self.page.update()
 
     def _on_grade_all_click(self, e):
-        """一键 AI 评分（全部）- 占位"""
-        snack = ft.SnackBar(
-            content=ft.Text(
-                f"「一键 AI 评分」功能开发中（共 {len(self.result_list)} 名学生）"
-            ),
-            bgcolor=ft.Colors.ORANGE,
-        )
-        self.page.snack_bar = snack
-        snack.open = True
-        self.page.update()
+        """一键 AI 评分（全部）→ 筛选未评分 + 进度100% 的学生"""
+        targets = [
+            r for r in self.result_list
+            if not r.is_graded and r.project_progress >= 100
+        ]
+        if not targets:
+            snack = ft.SnackBar(
+                content=ft.Text("没有需要评分的学生（进度不足或已全部评分）"),
+                bgcolor=ft.Colors.ORANGE,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+            return
+        self._show_grade_confirm(targets)
 
     def _on_grade_selected_click(self, e):
-        """评分已选学生 - 占位"""
-        count = len(self.selected_result_ids)
-        snack = ft.SnackBar(
-            content=ft.Text(f"「评分已选学生」功能开发中（已选 {count} 名学生）"),
-            bgcolor=ft.Colors.ORANGE,
+        """评分已选学生 → 筛选已选 + 未评分 + 进度100%"""
+        targets = [
+            r for r in self.result_list
+            if r.id in self.selected_result_ids
+            and not r.is_graded
+            and r.project_progress >= 100
+        ]
+        if not targets:
+            snack = ft.SnackBar(
+                content=ft.Text("选中的学生中没有需要评分的"),
+                bgcolor=ft.Colors.ORANGE,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+            return
+        self._show_grade_confirm(targets)
+
+    # ---------- 评分确认弹窗 ----------
+
+    def _show_grade_confirm(self, targets: list[ProjectResult]):
+        """显示评分确认弹窗"""
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("确认开始 AI 评分"),
+            content=ft.Column(
+                [
+                    ft.Text(f"即将为 {len(targets)} 名学生自动评分", size=14),
+                    ft.Divider(height=6, color=ft.Colors.TRANSPARENT),
+                    ft.Text(
+                        "评分规则：",
+                        size=12,
+                        weight=ft.FontWeight.W_600,
+                    ),
+                    ft.Text("• 分数范围：75 ~ 90", size=12),
+                    ft.Text("• 截图≥9 或 字数≥500 → 85~90", size=12),
+                    ft.Text("• 截图≥6 或 字数≥400 → 80~84", size=12),
+                    ft.Text("• 最低要求不满足 → 保底 75", size=12),
+                    ft.Text("• 无附件最高卡死 80 分", size=12),
+                ],
+                tight=True,
+                spacing=4,
+            ),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
+                ft.ElevatedButton(
+                    "开始评分",
+                    bgcolor=Palette.PRIMARY,
+                    color=Palette.SURFACE,
+                    on_click=lambda _: self._start_grading(confirm_dialog, targets),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
         )
-        self.page.snack_bar = snack
-        snack.open = True
-        self.page.update()
+        self.page.show_dialog(confirm_dialog)
+
+    # ---------- 评分工作流 ----------
+
+    def _start_grading(self, confirm_dialog, targets: list[ProjectResult]):
+        """关闭确认弹窗，展示进度弹窗，后台执行评分任务"""
+        if self._grading_in_progress:
+            return
+        self.page.pop_dialog()  # 关闭确认弹窗
+
+        # 确保批语选择器已初始化
+        if self._comment_picker is None:
+            self._comment_picker = CommentPicker()
+
+        self._grading_in_progress = True
+
+        # 进度弹窗
+        self._grading_progress_text = ft.Text(
+            "准备开始评分...", size=13, text_align=ft.TextAlign.CENTER
+        )
+        progress_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("AI 评分中"),
+            content=ft.Column(
+                [
+                    ft.ProgressRing(stroke_width=3),
+                    ft.Divider(height=8, color=ft.Colors.TRANSPARENT),
+                    self._grading_progress_text,
+                ],
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                width=360,
+            ),
+        )
+        self.page.show_dialog(progress_dialog)
+
+        # 后台执行
+        def grading_task():
+            stats = {
+                "total": len(targets),
+                "graded": 0,
+                "failed": 0,
+                "min_score_names": [],  # 75 分学生姓名
+                "failed_names": [],
+            }
+            try:
+                for i, student in enumerate(targets, 1):
+                    name = student.student_name or "未知"
+                    # 更新进度
+                    self._grading_progress_text.value = (
+                        f"正在评分：{name}（{i}/{stats['total']}）"
+                    )
+                    try:
+                        self.page.update()
+                    except Exception:
+                        pass
+
+                    try:
+                        # 1) 拉取阶段日志
+                        detail = self.api_client.get_student_result_with_logs(
+                            student.id
+                        )
+                        student.commit_logs_raw = detail.get("commitLogs") or []
+
+                        # 2) 计算分数
+                        score = calculate_score(
+                            screenshot_count=student.screenshot_count,
+                            desc_char_count=student.desc_char_count,
+                            has_attachment=student.has_attachment,
+                            log_stage_count=student.log_stage_count,
+                            log_total_chars=student.log_total_chars,
+                        )
+
+                        # 3) 选取批语
+                        comment = self._comment_picker.next(
+                            min_len=20 if score >= 80 else 0
+                        )
+
+                        # 4) 提交评分
+                        self.api_client.audit_result(
+                            rid=student.id,
+                            pro_score=str(score),
+                            review_comments=comment,
+                        )
+
+                        # 5) 更新本地状态
+                        student.pro_score = score
+                        student.review_comments = comment
+
+                        stats["graded"] += 1
+                        if score == 75:
+                            stats["min_score_names"].append(name)
+
+                    except Exception as ex:
+                        stats["failed"] += 1
+                        stats["failed_names"].append(f"{name}（{ex}）")
+
+                    # 刷新列表
+                    self._refresh_results_area()
+
+            finally:
+                self._grading_in_progress = False
+                # 关闭进度弹窗
+                try:
+                    progress_dialog.open = False
+                    self.page.update()
+                except Exception:
+                    pass
+                # 展示完成弹窗
+                self._show_grading_completion(stats)
+
+        self._run_background(grading_task)
+
+    # ---------- 评分完成弹窗 ----------
+
+    def _show_grading_completion(self, stats: dict):
+        """显示评分完成弹窗，75 分保底学生着重高亮"""
+        controls = [
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=Palette.ACCENT, size=22),
+                    ft.Text(
+                        f"评分完成！共成功 {stats['graded']} 名",
+                        size=15,
+                        weight=ft.FontWeight.W_600,
+                    ),
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+        ]
+
+        if stats["failed"] > 0:
+            controls.append(ft.Divider(height=4, color=ft.Colors.TRANSPARENT))
+            controls.append(
+                ft.Text(
+                    f"⚠️ {stats['failed']} 名学生评分失败：",
+                    size=12,
+                    color=Palette.DANGER,
+                )
+            )
+            for fname in stats["failed_names"][:10]:  # 最多显示10条
+                controls.append(
+                    ft.Text(f"  • {fname}", size=11, color=Palette.DANGER)
+                )
+
+        if stats["min_score_names"]:
+            controls.append(ft.Divider(height=4, color=ft.Colors.TRANSPARENT))
+            controls.append(
+                ft.Container(
+                    content=ft.Column(
+                        [
+                            ft.Row(
+                                [
+                                    ft.Icon(
+                                        ft.Icons.WARNING_AMBER,
+                                        color=Palette.DANGER,
+                                        size=18,
+                                    ),
+                                    ft.Text(
+                                        f"以下 {len(stats['min_score_names'])} 名学生"
+                                        f"未达最低要求，给予保底分数（75分）：",
+                                        size=12,
+                                        weight=ft.FontWeight.W_600,
+                                        color=Palette.DANGER,
+                                    ),
+                                ],
+                                spacing=6,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            *[
+                                ft.Text(
+                                    f"  • {name}",
+                                    size=12,
+                                    color=Palette.DANGER,
+                                    weight=ft.FontWeight.W_500,
+                                )
+                                for name in stats["min_score_names"]
+                            ],
+                        ],
+                        spacing=4,
+                    ),
+                    padding=12,
+                    bgcolor="#FDE8ED",
+                    border=ft.border.all(1, Palette.DANGER),
+                    border_radius=Radius.SMALL,
+                )
+            )
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("评分报告"),
+            content=ft.Column(controls, tight=True, spacing=6, width=420),
+            actions=[
+                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
 
     def _back_to_project_list(self, e):
         """返回项目列表屏"""
@@ -1329,6 +1633,75 @@ class LazyAIGradingView:
         # 如果列表数据为空则刷新
         if not self.project_list:
             self._load_projects()
+
+    # ---------- 批语模板设置弹窗 ----------
+
+    def _show_comment_settings(self, e):
+        """显示批语模板设置弹窗（每行一条模板，可增删改）"""
+        templates = load_templates()
+        text_field = ft.TextField(
+            value="\n".join(templates),
+            multiline=True,
+            min_lines=8,
+            max_lines=16,
+            width=500,
+            label="评语模板（每行一条）",
+            hint_text="每行输入一条通用评语模板...",
+        )
+
+        def on_save(_):
+            raw = text_field.value or ""
+            new_templates = [
+                line.strip() for line in raw.split("\n") if line.strip()
+            ]
+            if not new_templates:
+                snack = ft.SnackBar(
+                    content=ft.Text("至少需要保留一条评语模板"),
+                    bgcolor=ft.Colors.ORANGE,
+                )
+                self.page.snack_bar = snack
+                snack.open = True
+                self.page.update()
+                return
+            save_templates(new_templates)
+            # 重新加载批语选择器
+            if self._comment_picker is not None:
+                self._comment_picker.reload()
+            self.page.pop_dialog()
+            snack = ft.SnackBar(
+                content=ft.Text(f"已保存 {len(new_templates)} 条评语模板"),
+                bgcolor=Palette.ACCENT,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+
+        dialog = ft.AlertDialog(
+            title=ft.Text("审核批语模板设置"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        "编辑下方评语模板，每行一条。评分时将循环使用。",
+                        size=12,
+                        color=Palette.TEXT_MUTED,
+                    ),
+                    ft.Divider(height=6, color=ft.Colors.TRANSPARENT),
+                    text_field,
+                ],
+                tight=True,
+            ),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
+                ft.ElevatedButton(
+                    "保存",
+                    bgcolor=Palette.PRIMARY,
+                    color=Palette.SURFACE,
+                    on_click=on_save,
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(dialog)
 
 
 def _stat_row(label: str, value: str) -> ft.Row:
