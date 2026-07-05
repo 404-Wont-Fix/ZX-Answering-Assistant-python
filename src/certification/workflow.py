@@ -29,79 +29,8 @@ from src.core.headers import get_api_headers
 # 配置日志
 logger = logging.getLogger(__name__)
 
-
-# ============================================================================
-# 题库缓存管理（线程安全）
-# ============================================================================
-
-class QuestionBankCache:
-    """
-    题库缓存管理类（线程安全）
-
-    用于管理课程认证题库的缓存，替代全局变量。
-    """
-
-    def __init__(self):
-        """初始化缓存"""
-        self._cache = {}
-        self._lock = threading.Lock()
-
-    def set(self, key: str, data):
-        """
-        设置缓存
-
-        Args:
-            key: 缓存键名
-            data: 要缓存的数据
-        """
-        with self._lock:
-            self._cache[key] = data
-        logger.debug(f"题库缓存已设置: {key}")
-
-    def get(self, key: str):
-        """
-        获取缓存
-
-        Args:
-            key: 缓存键名
-
-        Returns:
-            缓存的数据，如果不存在则返回None
-        """
-        with self._lock:
-            return self._cache.get(key)
-
-    def clear(self, key: str = None):
-        """
-        清除缓存
-
-        Args:
-            key: 缓存键名，如果为None则清除所有缓存
-        """
-        with self._lock:
-            if key:
-                self._cache.pop(key, None)
-                logger.debug(f"题库缓存已清除: {key}")
-            else:
-                self._cache.clear()
-                logger.debug("所有题库缓存已清除")
-
-    def has(self, key: str) -> bool:
-        """
-        检查缓存是否存在
-
-        Args:
-            key: 缓存键名
-
-        Returns:
-            bool: 缓存是否存在
-        """
-        with self._lock:
-            return key in self._cache
-
-
-# 全局缓存实例
-_question_bank_cache = QuestionBankCache()
+# 题库缓存（模块级变量）
+_question_bank_data = None
 
 
 # ============================================================================
@@ -159,7 +88,8 @@ def import_question_bank(file_path: str) -> bool:
             return False
 
         # 保存到缓存
-        _question_bank_cache.set('current', importer.data)
+        global _question_bank_data
+        _question_bank_data = importer.data
 
         # 显示简化的题库统计信息
         print("\n" + "=" * 60)
@@ -224,7 +154,7 @@ def get_question_bank() -> Optional[Dict]:
     Returns:
         Optional[Dict]: 题库数据，如果未导入则返回None
     """
-    return _question_bank_cache.get('current')
+    return _question_bank_data
 
 
 def close_browser():

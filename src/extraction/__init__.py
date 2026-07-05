@@ -15,10 +15,9 @@ def get_extractor():
 from src.extraction.extractor import Extractor, extract_course_answers, extract_questions, extract_single_course
 from src.extraction.exporter import DataExporter
 from src.extraction.importer import QuestionBankImporter
-from src.extraction.file_handler import FileHandler
 
 __all__ = [
     'Extractor', 'extract_course_answers', 'extract_questions', 'extract_single_course',
-    'DataExporter', 'QuestionBankImporter', 'FileHandler',
+    'DataExporter', 'QuestionBankImporter',
     'get_extractor',
 ]
