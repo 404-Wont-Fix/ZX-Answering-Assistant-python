@@ -9,7 +9,7 @@
 [![Playwright](https://img.shields.io/badge/Playwright-1.57%2B-green.svg)](https://playwright.dev/python/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)](#预构建发布包)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Version](https://img.shields.io/badge/Version-v3.9.6-green.svg)](version.py)
+[![Version](https://img.shields.io/badge/Version-v3.9.7-green.svg)](version.py)
 
 一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
@@ -120,7 +120,7 @@ main.py
 | `plugins/cloud_exam` | 云考试助手 | `ui.create_view`, `core.Workflow` | 云考试试卷获取、题库匹配和答案注入 |
 | `plugins/course_certification` | 课程认证助手 | `ui.create_view`, `core.Workflow` | 教师课程认证答题流程 |
 | `plugins/evaluation` | 评估出题助手 | `ui.create_view`, `core.Workflow` | 评估出题、试题生成和编辑入口 |
-| `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view`, `core.Workflow` | 自动批改产教融合项目评分，一键完成评分 |
+| `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view`, `core.Workflow` | 产教融合项目一键评分、批语生成与成绩 Excel 导出 |
 | `plugins/weban_plugin` | 安全微伴 | `ui.create_view`, `core.WeBanPluginCore` | 安全微伴学习、考试和外部 WeBan 模块接入 |
 | `plugins/warning_alert` | 警告提示器 | `ui.create_view` | 自定义警告窗口和循环提醒 |
 

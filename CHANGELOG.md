@@ -1,5 +1,41 @@
 # 更新日志
 
+## [v3.9.7] - 2026-07-06
+
+本版本主要包含摸鱼速评助手的成绩导出功能、答题/提取/认证模块的大规模代码重构（净删减约 2,000 行）、文档整理，以及学生列表勾选卡顿的性能修复。
+
+### 新增功能
+
+#### 摸鱼速评助手：成绩导出
+
+- 新增「导出成绩」按钮，可将已评分学生成绩导出为 Excel（.xlsx）
+- 仅导出已评分数据，按分数降序排列，自动清理文件名非法字符
+- 新增 openpyxl 依赖，适配 Flet 文件保存对话框
+
+### 性能优化
+
+#### 摸鱼速评助手勾选卡顿（plugin v2.5.0）
+
+- 修复学生列表勾选时的「顿一下」卡顿。根因：Flet 0.82 在每个事件处理器返回后会自动触发一次 `page.update()`，对整棵控件树（~750 节点）做全量 diff（实测 ~370ms），阻塞事件循环、把定向推送的 patch 卡在发送队列里迟迟不发。
+- 改为在每个选择 handler 开头调用 `ft.context.disable_auto_update()`（事件级隔离，事件结束自动恢复，不污染其它视图/事件）跳过冗余的全树 diff，并对真正改动的控件定向 `control.update()`。
+- 单卡点击从 ~370ms 降到 ~2.5ms；批量勾选（50 人）从 ~718ms 降到 ~85ms。
+
+### 重构（净删减约 2,000 行）
+
+- **提取答题公共基类**：新增 `src/answering/base_answer.py`，抽离答题/认证流程的公共逻辑；新增停止请求标志，实现答题过程的优雅停止（`browser_answer.py`、`certification/workflow.py` 等，净删减约 330 行）
+- **重构提取器**：`src/extraction/extractor.py` 抽离公共流程和通用 API 请求方法，单文件净减约 410 行
+- **移除 FileHandler 类**：简化配置/token/导出逻辑（`config.py`、`token_manager.py`、`exporter.py` 等），净删减约 620 行
+- **统一请求头管理**：新增 `src/core/headers.py` 集中管理浏览器指纹与请求头配置，替换 `auth`、`answering`、`certification`、`extraction`、`cloud_exam` 等多处重复的手动构造代码
+- **代码复用与规范化**：跨 17 个文件统一重复逻辑（`student.py`、`teacher.py`、`api_answer.py` 等）
+
+### 文档
+
+- 整理文档结构：移除 `AUDIT_TODO.md`、`REPOSITORY_REVIEW_CONCLUSION.md`、`BUILD_QUICKREF.md` 等冗余/过时文档
+- 新增 `docs/BROWSER_SETUP.md` 浏览器配置指南
+- 更新 `README.md`、`CLAUDE.md` 同步当前项目结构
+
+---
+
 ## [v3.9.6] - 2026-07-05
 
 ### 代码清理与瘦身
