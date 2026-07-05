@@ -4,7 +4,7 @@
 """
 
 from typing import Dict, List, Optional
-from src.extraction.file_handler import FileHandler
+import json
 
 
 class QuestionBankImporter:
@@ -13,22 +13,28 @@ class QuestionBankImporter:
     def __init__(self):
         self.data = None
         self.bank_type = None  # "single" 或 "multiple"
-        self.file_handler = FileHandler()
-    
+
     def import_from_file(self, file_path: str) -> bool:
         """
         从JSON文件导入题库
-        
+
         Args:
             file_path: JSON文件路径
-            
+
         Returns:
             bool: 导入是否成功
         """
-        # 使用文件处理器读取JSON文件
-        self.data = self.file_handler.read_json(file_path)
-        
-        if self.data is None:
+        try:
+            with open(file_path, 'r', encoding='utf-8') as f:
+                self.data = json.load(f)
+        except FileNotFoundError:
+            print(f"❌ 文件不存在：{file_path}")
+            return False
+        except json.JSONDecodeError as e:
+            print(f"❌ JSON解析失败：{str(e)}")
+            return False
+        except Exception as e:
+            print(f"❌ 读取文件失败：{str(e)}")
             return False
         
         # 识别题库类型
@@ -100,23 +106,23 @@ class QuestionBankImporter:
                 "shulian": course_info.get("shulian", 0)
             },
             "chapters": chapters,
-            "statistics": self._calculate_single_course_statistics(chapters)
+            "statistics": self._calculate_statistics(chapters)
         }
-    
+
     def parse_multiple_courses(self) -> Optional[Dict]:
         """
         解析多个课程的题库
-        
+
         Returns:
             Dict: 解析后的题库数据
         """
         if self.bank_type != "multiple":
             return None
-        
+
         class_info = self.data.get("class", {})
         course_list = self.data.get("course_list", [])
         chapters = self.data.get("chapters", [])
-        
+
         return {
             "class": {
                 "id": class_info.get("id", ""),
@@ -126,79 +132,41 @@ class QuestionBankImporter:
             },
             "courses": course_list,
             "chapters": chapters,
-            "statistics": self._calculate_multiple_courses_statistics(course_list, chapters)
+            "statistics": self._calculate_statistics(chapters, course_list)
         }
-    
-    def _calculate_single_course_statistics(self, chapters: List[Dict]) -> Dict:
+
+    def _calculate_statistics(self, chapters: List[Dict], course_list: List[Dict] = None) -> Dict:
         """
-        计算单个课程的统计数据
-        
+        计算题库统计数据
+
         Args:
             chapters: 章节列表
-            
+            course_list: 课程列表（多课程模式时传入）
+
         Returns:
             Dict: 统计数据
         """
-        total_chapters = len(chapters)
         total_knowledges = 0
         total_questions = 0
         total_options = 0
-        
+
         for chapter in chapters:
-            knowledges = chapter.get("knowledges", [])
-            total_knowledges += len(knowledges)
-            
-            for knowledge in knowledges:
-                questions = knowledge.get("questions", [])
-                total_questions += len(questions)
-                
-                for question in questions:
-                    options = question.get("options", [])
-                    total_options += len(options)
-        
-        return {
-            "totalChapters": total_chapters,
+            for knowledge in chapter.get("knowledges", []):
+                total_knowledges += 1
+                for question in knowledge.get("questions", []):
+                    total_questions += 1
+                    total_options += len(question.get("options", []))
+
+        result = {
+            "totalChapters": len(chapters),
             "totalKnowledges": total_knowledges,
             "totalQuestions": total_questions,
-            "totalOptions": total_options
+            "totalOptions": total_options,
         }
-    
-    def _calculate_multiple_courses_statistics(self, course_list: List[Dict], chapters: List[Dict]) -> Dict:
-        """
-        计算多个课程的统计数据
-        
-        Args:
-            course_list: 课程列表
-            chapters: 章节列表
-            
-        Returns:
-            Dict: 统计数据
-        """
-        total_courses = len(course_list)
-        total_chapters = len(chapters)
-        total_knowledges = 0
-        total_questions = 0
-        total_options = 0
-        
-        for chapter in chapters:
-            knowledges = chapter.get("knowledges", [])
-            total_knowledges += len(knowledges)
-            
-            for knowledge in knowledges:
-                questions = knowledge.get("questions", [])
-                total_questions += len(questions)
-                
-                for question in questions:
-                    options = question.get("options", [])
-                    total_options += len(options)
-        
-        return {
-            "totalCourses": total_courses,
-            "totalChapters": total_chapters,
-            "totalKnowledges": total_knowledges,
-            "totalQuestions": total_questions,
-            "totalOptions": total_options
-        }
+        if course_list is not None:
+            result["totalCourses"] = len(course_list)
+
+        return result
     
     def format_output(self) -> str:
         """

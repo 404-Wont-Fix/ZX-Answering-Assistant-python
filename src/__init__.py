@@ -44,7 +44,6 @@ _EXPORTS = {
     'extract_single_course': ('src.extraction.extractor', 'extract_single_course'),
     'DataExporter': ('src.extraction.exporter', 'DataExporter'),
     'QuestionBankImporter': ('src.extraction.importer', 'QuestionBankImporter'),
-    'FileHandler': ('src.extraction.file_handler', 'FileHandler'),
 
     # 认证模块（课程认证）
     'import_question_bank': ('src.certification.workflow', 'import_question_bank'),

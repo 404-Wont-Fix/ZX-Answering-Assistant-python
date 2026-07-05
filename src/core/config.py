@@ -191,156 +191,75 @@ class SettingsManager:
             }
         }
 
-    def get_student_credentials(self) -> tuple[Optional[str], Optional[str]]:
-        """
-        获取学生端凭据
+    # ========== 凭据管理（泛化实现） ==========
 
-        Returns:
-            tuple: (username, password)，如果未设置则返回 (None, None)
-        """
-        username = self.config.get("credentials", {}).get("student", {}).get("username", "")
-        password = self.config.get("credentials", {}).get("student", {}).get("password", "")
-        return (username if username else None, password if password else None)
+    def _ensure_cred_section(self, role: str):
+        """确保 credentials.{role} 节点存在"""
+        self.config.setdefault("credentials", {})
+        self.config["credentials"].setdefault(role, {})
+
+    def _get_cred(self, role: str, keys: list[str]) -> tuple:
+        """获取指定角色的凭据"""
+        section = self.config.get("credentials", {}).get(role, {})
+        values = tuple(section.get(k, "") or None for k in keys)
+        return values
+
+    def _set_cred(self, role: str, data: dict) -> bool:
+        """设置指定角色的凭据"""
+        self._ensure_cred_section(role)
+        self.config["credentials"][role].update(data)
+        return self._save_config(self.config)
+
+    def _clear_cred(self, role: str, keys: list[str]) -> bool:
+        """清除指定角色的凭据"""
+        self._ensure_cred_section(role)
+        for k in keys:
+            self.config["credentials"][role][k] = ""
+        return self._save_config(self.config)
+
+    # --- 学生端 ---
+
+    def get_student_credentials(self) -> tuple[Optional[str], Optional[str]]:
+        """获取学生端凭据"""
+        return self._get_cred("student", ["username", "password"])
 
     def set_student_credentials(self, username: str, password: str) -> bool:
-        """
-        设置学生端凭据
-
-        Args:
-            username: 用户名
-            password: 密码
-
-        Returns:
-            bool: 是否保存成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "student" not in self.config["credentials"]:
-            self.config["credentials"]["student"] = {}
-
-        self.config["credentials"]["student"]["username"] = username
-        self.config["credentials"]["student"]["password"] = password
-
-        return self._save_config(self.config)
+        """设置学生端凭据"""
+        return self._set_cred("student", {"username": username, "password": password})
 
     def clear_student_credentials(self) -> bool:
-        """
-        清除学生端凭据
+        """清除学生端凭据"""
+        return self._clear_cred("student", ["username", "password"])
 
-        Returns:
-            bool: 是否清除成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "student" not in self.config["credentials"]:
-            self.config["credentials"]["student"] = {}
-
-        self.config["credentials"]["student"]["username"] = ""
-        self.config["credentials"]["student"]["password"] = ""
-
-        return self._save_config(self.config)
+    # --- 教师端 ---
 
     def get_teacher_credentials(self) -> tuple[Optional[str], Optional[str]]:
-        """
-        获取教师端凭据
-
-        Returns:
-            tuple: (username, password)，如果未设置则返回 (None, None)
-        """
-        username = self.config.get("credentials", {}).get("teacher", {}).get("username", "")
-        password = self.config.get("credentials", {}).get("teacher", {}).get("password", "")
-        return (username if username else None, password if password else None)
+        """获取教师端凭据"""
+        return self._get_cred("teacher", ["username", "password"])
 
     def set_teacher_credentials(self, username: str, password: str) -> bool:
-        """
-        设置教师端凭据
-
-        Args:
-            username: 用户名
-            password: 密码
-
-        Returns:
-            bool: 是否保存成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "teacher" not in self.config["credentials"]:
-            self.config["credentials"]["teacher"] = {}
-
-        self.config["credentials"]["teacher"]["username"] = username
-        self.config["credentials"]["teacher"]["password"] = password
-
-        return self._save_config(self.config)
+        """设置教师端凭据"""
+        return self._set_cred("teacher", {"username": username, "password": password})
 
     def clear_teacher_credentials(self) -> bool:
-        """
-        清除教师端凭据
+        """清除教师端凭据"""
+        return self._clear_cred("teacher", ["username", "password"])
 
-        Returns:
-            bool: 是否清除成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "teacher" not in self.config["credentials"]:
-            self.config["credentials"]["teacher"] = {}
-
-        self.config["credentials"]["teacher"]["username"] = ""
-        self.config["credentials"]["teacher"]["password"] = ""
-
-        return self._save_config(self.config)
+    # --- WeBan ---
 
     def get_weban_credentials(self) -> tuple[Optional[str], Optional[str], Optional[str]]:
-        """
-        获取WeBan凭据
-
-        Returns:
-            tuple: (school_name, account, password)，如果未设置则返回 (None, None, None)
-        """
-        school_name = self.config.get("credentials", {}).get("weban", {}).get("school_name", "")
-        account = self.config.get("credentials", {}).get("weban", {}).get("account", "")
-        password = self.config.get("credentials", {}).get("weban", {}).get("password", "")
-        return (school_name if school_name else None, account if account else None, password if password else None)
+        """获取WeBan凭据"""
+        return self._get_cred("weban", ["school_name", "account", "password"])
 
     def set_weban_credentials(self, school_name: str, account: str, password: str) -> bool:
-        """
-        设置WeBan凭据
-
-        Args:
-            school_name: 学校名称
-            account: 账号
-            password: 密码
-
-        Returns:
-            bool: 是否保存成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "weban" not in self.config["credentials"]:
-            self.config["credentials"]["weban"] = {}
-
-        self.config["credentials"]["weban"]["school_name"] = school_name
-        self.config["credentials"]["weban"]["account"] = account
-        self.config["credentials"]["weban"]["password"] = password
-
-        return self._save_config(self.config)
+        """设置WeBan凭据"""
+        return self._set_cred("weban", {
+            "school_name": school_name, "account": account, "password": password,
+        })
 
     def clear_weban_credentials(self) -> bool:
-        """
-        清除WeBan凭据
-
-        Returns:
-            bool: 是否清除成功
-        """
-        if "credentials" not in self.config:
-            self.config["credentials"] = {}
-        if "weban" not in self.config["credentials"]:
-            self.config["credentials"]["weban"] = {}
-
-        self.config["credentials"]["weban"]["school_name"] = ""
-        self.config["credentials"]["weban"]["account"] = ""
-        self.config["credentials"]["weban"]["password"] = ""
-
-        return self._save_config(self.config)
+        """清除WeBan凭据"""
+        return self._clear_cred("weban", ["school_name", "account", "password"])
 
     def get_max_retries(self) -> int:
         """
