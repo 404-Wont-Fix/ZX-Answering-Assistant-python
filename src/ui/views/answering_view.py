@@ -23,6 +23,7 @@ from src.auth.student import (
 from src.core.config import get_settings_manager
 from src.ui.components import (
     create_animated_switcher,
+    handle_stop_answering,
     hero_panel,
     page_heading,
     primary_button,
@@ -1517,19 +1518,7 @@ class AnsweringView:
 
     def _on_stop_answering(self, e):
         """处理停止答题按钮点击事件"""
-        print("🛑 用户请求停止答题")
-        self.should_stop_answering = True
-
-        # 如果有自动答题实例，调用其停止方法
-        if self.auto_answer_instance and hasattr(self.auto_answer_instance, 'request_stop'):
-            self.auto_answer_instance.request_stop()
-
-        # 关闭对话框（使用 pop_dialog 而不是 close）
-        if self.answer_dialog:
-            self.page.pop_dialog()
-            self.answer_dialog = None
-
-        self.is_answering = False
+        handle_stop_answering(self)
 
     def _start_answering(self, mode: str, course_id: str):
         """

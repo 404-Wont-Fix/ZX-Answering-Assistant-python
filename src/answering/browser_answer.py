@@ -5,6 +5,7 @@
 
 from typing import Dict, List, Optional, Tuple
 import html
+import os
 import re
 import time
 import logging
@@ -12,11 +13,12 @@ import threading
 
 from src.utils.text import normalize_text, get_chapters
 from src.utils.logging import setup_callback_logging, cleanup_callback_logging
+from src.answering.base_answer import BaseAnswer
 
 logger = logging.getLogger(__name__)
 
 
-class AutoAnswer:
+class AutoAnswer(BaseAnswer):
     """自动做题类"""
 
     def __init__(self, page=None, log_callback=None):
@@ -780,90 +782,6 @@ class AutoAnswer:
             logger.debug(f"选项匹配失败: {str(e)}")
             return False
 
-    def _select_single_answer(self, question: Dict, correct_values: List[str]) -> bool:
-        """
-        选择单选题/判断题的答案
-
-        Args:
-            question: 题目信息
-            correct_values: 正确选项的value列表
-
-        Returns:
-            bool: 是否成功选择
-        """
-        try:
-            if not correct_values:
-                logger.error("❌ 没有正确答案")
-                return False
-
-            correct_value = correct_values[0]  # 单选题只有一个正确答案
-
-            # 直接通过value点击对应的选项
-            for option in question['options']:
-                if option['value'] == correct_value:
-                    option_label = option['label']
-                    logger.info(f"   选择答案: {option_label}")
-
-                    # 点击label元素而不是input元素（Element UI的组件需要点击label）
-                    selector = f".el-radio:has(input[value='{correct_value}'])"
-                    self._get_page().click(selector, timeout=10000)
-                    time.sleep(0.5)  # 等待选择完成
-                    return True
-
-            logger.error(f"❌ 未找到value为 {correct_value} 的选项")
-            return False
-
-        except Exception as e:
-            logger.error(f"❌ 选择单选答案失败: {str(e)}")
-            return False
-
-    def _select_multiple_answers(self, question: Dict, correct_values: List[str]) -> bool:
-        """
-        选择多选题的答案
-
-        Args:
-            question: 题目信息
-            correct_values: 正确选项的value列表
-
-        Returns:
-            bool: 是否成功选择
-        """
-        try:
-            if not correct_values:
-                logger.error("❌ 没有正确答案")
-                return False
-
-            selected_count = 0
-
-            # 查找对应的选项并点击
-            for correct_value in correct_values:
-                for option in question['options']:
-                    if option['value'] == correct_value:
-                        # 点击选项
-                        option_label = option['label']
-                        option_content = option['content'][:30]
-                        logger.info(f"   选择答案: {option_label} - {option_content}...")
-
-                        # 点击label元素而不是input元素（Element UI的组件需要点击label）
-                        selector = f".el-checkbox:has(input[value='{correct_value}'])"
-                        self._get_page().click(selector, timeout=10000)
-                        selected_count += 1
-
-                        # 延迟，防止点击过快导致选择失败
-                        time.sleep(0.3)
-                        break
-
-            if selected_count == len(correct_values):
-                logger.info(f"✅ 成功选择 {selected_count} 个答案")
-                return True
-            else:
-                logger.warning(f"⚠️ 只选择了 {selected_count}/{len(correct_values)} 个答案")
-                return False
-
-        except Exception as e:
-            logger.error(f"❌ 选择多选答案失败: {str(e)}")
-            return False
-
     def find_and_click_avaliable_knowledge(self) -> bool:
         """
         查找并点击可作答的知识点
@@ -1337,31 +1255,6 @@ class AutoAnswer:
         except Exception as e:
             logger.error(f"❌ 等待完成失败: {str(e)}")
             return False
-
-    def get_current_question_number(self) -> int:
-        """
-        获取当前题目序号
-
-        Returns:
-            int: 当前题目序号（1-5），如果获取失败返回0
-        """
-        try:
-            # 查找所有题目序号元素
-            question_items = self._get_page().query_selector_all(".question-item")
-
-            for i, item in enumerate(question_items, 1):
-                # 检查是否有"selected"类
-                class_attr = item.get_attribute("class") or ""
-                if "selected" in class_attr:
-                    logger.info(f"📍 当前题目序号: {i}/{len(question_items)}")
-                    return i
-
-            # 如果没有找到selected，返回0
-            return 0
-
-        except Exception as e:
-            logger.error(f"❌ 获取当前题目序号失败: {str(e)}")
-            return 0
 
     def _answer_loop(self, max_questions: int = 5) -> Dict:
         """

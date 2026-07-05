@@ -11,6 +11,7 @@ from src.extraction.importer import QuestionBankImporter
 from src.core.config import get_settings_manager
 from src.ui.components import (
     create_animated_switcher,
+    handle_stop_answering,
     hero_panel,
     page_heading,
     primary_button,
@@ -1294,19 +1295,7 @@ class CourseCertificationView:
 
     def _on_stop_answering(self, e):
         """处理停止答题"""
-        print("🛑 用户请求停止答题")
-        self._append_log("🛑 正在停止答题...\n")
-        self.should_stop_answering = True
-
-        if self.auto_answer_instance and hasattr(self.auto_answer_instance, 'request_stop'):
-            self.auto_answer_instance.request_stop()
-
-        if self.answer_dialog:
-            self.page.pop_dialog()
-            self.answer_dialog = None
-
-        self.is_answering = False
-        self._append_log("✅ 答题已停止\n")
+        handle_stop_answering(self, log_fn=self._append_log)
 
     def _run_certification_task(self, course_id: str, question_bank_data: dict):
         """在后台线程中运行答题任务"""
