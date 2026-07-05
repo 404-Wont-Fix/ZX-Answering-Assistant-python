@@ -205,3 +205,62 @@ def section_label(title: str, description: str = "") -> ft.Column:
     if description:
         controls.append(ft.Text(description, size=12, color=Palette.TEXT_MUTED))
     return ft.Column(controls, spacing=3, tight=True)
+
+
+def create_animated_switcher(
+    main_content: ft.Control,
+) -> tuple:
+    """
+    创建带 AnimatedSwitcher 的标准视图容器。
+
+    所有视图的 get_content() 方法共享相同的 AnimatedSwitcher 包装模式，
+    此函数消除重复。
+
+    Args:
+        main_content: 视图的主要内容控件
+
+    Returns:
+        (switcher, column) 元组：
+        - switcher: AnimatedSwitcher 实例（赋值给 self.current_content）
+        - column: 包含 switcher 的 Column 容器（作为 get_content 返回值）
+    """
+    switcher = ft.AnimatedSwitcher(
+        content=main_content,
+        transition=ft.AnimatedSwitcherTransition.FADE,
+        duration=300,
+        switch_in_curve=ft.AnimationCurve.EASE_OUT,
+        switch_out_curve=ft.AnimationCurve.EASE_IN,
+        expand=True,
+    )
+    column = ft.Column(
+        [switcher],
+        scroll=ft.ScrollMode.AUTO,
+        expand=True,
+        spacing=0,
+    )
+    return switcher, column
+
+
+def show_info_dialog(
+    page: ft.Page,
+    title: str,
+    message: str,
+) -> None:
+    """
+    显示简单的信息提示弹窗（标题 + 文本内容 + 确定按钮）。
+
+    替代代码中大量重复的 Pattern A AlertDialog 样板。
+
+    Args:
+        page: Flet 页面对象
+        title: 弹窗标题（如 "提示"、"错误"）
+        message: 弹窗内容文本
+    """
+    dialog = ft.AlertDialog(
+        title=ft.Text(title),
+        content=ft.Text(message),
+        actions=[
+            ft.TextButton("确定", on_click=lambda _: page.pop_dialog()),
+        ],
+    )
+    page.show_dialog(dialog)

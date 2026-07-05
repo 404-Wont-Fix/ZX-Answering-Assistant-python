@@ -10,6 +10,9 @@ import time
 import logging
 import threading
 
+from src.utils.text import normalize_text, get_chapters
+from src.utils.logging import setup_callback_logging, cleanup_callback_logging
+
 logger = logging.getLogger(__name__)
 
 
@@ -64,35 +67,12 @@ class AutoAnswer:
 
     def _setup_log_handler(self):
         """设置日志处理器，将日志转发到回调函数"""
-        if self._log_callback:
-            # 创建自定义日志处理器
-            class CallbackHandler(logging.Handler):
-                def __init__(self, callback):
-                    super().__init__()
-                    self.callback = callback
-
-                def emit(self, record):
-                    try:
-                        msg = self.format(record)
-                        # 移除时间戳和日志级别，只保留消息内容
-                        parts = msg.split(" - ")
-                        if len(parts) >= 4:
-                            message = " - ".join(parts[3:])
-                        else:
-                            message = msg
-                        self.callback(message.rstrip())
-                    except Exception:
-                        pass
-
-            # 添加处理器到 logger
-            self._log_handler = CallbackHandler(self._log_callback)
-            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            logger.addHandler(self._log_handler)
+        self._log_handler = setup_callback_logging(logger, self._log_callback)
 
     def _cleanup_log_handler(self):
         """清理日志处理器"""
-        if hasattr(self, '_log_handler') and self._log_handler:
-            logger.removeHandler(self._log_handler)
+        cleanup_callback_logging(logger, self._log_handler)
+        self._log_handler = None
 
     def _check_page_alive(self) -> bool:
         """
@@ -191,46 +171,8 @@ class AutoAnswer:
         logger.info("✅ 全局API监听器已停止")
 
     def _normalize_text(self, text: str) -> str:
-        """
-        标准化文本，用于匹配
-
-        Args:
-            text: 原始文本
-
-        Returns:
-            str: 标准化后的文本
-        """
-        if not text:
-            return ""
-
-        # 解码HTML实体
-        text = html.unescape(text)
-
-        # 移除HTML注释（如 <!-- notionvc: xxx -->）
-        text = re.sub(r'<!--.*?-->', '', text)
-
-        # 保留尖括号内的内容（如 <Limit>, <Allow>），移除其他HTML标签
-        # 策略：先提取所有尖括号内容，然后移除HTML标签，最后把提取的内容插回去
-        angle_bracket_contents = re.findall(r'<([^/>]+)>', text)  # 提取 <xxx> 中的内容，不包括 </> 和自闭和标签
-        text = re.sub(r'<[^>]+>', ' ', text)  # 移除所有HTML标签
-
-        # 移除多余的空白字符（包括 &nbsp; 转换后的空格）
-        text = re.sub(r'\s+', ' ', text)
-
-        # 移除特殊字符（保留中文、英文、数字、常用标点和代码符号）
-        # 代码符号：{}[]().,;=+*/<>!?（JavaScript常用符号）
-        pattern = r'[^\u4e00-\u9fa5a-zA-Z0-9\s\.,;:!?()（）【】《》、""\'\u005b\u005d{}+=*/<>-]'
-        text = re.sub(pattern, '', text)
-
-        text = text.strip()
-
-        # 如果提取出的文本为空，但原始内容中有尖括号内容，尝试使用这些内容
-        if not text and angle_bracket_contents:
-            # 将提取的尖括号内容拼接起来
-            text = ' '.join(angle_bracket_contents)
-
-        return text
-
+        """标准化文本，用于匹配"""
+        return normalize_text(text, preserve_angles=True)
     def _parse_question_type(self) -> Tuple[str, str]:
         """
         解析题目类型
@@ -445,11 +387,7 @@ class AutoAnswer:
             current_options = current_question.get('options', [])
 
             # 遍历题库查找匹配的题目
-            chapters = []
-            if "class" in self.question_bank and "course" in self.question_bank["class"]:
-                chapters = self.question_bank["class"]["course"].get("chapters", [])
-            elif "chapters" in self.question_bank:
-                chapters = self.question_bank["chapters"]
+            chapters = get_chapters(self.question_bank)
 
             for chapter in chapters:
                 for knowledge in chapter.get("knowledges", []):
@@ -540,13 +478,7 @@ class AutoAnswer:
             logger.info(f"🎯 在当前知识点范围内搜索: {self.current_chapter} > 索引{self.current_knowledge_index}")
 
             # 遍历题库查找匹配的题目
-            chapters = []
-            if "class" in self.question_bank and "course" in self.question_bank["class"]:
-                # 单课程题库
-                chapters = self.question_bank["class"]["course"].get("chapters", [])
-            elif "chapters" in self.question_bank:
-                # 多课程题库
-                chapters = self.question_bank["chapters"]
+            chapters = get_chapters(self.question_bank)
 
             # 在当前章节中查找（按名称匹配）
             target_chapter = None

@@ -22,11 +22,13 @@ from src.auth.student import (
 )
 from src.core.config import get_settings_manager
 from src.ui.components import (
+    create_animated_switcher,
     hero_panel,
     page_heading,
     primary_button,
     secondary_button,
     section_label,
+    show_info_dialog,
     status_chip,
     surface_card,
     workflow_step,
@@ -87,21 +89,9 @@ class AnsweringView:
         main_content = self._get_main_content()
 
         # 使用 AnimatedSwitcher 实现动画切换
-        self.current_content = ft.AnimatedSwitcher(
-            content=main_content,
-            transition=ft.AnimatedSwitcherTransition.FADE,
-            duration=300,
-            switch_in_curve=ft.AnimationCurve.EASE_OUT,
-            switch_out_curve=ft.AnimationCurve.EASE_IN,
-            expand=True,
-        )
+        self.current_content, return_content = create_animated_switcher(main_content)
 
-        return ft.Column(
-            [self.current_content],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-            spacing=0,
-        )
+        return return_content
 
     def _get_main_content(self) -> ft.Column:
         """
@@ -324,14 +314,7 @@ class AnsweringView:
             self.password_field.value = last_six
             self.page.update()
         else:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("账号长度不足6位，无法提取后六位"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "账号长度不足6位，无法提取后六位")
 
     def _toggle_password_visibility(self, e):
         """处理显示/隐藏密码按钮点击事件"""
@@ -415,14 +398,7 @@ class AnsweringView:
 
         # 验证输入
         if not username or not password:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("请输入账号和密码"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "请输入账号和密码")
             return
 
         # 显示登录进度对话框
@@ -1120,14 +1096,7 @@ class AnsweringView:
             # self.main_app.extraction_view.start_extract_course(course_id)
         else:
             # 如果没有MainApp引用，显示提示
-            dialog = ft.AlertDialog(
-                title=ft.Text("错误"),
-                content=ft.Text("无法切换到答案提取页面：MainApp引用未找到"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "错误", "无法切换到答案提取页面：MainApp引用未找到")
 
     def _on_use_json_bank(self, e):
         """处理使用JSON题库按钮点击事件（使用新的 FilePicker API）"""
@@ -1571,26 +1540,12 @@ class AnsweringView:
             course_id: 课程ID
         """
         if self.is_answering:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("正在答题中，请先停止当前答题任务"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "正在答题中，请先停止当前答题任务")
             return
 
         # 检查是否已加载题库
         if not self.question_bank_data:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("请先加载 JSON 题库文件"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "请先加载 JSON 题库文件")
             return
 
         # 设置答题状态
@@ -2135,14 +2090,7 @@ class AnsweringView:
 
     def _show_error_dialog(self, title: str, content: str):
         """显示错误对话框"""
-        dialog = ft.AlertDialog(
-            title=ft.Text(title),
-            content=ft.Text(content),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        show_info_dialog(self.page, title, content)
 
     def _on_clear_question_bank_student(self, e, new_course: dict):
         """清除题库并选择新课程（学生端）"""

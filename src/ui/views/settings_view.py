@@ -6,7 +6,7 @@ This module contains the UI components for the settings page.
 
 import flet as ft
 from src.core.config import get_settings_manager, APIRateLevel
-from src.ui.components import page_heading, primary_button, secondary_button
+from src.ui.components import create_animated_switcher, page_heading, primary_button, secondary_button
 from src.ui.theme import Fonts, Palette, Radius
 
 
@@ -54,21 +54,9 @@ class SettingsView:
         main_content = self._get_main_content()
 
         # 使用 AnimatedSwitcher 实现动画切换
-        self.current_content = ft.AnimatedSwitcher(
-            content=main_content,
-            transition=ft.AnimatedSwitcherTransition.FADE,
-            duration=300,
-            switch_in_curve=ft.AnimationCurve.EASE_OUT,
-            switch_out_curve=ft.AnimationCurve.EASE_IN,
-            expand=True,
-        )
+        self.current_content, return_content = create_animated_switcher(main_content)
 
-        return ft.Column(
-            [self.current_content],
-            scroll=ft.ScrollMode.AUTO,
-            expand=True,
-            spacing=0,
-        )
+        return return_content
 
     def _get_main_content(self) -> ft.Column:
         """

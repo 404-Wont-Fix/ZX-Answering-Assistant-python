@@ -24,10 +24,6 @@ from src.core.browser import (
 logger = logging.getLogger(__name__)
 
 
-def _get_browser_manager():
-    """获取浏览器管理器实例"""
-    return get_browser_manager()
-
 
 def get_access_token() -> Optional[str]:
     """
@@ -88,7 +84,7 @@ def _get_access_token_impl() -> Optional[str]:
         logger.info(f"使用账户: {username}")
 
         # 使用浏览器管理器
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         logger.info("正在启动浏览器...")
         manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
         logger.info("浏览器已启动")
