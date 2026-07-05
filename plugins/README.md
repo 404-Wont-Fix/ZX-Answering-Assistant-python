@@ -48,7 +48,7 @@ pandas>=2.0.0
 
 ## 插件开发
 
-详细的插件开发指南请参阅 [PLUGIN_DEVELOPMENT.md](../PLUGIN_DEVELOPMENT.md)。
+详细的插件开发指南请参阅 [PLUGIN_DEVELOPMENT.md](../docs/PLUGIN_DEVELOPMENT.md)。
 
 ## 内置插件界面约定
 

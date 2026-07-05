@@ -262,3 +262,68 @@ python -c "from playwright.sync_api import sync_playwright; p = sync_playwright(
 - [Playwright 官方文档](https://playwright.dev/python/)
 - [Playwright 浏览器下载](https://playwright.dev/docs/browsers)
 - [项目文档](../README.md)
+
+---
+
+## 使用系统浏览器（推荐）
+
+程序支持使用系统已安装的 Chrome 或 Edge，无需下载 Playwright 内置浏览器。
+
+### 优势
+
+| 对比项 | Playwright 内置浏览器 | 系统浏览器 |
+|--------|---------------------|-----------|
+| 体积 | 170MB+ | 0MB |
+| 首次启动 | 需下载，5-10 分钟 | 秒开 |
+| 打包体积 | 200MB+ | 40MB |
+
+### 自动检测
+
+程序按以下优先级自动选择浏览器：
+1. 配置文件指定的通道（`browser_channel`）
+2. 系统 Chrome 自动检测
+3. 系统 Edge 自动检测
+4. Playwright 内置 Chromium（降级）
+
+### 配置方式
+
+**自动模式（推荐）：** 无需配置，程序自动选择。
+
+**手动配置：** 编辑 `cli_config.json`：
+```json
+{
+  "browser_settings": {
+    "browser_channel": "chrome"
+  }
+}
+```
+
+可选值：`"chrome"`、`"msedge"`、`"chromium"`、`""`（自动选择）
+
+**GUI 设置：** 主界面 → 系统设置 → 浏览器设置 → 浏览器通道
+
+### 检测路径
+
+**Windows：**
+- Chrome: `C:\Program Files\Google\Chrome\Application\chrome.exe`
+- Edge: `C:\Program Files\Microsoft\Edge\Application\msedge.exe`
+
+**Linux：**
+- Chrome: `/usr/bin/google-chrome`
+- Edge: `/usr/bin/microsoft-edge`
+
+**macOS：**
+- Chrome: `/Applications/Google Chrome.app/Contents/MacOS/Google Chrome`
+- Edge: `/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge`
+
+### 兼容性
+
+| 功能 | 系统 Chrome/Edge | Playwright 内置 |
+|------|-----------------|---------------|
+| 答题/提取/认证 | ✅ 完全兼容 | ✅ 完全兼容 |
+| 云考试 | ⚠️ 可能受反爬限制 | ✅ 完全兼容 |
+
+遇到反爬问题时，切换回 Playwright 内置浏览器：
+```json
+{ "browser_settings": { "browser_channel": "chromium" } }
+```
