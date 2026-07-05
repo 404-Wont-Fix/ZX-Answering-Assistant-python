@@ -103,8 +103,8 @@ class LazyAIGradingView:
         self.result_list_view = None  # ft.ListView
         self.result_count_text = None  # 总人数统计文本
         self.result_action_column = None  # 右侧功能按钮面板容器
-        # 右侧面板中需要随勾选状态动态更新的控件（持有引用以做定向刷新，
-        # 避免每次点击学生都重建整块面板 + 触发整页 update 造成卡顿）
+        # 右侧面板中需要随勾选状态动态更新的控件（持有引用以直接改属性，
+        # 避免每次点击学生都重建整块面板造成卡顿；最后用一次 page.update() 推送）
         self._stat_selected_text = None  # 「当前已选」数值文本
         self._grade_selected_btn = None  # 「评分已选学生」按钮（按已选数量切换禁用态）
 
@@ -1373,8 +1373,9 @@ class LazyAIGradingView:
         """
         只更新随勾选状态变化的动态控件属性（不重建右侧面板）。
 
-        重建整块面板会创建十余个控件，再配合 page.update() 触发整页 diff，
-        是学生列表点击卡顿的主因。这里改为只改属性，由调用方决定推送范围。
+        重建整块面板会创建十余个控件，是学生列表点击卡顿的主因。这里改为只改
+        属性，由调用方在最后调一次 page.update() 批量推送（切勿为每个控件单独
+        control.update()，那会拆成多条 websocket 消息造成逐帧刷新卡顿）。
         """
         selected = len(self.selected_result_ids)
         if self.result_count_text is not None:
@@ -1384,65 +1385,91 @@ class LazyAIGradingView:
         if self._grade_selected_btn is not None:
             self._grade_selected_btn.disabled = selected == 0
 
-    @staticmethod
-    def _safe_update(ctrl) -> None:
-        """单控件定向推送；任何单个控件更新失败不影响其他控件。"""
-        if ctrl is None:
-            return
-        try:
-            ctrl.update()
-        except Exception:
-            pass
-
     def _on_student_check(self, e, result_id: int):
-        """学生卡片点击切换勾选（逐控件定向推送，不触发整页 update）"""
+        """学生卡片点击切换勾选
+
+        定向推送：只对真正改了属性的控件各调一次 ``control.update()``。
+        实测 ``self.page.update()`` 单次 ~370ms（且与改动数量无关——它会把
+        整棵控件树 ~750 个节点重新 diff 一遍），单卡点击根本扛不住。
+        改成只 diff 每个改动控件的子树（叶子控件几毫秒内），单卡点击即可秒回。
+        唯一代价是发多条 websocket 消息而非一条，但每条只携带该控件的属性 diff，
+        客户端会在同一帧内合并渲染。
+        """
+        # 关键：禁用本事件结束后的自动 page.update()。Flet 默认在每个事件处理
+        # 器返回后会自动跑一次 page.update()（见 base_control._trigger_event →
+        # after_event → __auto_update），那会再走一遍整树 diff（~370ms），并阻塞
+        # 事件循环、把上面定向推送的 patch 卡在发送队列里迟迟不发——这就是「顿一下」。
+        # disable_auto_update 由 asyncio.create_task 的 context 副本隔离，只在当前
+        # 事件内生效，事件结束自动恢复，不会污染其它事件。
+        ft.context.disable_auto_update()
         if result_id in self.selected_result_ids:
             self.selected_result_ids.discard(result_id)
         else:
             self.selected_result_ids.add(result_id)
         self._update_single_card(result_id)
         self._update_selection_stats()
-        # 关键：图标是叶子控件，必须显式 icon.update() 才会刷新 name/color。
-        # 用 page.update(container) 在部分 Flet 版本下不会把嵌套在列表里的子控件
-        # 属性变更下发（list diff 只识别增删移动），导致复选框空心→实心不生效。
-        # 逐个 control.update() 是 Flet 官方推荐写法，最稳。
+
+        # 定向推送：每个改动控件各 control.update() 一次（container.update() 会
+        # 顺带把内嵌 icon 的 name/color 变更一起下发）。
         refs = self._student_card_refs.get(result_id, {})
-        self._safe_update(refs.get("icon"))
-        self._safe_update(refs.get("container"))
-        self._safe_update(self.result_count_text)
-        self._safe_update(self._stat_selected_text)
-        self._safe_update(self._grade_selected_btn)
+        for ctl in (
+            refs.get("icon"),
+            refs.get("container"),
+            self.result_count_text,
+            self._stat_selected_text,
+            self._grade_selected_btn,
+        ):
+            if ctl is not None:
+                ctl.update()
+
+    def _push_all_cards_scoped(self):
+        """批量勾选的定向推送：逐卡片 ``container.update()``（会顺带把内嵌 icon
+        的 name/color 变更一起下发）+ 右侧统计控件。配合 handler 开头的
+        ``ft.context.disable_auto_update()``，可彻底绕开 ``page.update()`` 的
+        整树 diff（实测 ~370ms/次，且会阻塞事件循环、延迟定向 patch 的发送）。
+        """
+        for refs in self._student_card_refs.values():
+            ctl = refs.get("container")
+            if ctl is not None:
+                ctl.update()
+        for ctl in (self.result_count_text, self._stat_selected_text, self._grade_selected_btn):
+            if ctl is not None:
+                ctl.update()
 
     def _on_select_all(self, e):
         """全选"""
+        ft.context.disable_auto_update()
         self.selected_result_ids = {r.id for r in self.result_list}
         self._sync_all_cards()
         self._update_selection_stats()
-        self.page.update()
+        self._push_all_cards_scoped()
 
     def _on_deselect_all(self, e):
         """取消全部选择"""
+        ft.context.disable_auto_update()
         self.selected_result_ids.clear()
         self._sync_all_cards()
         self._update_selection_stats()
-        self.page.update()
+        self._push_all_cards_scoped()
 
     def _on_select_ungraded(self, e):
         """选取未评分的学生（pro_score 为 0）"""
+        ft.context.disable_auto_update()
         self.selected_result_ids = {r.id for r in self.result_list if not r.is_graded}
         self._sync_all_cards()
         self._update_selection_stats()
-        self.page.update()
+        self._push_all_cards_scoped()
 
     def _on_select_completed(self, e):
         """选取项目进度 100% 且未评分的学生"""
+        ft.context.disable_auto_update()
         self.selected_result_ids = {
             r.id for r in self.result_list
             if r.project_progress >= 100 and not r.is_graded
         }
         self._sync_all_cards()
         self._update_selection_stats()
-        self.page.update()
+        self._push_all_cards_scoped()
 
     def _on_strictness_change(self, e):
         """严格度变更"""
