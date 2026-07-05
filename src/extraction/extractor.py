@@ -8,6 +8,7 @@ import time
 
 # 导入浏览器管理器
 from src.core.browser import get_browser_manager, BrowserType
+from src.core.headers import get_api_headers
 
 
 class Extractor:
@@ -308,24 +309,16 @@ class Extractor:
             from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID?classID={class_id}"
-            headers = {
-                "accept": "application/json, text/plain, */*",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "authorization": f"Bearer {self.access_token}",
-                "cache-control": "max-age=0",
-                "dnt": "1",
-                "if-modified-since": "0",
-                "priority": "u=1, i",
-                "referer": "https://admin.cqzuxia.com/",
-                "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "sec-gpc": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-            }
+            headers = get_api_headers(
+                "edge_143", self.access_token,
+                referer="https://admin.cqzuxia.com/",
+                extra_headers={
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "sec-gpc": "1",
+                },
+            )
 
             print("\n" + "="*60)
             print("📡 发送网络请求")
@@ -396,24 +389,16 @@ class Extractor:
             from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetChapterEvaluationByClassID?classID={class_id}"
-            headers = {
-                "accept": "application/json, text/plain, */*",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "authorization": f"Bearer {self.access_token}",
-                "cache-control": "max-age=0",
-                "dnt": "1",
-                "if-modified-since": "0",
-                "priority": "u=1, i",
-                "referer": "https://admin.cqzuxia.com/",
-                "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "sec-gpc": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-            }
+            headers = get_api_headers(
+                "edge_143", self.access_token,
+                referer="https://admin.cqzuxia.com/",
+                extra_headers={
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "sec-gpc": "1",
+                },
+            )
 
             print("\n" + "="*60)
             print("📡 发送网络请求")
@@ -484,24 +469,16 @@ class Extractor:
             from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass?classID={class_id}"
-            headers = {
-                "accept": "application/json, text/plain, */*",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "authorization": f"Bearer {self.access_token}",
-                "cache-control": "max-age=0",
-                "dnt": "1",
-                "if-modified-since": "0",
-                "priority": "u=1, i",
-                "referer": "https://admin.cqzuxia.com/",
-                "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "sec-gpc": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-            }
+            headers = get_api_headers(
+                "edge_143", self.access_token,
+                referer="https://admin.cqzuxia.com/",
+                extra_headers={
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "sec-gpc": "1",
+                },
+            )
 
             print("\n" + "="*60)
             print("📡 发送网络请求")
@@ -573,24 +550,16 @@ class Extractor:
             from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetKnowQuestionEvaluation?classID={class_id}&knowledgeID={knowledge_id}"
-            headers = {
-                "accept": "application/json, text/plain, */*",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "authorization": f"Bearer {self.access_token}",
-                "cache-control": "max-age=0",
-                "dnt": "1",
-                "if-modified-since": "0",
-                "priority": "u=1, i",
-                "referer": "https://admin.cqzuxia.com/",
-                "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "sec-gpc": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-            }
+            headers = get_api_headers(
+                "edge_143", self.access_token,
+                referer="https://admin.cqzuxia.com/",
+                extra_headers={
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "sec-gpc": "1",
+                },
+            )
 
             print("\n" + "="*60)
             print("📡 发送网络请求")
@@ -662,24 +631,16 @@ class Extractor:
             from src.core.api_client import get_api_client
 
             url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetQuestionAnswerListByQID?classID={class_id}&questionID={question_id}"
-            headers = {
-                "accept": "application/json, text/plain, */*",
-                "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-                "authorization": f"Bearer {self.access_token}",
-                "cache-control": "max-age=0",
-                "dnt": "1",
-                "if-modified-since": "0",
-                "priority": "u=1, i",
-                "referer": "https://admin.cqzuxia.com/",
-                "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-                "sec-ch-ua-mobile": "?0",
-                "sec-ch-ua-platform": '"Windows"',
-                "sec-fetch-dest": "empty",
-                "sec-fetch-mode": "cors",
-                "sec-fetch-site": "same-origin",
-                "sec-gpc": "1",
-                "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-            }
+            headers = get_api_headers(
+                "edge_143", self.access_token,
+                referer="https://admin.cqzuxia.com/",
+                extra_headers={
+                    "cache-control": "max-age=0",
+                    "dnt": "1",
+                    "if-modified-since": "0",
+                    "sec-gpc": "1",
+                },
+            )
 
             print("\n" + "="*60)
             print("📡 发送网络请求")

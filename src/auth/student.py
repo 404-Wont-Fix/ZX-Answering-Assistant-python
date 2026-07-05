@@ -25,6 +25,7 @@ from src.core.browser import (
 
 # 导入Token管理器
 from src.auth.token_manager import get_token_manager
+from src.core.headers import get_api_headers
 
 # 日志目录（原 src.core.constants，已内联）
 import os
@@ -643,20 +644,11 @@ def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 
         url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
 
         # 请求头
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "authorization": f"Bearer {access_token}",
-            "priority": "u=1, i",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-        }
+        headers = get_api_headers(
+            "chrome_138", access_token,
+            referer="https://ai.cqzuxia.com/",
+            extra_headers={"priority": "u=1, i"},
+        )
 
         # 如果明确指定了max_retries且大于0，使用它（向后兼容）
         actual_max_retries = max_retries if max_retries > 0 else None
@@ -878,20 +870,11 @@ def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
     url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
 
     # 请求头
-    headers = {
-        "accept": "application/json, text/plain, */*",
-        "accept-language": "zh-CN,zh;q=0.9",
-        "authorization": f"Bearer {access_token}",
-        "priority": "u=1, i",
-        "referer": "https://ai.cqzuxia.com/",
-        "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-        "sec-ch-ua-mobile": "?0",
-        "sec-ch-ua-platform": '"Windows"',
-        "sec-fetch-dest": "empty",
-        "sec-fetch-mode": "cors",
-        "sec-fetch-site": "same-origin",
-        "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-    }
+    headers = get_api_headers(
+        "chrome_138", access_token,
+        referer="https://ai.cqzuxia.com/",
+        extra_headers={"priority": "u=1, i"},
+    )
 
     logger.info(f"发送请求到: {url}")
     logger.info("使用已认证的学生端会话获取课程列表")
@@ -963,20 +946,11 @@ def get_student_courses(access_token: str, max_retries: Optional[int] = None, de
         url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
 
         # 请求头
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "authorization": f"Bearer {access_token}",
-            "priority": "u=1, i",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Not)A;Brand";v="8", "Chromium";v="138"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-        }
+        headers = get_api_headers(
+            "chrome_138", access_token,
+            referer="https://ai.cqzuxia.com/",
+            extra_headers={"priority": "u=1, i"},
+        )
 
         logger.info(f"发送请求到: {url}")
         logger.info("使用已认证的学生端会话获取课程列表")

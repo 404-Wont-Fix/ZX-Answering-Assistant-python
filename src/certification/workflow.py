@@ -24,6 +24,7 @@ from src.core.browser import (
     run_in_thread_if_asyncio
 )
 from src.utils.text import normalize_text, get_chapters
+from src.core.headers import get_api_headers
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -495,22 +496,15 @@ def start_answering():
         # 2. 请求课程列表API
         api_url = "https://zxsz.cqzuxia.com/teacherCertifiApi/api/ModuleTeacher/GetLessonListByTeacher"
 
-        headers = {
-            'accept': 'application/json, text/plain, */*',
-            'accept-language': 'zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6',
-            'authorization': f'Bearer {access_token}',
-            'dnt': '1',
-            'priority': 'u=1, i',
-            'referer': 'https://zxsz.cqzuxia.com/',
-            'sec-ch-ua': '"Not(A:Brand";v="8", "Chromium";v="144", "Microsoft Edge";v="144"',
-            'sec-ch-ua-mobile': '?0',
-            'sec-ch-ua-platform': '"Windows"',
-            'sec-fetch-dest': 'empty',
-            'sec-fetch-mode': 'cors',
-            'sec-fetch-site': 'same-origin',
-            'sec-gpc': '1',
-            'user-agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0'
-        }
+        headers = get_api_headers(
+            "edge_144", access_token,
+            referer="https://zxsz.cqzuxia.com/",
+            extra_headers={
+                "dnt": "1",
+                "sec-gpc": "1",
+                "priority": "u=1, i",
+            },
+        )
 
         try:
             # 使用 API 客户端以获得自动重试功能
