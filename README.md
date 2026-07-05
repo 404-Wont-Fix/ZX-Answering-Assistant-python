@@ -283,7 +283,7 @@ plugins/
 python -m pip install -r plugins/<plugin_id>/requirements.txt
 ```
 
-更多细节见 [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md) 和 [plugins/README.md](plugins/README.md)。
+更多细节见 [PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md) 和 [plugins/README.md](plugins/README.md)。
 
 ## 开发命令
 
@@ -351,7 +351,6 @@ release-assets/ZX-Answering-Assistant-<version>-macos-arm64.zip
 相关文档：
 
 - [编译打包指南](docs/BUILD_GUIDE.md)
-- [编译快速参考](docs/BUILD_QUICKREF.md)
 - [Flet 安装与运行时指南](docs/FLET_SETUP.md)
 
 ## 常见问题
@@ -374,7 +373,7 @@ python -m pip install -r requirements.txt
 python -m playwright install chromium
 ```
 
-网络受限时可参考 [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) 和 [docs/SYSTEM_BROWSER_SUPPORT.md](docs/SYSTEM_BROWSER_SUPPORT.md)。
+网络受限时可参考 [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md)。
 
 ### SSL 证书校验失败
 
@@ -405,15 +404,13 @@ python -m pip install --upgrade certifi
 
 | 文档 | 内容 |
 | --- | --- |
-| [PLUGIN_DEVELOPMENT.md](PLUGIN_DEVELOPMENT.md) | 插件开发完整指南 |
+| [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md) | 插件开发完整指南 |
 | [plugins/README.md](plugins/README.md) | 插件目录、安装和依赖说明 |
-| [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) | Playwright 浏览器安装与排障 |
-| [docs/SYSTEM_BROWSER_SUPPORT.md](docs/SYSTEM_BROWSER_SUPPORT.md) | 系统 Chrome/Edge 支持说明 |
+| [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) | 浏览器安装、系统浏览器支持与排障 |
 | [docs/FLET_SETUP.md](docs/FLET_SETUP.md) | Flet 安装、运行时和常见问题 |
 | [docs/SSL_SETUP.md](docs/SSL_SETUP.md) | SSL 证书配置说明 |
 | [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | Windows 打包完整指南 |
-| [docs/BUILD_QUICKREF.md](docs/BUILD_QUICKREF.md) | 构建命令速查 |
-| [SYSTEM_TRAY_README.md](SYSTEM_TRAY_README.md) | 系统托盘功能说明 |
+| [docs/SYSTEM_TRAY_README.md](docs/SYSTEM_TRAY_README.md) | 系统托盘功能说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本更新记录 |
 
 ## 许可证
