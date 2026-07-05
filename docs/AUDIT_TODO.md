@@ -185,7 +185,8 @@ elif "chapters" in question_bank:
 
 **建议：** 提取 `_build_course_data(course)` 辅助函数。
 
-> ⚠️ **已知 Bug：** `export_all_courses` 第315行读取 `"oppotionOrder"`（拼写错误），应为 `"oppentionOrder"`。导致所有选项的排序值永远为 `0`。
+~~> ⚠️ **已知 Bug：** `export_all_courses` 第315行读取 `"oppotionOrder"`（拼写错误），应为 `"oppentionOrder"`。~~
+> **已确认：** `"oppotionOrder"` 是 API 中实际存在的字段名（值为 0,10,20,30），`"oppentionOrder"` 是另一个字段（值为 0,1,2,3）。原代码读取 `"oppotionOrder"` 是正确的，无需修改。
 
 ---
 
@@ -251,7 +252,7 @@ elif "chapters" in question_bank:
 
 | 严重程度 | 问题 | 位置 |
 |---------|------|------|
-| **Bug** | `export_all_courses` 读取 `"oppotionOrder"`（拼写错误）而非 `"oppentionOrder"`，所有选项排序值永远为 `0` | `src/extraction/exporter.py:315` |
+| ~~**Bug**~~ | ~~`export_all_courses` 读取 `"oppotionOrder"`（拼写错误）~~ **已确认：** `"oppotionOrder"` 是 API 实际字段名，原代码正确 | `src/extraction/exporter.py:315` |
 | **异味** | `sec-ch-ua` 头在 6 个文件中有不同 Chromium 版本（v138/v143/v144），可能触发反爬检测 | `api_answer.py`、`extractor.py`、`certification/api_answer.py`、`workflow.py`、`student.py`、`cloud_exam/api_client.py` |
 | **异味** | `weban_view.py` 在后台线程中用 `time.sleep(0.5)` 轮询并直接操作 Flet 控件，存在线程安全问题 | `src/ui/views/weban_view.py:618` |
 | **异味** | `browser_answer.py` 中 `_check_stop()` 始终返回 `False`，所有停止检查调用都是死代码 | `src/answering/browser_answer.py` |

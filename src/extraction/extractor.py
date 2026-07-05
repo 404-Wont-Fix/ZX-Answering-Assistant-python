@@ -143,77 +143,129 @@ class Extractor:
         except Exception as e:
             print(f"❌ Playwright登录异常：{str(e)}")
             return False
-    
-    def get_class_list(self) -> Optional[List[Dict]]:
+
+    def _login_and_select_class(self) -> Optional[tuple]:
         """
-        从GetClassByTeacherID API获取班级列表
+        执行登录→获取班级→选年级→选班级→获取课程 的公共流程。
 
         Returns:
-            Optional[List[Dict]]: 班级列表，如果失败则返回None
+            (class_id, class_name, course_list) 元组，失败返回 None
         """
+        if not self.login():
+            return None
+
+        class_list = self.get_class_list()
+        if not class_list:
+            return None
+
+        selected_grade = self.select_grade(class_list)
+        if not selected_grade:
+            print("❌ 已取消选择")
+            return None
+
+        filtered_classes = self.filter_by_grade(class_list, selected_grade)
+        if not filtered_classes:
+            print(f"❌ 未找到{selected_grade}级的班级")
+            return None
+
+        selected_class = self.select_class(filtered_classes)
+        if not selected_class:
+            print("❌ 已取消选择")
+            return None
+
+        class_id = selected_class.get("id", "")
+        class_name = selected_class.get("className", "")
+
+        course_list = self.get_course_list(class_id)
+        if not course_list:
+            return None
+
+        return class_id, class_name, course_list
+
+    def _api_get(
+        self,
+        url: str,
+        headers: dict,
+        success_check,
+        item_name: str = "数据",
+        max_retries: Optional[int] = None,
+    ) -> Optional[list]:
+        """
+        统一的API GET请求方法。
+
+        Args:
+            url: 请求URL
+            headers: 请求头
+            success_check: 检查响应是否成功的 callable，接收 data dict 返回 bool
+            item_name: 成功消息中的项目名称（如 "班级"、"课程"）
+            max_retries: 最大重试次数
+
+        Returns:
+            数据列表，失败返回 None
+        """
+        from src.core.api_client import get_api_client
+
+        print("\n" + "=" * 60)
+        print("📡 发送网络请求")
+        print("=" * 60)
+        print(f"请求方法: GET")
+        print(f"请求URL: {url}")
+        print(f"请求头:")
+        print("  - Authorization: Bearer [已隐藏]")
+        print(f"  - accept: {headers.get('accept', 'N/A')}")
+        print(f"  - referer: {headers.get('referer', 'N/A')}")
+        print("=" * 60)
+
+        start_time = time.time()
+        api_client = get_api_client()
+        response = api_client.get(url, headers=headers, max_retries=max_retries)
+        elapsed_time = time.time() - start_time
+
+        if response is None:
+            print(f"\n❌ 请求失败（已达最大重试次数）")
+            print("=" * 60)
+            return None
+
+        print(f"\n📥 收到响应")
+        print(f"状态码: {response.status_code}")
+        print(f"响应时间: {elapsed_time:.2f}秒")
+        print(f"响应头:")
+        print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
+        print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
+
+        if response.status_code != 200:
+            print(f"\n❌ 请求失败，状态码：{response.status_code}")
+            print(f"响应内容：{response.text[:200]}")
+            print("=" * 60)
+            return None
+
+        data = response.json()
+        print(f"响应数据: {data}")
+
+        if success_check(data):
+            items = data.get("data", [])
+            print(f"\n✅ 成功获取 {len(items)} 个{item_name}")
+            print("=" * 60)
+            return items
+        else:
+            error_msg = data.get("message") or data.get("msg", "未知错误")
+            print(f"\n❌ API返回错误：{error_msg}")
+            print("=" * 60)
+            return None
+
+    def get_class_list(self) -> Optional[List[Dict]]:
+        """从GetClassByTeacherID API获取班级列表"""
         if not self.access_token:
             print("❌ 未登录，无法获取班级列表")
             return None
 
-        try:
-            from src.core.api_client import get_api_client
+        url = "https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetClassByTeacherID"
+        headers = {
+            "Authorization": f"Bearer {self.access_token}",
+            "Content-Type": "application/json",
+        }
+        return self._api_get(url, headers, success_check=lambda d: d.get("success"), item_name="班级")
 
-            url = "https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetClassByTeacherID"
-            headers = {
-                "Authorization": f"Bearer {self.access_token}",
-                "Content-Type": "application/json"
-            }
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - Content-Type: {headers['Content-Type']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("success"):
-                    class_list = data.get("data", [])
-                    print(f"\n✅ 成功获取 {len(class_list)} 个班级")
-                    print("="*60)
-                    return class_list
-                else:
-                    print(f"\n❌ API返回错误：{data.get('message', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"\n❌ 获取班级列表异常：{str(e)}")
-            print("="*60)
-            return None
-    
     def filter_by_grade(self, class_list: List[Dict], grade: str) -> List[Dict]:
         """
         根据年级筛选班级列表，并过滤掉重复的班级
@@ -291,418 +343,54 @@ class Extractor:
                 print("❌ 请输入数字")
     
     def get_course_list(self, class_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
-        """
-        从GetEvaluationSummaryByClassID API获取课程列表
-
-        Args:
-            class_id: 班级ID
-            max_retries: 最大重试次数，如果不提供则从配置读取
-
-        Returns:
-            Optional[List[Dict]]: 课程列表，如果失败则返回None
-        """
+        """从GetEvaluationSummaryByClassID API获取课程列表"""
         if not self.access_token:
             print("❌ 未登录，无法获取课程列表")
             return None
-
-        try:
-            from src.core.api_client import get_api_client
-
-            url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID?classID={class_id}"
-            headers = get_api_headers(
-                "edge_143", self.access_token,
-                referer="https://admin.cqzuxia.com/",
-                extra_headers={
-                    "cache-control": "max-age=0",
-                    "dnt": "1",
-                    "if-modified-since": "0",
-                    "sec-gpc": "1",
-                },
-            )
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - accept: {headers['accept']}")
-            print(f"  - referer: {headers['referer']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers, max_retries=max_retries)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("success"):
-                    course_list = data.get("data", [])
-                    print(f"\n✅ 成功获取 {len(course_list)} 门课程")
-                    print("="*60)
-                    return course_list
-                else:
-                    print(f"\n❌ API返回错误：{data.get('message', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"❌ 获取课程列表异常：{str(e)}")
-            return None
+        url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationSummaryByClassID?classID={class_id}"
+        headers = get_api_headers("edge_143", self.access_token, referer="https://admin.cqzuxia.com/",
+            extra_headers={"cache-control": "max-age=0", "dnt": "1", "if-modified-since": "0", "sec-gpc": "1"})
+        return self._api_get(url, headers, success_check=lambda d: d.get("success"), item_name="课程", max_retries=max_retries)
 
     def get_chapter_list(self, class_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
-        """
-        从GetChapterEvaluationByClassID API获取章节列表
-
-        Args:
-            class_id: 班级ID
-            max_retries: 最大重试次数，如果不提供则从配置读取
-
-        Returns:
-            Optional[List[Dict]]: 章节列表，如果失败则返回None
-        """
+        """从GetChapterEvaluationByClassID API获取章节列表"""
         if not self.access_token:
             print("❌ 未登录，无法获取章节列表")
             return None
-
-        try:
-            from src.core.api_client import get_api_client
-
-            url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetChapterEvaluationByClassID?classID={class_id}"
-            headers = get_api_headers(
-                "edge_143", self.access_token,
-                referer="https://admin.cqzuxia.com/",
-                extra_headers={
-                    "cache-control": "max-age=0",
-                    "dnt": "1",
-                    "if-modified-since": "0",
-                    "sec-gpc": "1",
-                },
-            )
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - accept: {headers['accept']}")
-            print(f"  - referer: {headers['referer']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers, max_retries=max_retries)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("code") == 0:
-                    chapter_list = data.get("data", [])
-                    print(f"\n✅ 成功获取 {len(chapter_list)} 个章节")
-                    print("="*60)
-                    return chapter_list
-                else:
-                    print(f"\n❌ API返回错误：{data.get('msg', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"❌ 获取章节列表异常：{str(e)}")
-            return None
+        url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetChapterEvaluationByClassID?classID={class_id}"
+        headers = get_api_headers("edge_143", self.access_token, referer="https://admin.cqzuxia.com/",
+            extra_headers={"cache-control": "max-age=0", "dnt": "1", "if-modified-since": "0", "sec-gpc": "1"})
+        return self._api_get(url, headers, success_check=lambda d: d.get("code") == 0, item_name="章节", max_retries=max_retries)
 
     def get_knowledge_list(self, class_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
-        """
-        从GetEvaluationKnowledgeSummaryByClass API获取知识点列表
-
-        Args:
-            class_id: 班级ID
-            max_retries: 最大重试次数，如果不提供则从配置读取
-
-        Returns:
-            Optional[List[Dict]]: 知识点列表，如果失败则返回None
-        """
+        """从GetEvaluationKnowledgeSummaryByClass API获取知识点列表"""
         if not self.access_token:
             print("❌ 未登录，无法获取知识点列表")
             return None
-
-        try:
-            from src.core.api_client import get_api_client
-
-            url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass?classID={class_id}"
-            headers = get_api_headers(
-                "edge_143", self.access_token,
-                referer="https://admin.cqzuxia.com/",
-                extra_headers={
-                    "cache-control": "max-age=0",
-                    "dnt": "1",
-                    "if-modified-since": "0",
-                    "sec-gpc": "1",
-                },
-            )
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - accept: {headers['accept']}")
-            print(f"  - referer: {headers['referer']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers, max_retries=max_retries)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("code") == 0:
-                    knowledge_list = data.get("data", [])
-                    print(f"\n✅ 成功获取 {len(knowledge_list)} 个知识点")
-                    print("="*60)
-                    return knowledge_list
-                else:
-                    print(f"\n❌ API返回错误：{data.get('msg', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"❌ 获取知识点列表异常：{str(e)}")
-            return None
+        url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetEvaluationKnowledgeSummaryByClass?classID={class_id}"
+        headers = get_api_headers("edge_143", self.access_token, referer="https://admin.cqzuxia.com/",
+            extra_headers={"cache-control": "max-age=0", "dnt": "1", "if-modified-since": "0", "sec-gpc": "1"})
+        return self._api_get(url, headers, success_check=lambda d: d.get("code") == 0, item_name="知识点", max_retries=max_retries)
 
     def get_question_list(self, class_id: str, knowledge_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
-        """
-        从GetKnowQuestionEvaluation API获取知识点题目列表
-
-        Args:
-            class_id: 班级ID
-            knowledge_id: 知识点ID
-            max_retries: 最大重试次数，如果不提供则从配置读取
-
-        Returns:
-            Optional[List[Dict]]: 题目列表，如果失败则返回None
-        """
+        """从GetKnowQuestionEvaluation API获取题目列表"""
         if not self.access_token:
             print("❌ 未登录，无法获取题目列表")
             return None
-
-        try:
-            from src.core.api_client import get_api_client
-
-            url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetKnowQuestionEvaluation?classID={class_id}&knowledgeID={knowledge_id}"
-            headers = get_api_headers(
-                "edge_143", self.access_token,
-                referer="https://admin.cqzuxia.com/",
-                extra_headers={
-                    "cache-control": "max-age=0",
-                    "dnt": "1",
-                    "if-modified-since": "0",
-                    "sec-gpc": "1",
-                },
-            )
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - accept: {headers['accept']}")
-            print(f"  - referer: {headers['referer']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers, max_retries=max_retries)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("code") == 0:
-                    question_list = data.get("data", [])
-                    print(f"\n✅ 成功获取 {len(question_list)} 道题目")
-                    print("="*60)
-                    return question_list
-                else:
-                    print(f"\n❌ API返回错误：{data.get('msg', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"❌ 获取题目列表异常：{str(e)}")
-            return None
+        url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetKnowQuestionEvaluation?classID={class_id}&knowledgeID={knowledge_id}"
+        headers = get_api_headers("edge_143", self.access_token, referer="https://admin.cqzuxia.com/",
+            extra_headers={"cache-control": "max-age=0", "dnt": "1", "if-modified-since": "0", "sec-gpc": "1"})
+        return self._api_get(url, headers, success_check=lambda d: d.get("code") == 0, item_name="题目", max_retries=max_retries)
 
     def get_question_options(self, class_id: str, question_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
-        """
-        从GetQuestionAnswerListByQID API获取题目选项列表
-
-        Args:
-            class_id: 班级ID
-            question_id: 题目ID
-            max_retries: 最大重试次数，如果不提供则从配置读取
-
-        Returns:
-            Optional[List[Dict]]: 选项列表，如果失败则返回None
-        """
+        """从GetQuestionAnswerListByQID API获取选项列表"""
         if not self.access_token:
-            print("❌ 未登录，无法获取题目选项")
+            print("❌ 未登录，无法获取选项列表")
             return None
-
-        try:
-            from src.core.api_client import get_api_client
-
-            url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetQuestionAnswerListByQID?classID={class_id}&questionID={question_id}"
-            headers = get_api_headers(
-                "edge_143", self.access_token,
-                referer="https://admin.cqzuxia.com/",
-                extra_headers={
-                    "cache-control": "max-age=0",
-                    "dnt": "1",
-                    "if-modified-since": "0",
-                    "sec-gpc": "1",
-                },
-            )
-
-            print("\n" + "="*60)
-            print("📡 发送网络请求")
-            print("="*60)
-            print(f"请求方法: GET")
-            print(f"请求URL: {url}")
-            print(f"请求头:")
-            print("  - Authorization: Bearer [已隐藏]")
-            print(f"  - accept: {headers['accept']}")
-            print(f"  - referer: {headers['referer']}")
-            print("="*60)
-
-            start_time = time.time()
-            api_client = get_api_client()
-            response = api_client.get(url, headers=headers, max_retries=max_retries)
-            elapsed_time = time.time() - start_time
-
-            if response is None:
-                print(f"\n❌ 请求失败（已达最大重试次数）")
-                print("="*60)
-                return None
-
-            print(f"\n📥 收到响应")
-            print(f"状态码: {response.status_code}")
-            print(f"响应时间: {elapsed_time:.2f}秒")
-            print(f"响应头:")
-            print(f"  - Content-Type: {response.headers.get('Content-Type', 'N/A')}")
-            print(f"  - Content-Length: {response.headers.get('Content-Length', 'N/A')} bytes")
-
-            if response.status_code == 200:
-                data = response.json()
-                print(f"响应数据: {data}")
-                if data.get("code") == 0:
-                    options_list = data.get("data", [])
-                    # 移除testQuestions字段，只保留选项信息
-                    cleaned_options = []
-                    for option in options_list:
-                        cleaned_option = {
-                            "id": option.get("id", ""),
-                            "questionsID": option.get("questionsID", ""),
-                            "oppentionContent": option.get("oppentionContent", ""),
-                            "isTrue": option.get("isTrue", False),
-                            "oppentionOrder": option.get("oppentionOrder", 0),
-                            "tenantID": option.get("tenantID", 32)
-                        }
-                        cleaned_options.append(cleaned_option)
-                    print(f"\n✅ 成功获取 {len(cleaned_options)} 个选项")
-                    print("="*60)
-                    return cleaned_options
-                else:
-                    print(f"\n❌ API返回错误：{data.get('msg', '未知错误')}")
-                    print("="*60)
-                    return None
-            else:
-                print(f"\n❌ 请求失败，状态码：{response.status_code}")
-                print(f"响应内容：{response.text[:200]}")
-                print("="*60)
-                return None
-
-        except Exception as e:
-            print(f"❌ 获取题目选项异常：{str(e)}")
-            return None
+        url = f"https://admin.cqzuxia.com/evaluation/api/TeacherEvaluation/GetQuestionAnswerListByQID?classID={class_id}&questionID={question_id}"
+        headers = get_api_headers("edge_143", self.access_token, referer="https://admin.cqzuxia.com/",
+            extra_headers={"cache-control": "max-age=0", "dnt": "1", "if-modified-since": "0", "sec-gpc": "1"})
+        return self._api_get(url, headers, success_check=lambda d: d.get("code") == 0, item_name="选项", max_retries=max_retries)
 
     def select_class(self, class_list: List[Dict]) -> Optional[Dict]:
         """
@@ -749,46 +437,14 @@ class Extractor:
         Returns:
             Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
         """
-        # 1. 询问用户账号密码（如果不提供，login方法会尝试从配置读取）
         print("\n" + "="*50)
         print("题目提取功能")
         print("="*50)
 
-        # 2. 登录（不传参数，让login方法自动处理）
-        if not self.login():
+        result = self._login_and_select_class()
+        if not result:
             return None
-        
-        # 3. 获取班级列表
-        class_list = self.get_class_list()
-        if not class_list:
-            return None
-        
-        # 4. 选择年级
-        selected_grade = self.select_grade(class_list)
-        if not selected_grade:
-            print("❌ 已取消选择")
-            return None
-        
-        # 5. 根据年级筛选班级
-        filtered_classes = self.filter_by_grade(class_list, selected_grade)
-        if not filtered_classes:
-            print(f"❌ 未找到{selected_grade}级的班级")
-            return None
-        
-        # 6. 选择班级
-        selected_class = self.select_class(filtered_classes)
-        if not selected_class:
-            print("❌ 已取消选择")
-            return None
-        
-        # 7. 获取班级ID
-        class_id = selected_class.get("id", "")
-        class_name = selected_class.get("className", "")
-        
-        # 8. 获取课程列表
-        course_list = self.get_course_list(class_id)
-        if not course_list:
-            return None
+        class_id, class_name, course_list = result
         
         # 9. 获取章节列表
         chapter_list = self.get_chapter_list(class_id)
@@ -972,46 +628,14 @@ class Extractor:
         Returns:
             Optional[Dict]: 包含所有提取数据的字典，如果失败则返回None
         """
-        # 1. 询问用户账号密码（如果不提供，login方法会尝试从配置读取）
         print("\n" + "="*50)
         print("单个课程题目提取功能")
         print("="*50)
 
-        # 2. 登录（不传参数，让login方法自动处理）
-        if not self.login():
+        result = self._login_and_select_class()
+        if not result:
             return None
-        
-        # 3. 获取班级列表
-        class_list = self.get_class_list()
-        if not class_list:
-            return None
-        
-        # 4. 选择年级
-        selected_grade = self.select_grade(class_list)
-        if not selected_grade:
-            print("❌ 已取消选择")
-            return None
-        
-        # 5. 根据年级筛选班级
-        filtered_classes = self.filter_by_grade(class_list, selected_grade)
-        if not filtered_classes:
-            print(f"❌ 未找到{selected_grade}级的班级")
-            return None
-        
-        # 6. 选择班级
-        selected_class = self.select_class(filtered_classes)
-        if not selected_class:
-            print("❌ 已取消选择")
-            return None
-        
-        # 7. 获取班级ID
-        class_id = selected_class.get("id", "")
-        class_name = selected_class.get("className", "")
-        
-        # 8. 获取课程列表
-        course_list = self.get_course_list(class_id)
-        if not course_list:
-            return None
+        class_id, class_name, course_list = result
         
         # 9. 选择课程
         selected_course = self.select_course(course_list)
@@ -1341,42 +965,10 @@ def extract_course_answers(course_id: str, username: str = None, password: str =
     """
     extractor = Extractor()
     try:
-        # 1. 登录（不传参数让login方法自动处理）
-        if not extractor.login():
+        result = extractor._login_and_select_class()
+        if not result:
             return None
-        
-        # 2. 获取班级列表
-        class_list = extractor.get_class_list()
-        if not class_list:
-            print("❌ 获取班级列表失败")
-            return None
-        
-        # 3. 选择年级
-        selected_grade = extractor.select_grade(class_list)
-        if not selected_grade:
-            print("❌ 未选择年级")
-            return None
-        
-        # 4. 筛选该年级的班级
-        filtered_classes = extractor.filter_by_grade(class_list, selected_grade)
-        if not filtered_classes:
-            print(f"❌ 未找到{selected_grade}级的班级")
-            return None
-        
-        # 5. 选择班级
-        selected_class = extractor.select_class(filtered_classes)
-        if not selected_class:
-            print("❌ 未选择班级")
-            return None
-        
-        class_id = selected_class.get("id", "")
-        print(f"✅ 已选择班级：{selected_class.get('name', '')}")
-        
-        # 6. 获取课程列表
-        course_list = extractor.get_course_list(class_id)
-        if not course_list:
-            print("❌ 获取课程列表失败")
-            return None
+        class_id, class_name, course_list = result
         
         # 7. 验证课程ID是否存在
         course_found = False
