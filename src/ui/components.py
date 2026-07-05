@@ -264,3 +264,34 @@ def show_info_dialog(
         ],
     )
     page.show_dialog(dialog)
+
+
+def handle_stop_answering(
+    view,
+    log_fn=None,
+) -> None:
+    """
+    共享的停止答题逻辑。
+
+    Args:
+        view: 视图实例，需具有 should_stop_answering、auto_answer_instance、
+              answer_dialog、is_answering、page 属性
+        log_fn: 可选的日志回调函数（如 course_certification_view 的 _append_log）
+    """
+    print("🛑 用户请求停止答题")
+    if log_fn:
+        log_fn("🛑 正在停止答题...\n")
+
+    view.should_stop_answering = True
+
+    if view.auto_answer_instance and hasattr(view.auto_answer_instance, 'request_stop'):
+        view.auto_answer_instance.request_stop()
+
+    if view.answer_dialog:
+        view.page.pop_dialog()
+        view.answer_dialog = None
+
+    view.is_answering = False
+
+    if log_fn:
+        log_fn("✅ 答题已停止\n")

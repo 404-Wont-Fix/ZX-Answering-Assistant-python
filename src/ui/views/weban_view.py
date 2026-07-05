@@ -46,6 +46,7 @@ class WeBanView:
         # 任务状态
         self.is_running = False
         self.task_thread = None
+        self._task_done_event = threading.Event()
 
         # 登录信息
         self.school_name = ""
@@ -556,36 +557,37 @@ class WeBanView:
 
         # 在后台线程中执行
         def run_task():
+            status = "执行完成"
+            status_color = ft.Colors.GREEN
             try:
                 self.is_running = True
+                self._task_done_event.clear()
                 self.adapter.load_config([config])
                 result = self.adapter.start(use_multithread=False)
 
-                # 更新结果
                 if result["failed"] == 0:
                     self._log(f"✅ 任务完成！成功: {result['success']}", "success")
-                    self.status_text.value = "执行完成"
-                    self.status_text.color = ft.Colors.GREEN
                 else:
                     self._log(f"⚠️ 任务完成！成功: {result['success']}, 失败: {result['failed']}", "warning")
-                    self.status_text.value = "部分失败"
-                    self.status_text.color = ft.Colors.ORANGE
+                    status = "部分失败"
+                    status_color = ft.Colors.ORANGE
 
             except Exception as e:
                 self._log(f"❌ 执行出错: {str(e)}", "error")
-                self.status_text.value = "执行出错"
-                self.status_text.color = ft.Colors.RED
+                status = "执行出错"
+                status_color = ft.Colors.RED
 
             finally:
-                # 线程安全的UI更新
                 def update_final_state():
                     self.is_running = False
+                    self.status_text.value = status
+                    self.status_text.color = status_color
                     self.start_button.disabled = False
                     self.stop_button.disabled = True
-                    # 更新对话框内的控件
                     self.start_button.update()
                     self.stop_button.update()
                     self.status_text.update()
+                    self._task_done_event.set()
 
                 self.page.run_thread(update_final_state)
 
@@ -594,7 +596,7 @@ class WeBanView:
 
     def _on_stop_task(self, e):
         """停止执行任务"""
-        print(f"[DEBUG] _on_stop_task 被调用")  # 调试信息
+        print(f"[DEBUG] _on_stop_task 被调用")
 
         if not self.is_running:
             self._log("⚠️ 任务未在运行", "warning")
@@ -608,14 +610,8 @@ class WeBanView:
         self.status_text.color = ft.Colors.ORANGE
         self.status_text.update()
 
-        # 等待一小段时间
-        import time
-        stopped = False
-        for i in range(6):  # 最多等待3秒
-            if not self.is_running:
-                stopped = True
-                break
-            time.sleep(0.5)
+        # 用 event.wait 替代 time.sleep 轮询，不阻塞 UI 线程
+        stopped = self._task_done_event.wait(timeout=3)
 
         if stopped:
             self._log("✅ 任务已停止", "success")
@@ -631,25 +627,19 @@ class WeBanView:
         self._log("⚠️ 优雅停止失败，正在强行停止...", "warning")
         self._log("💡 这可能会丢失部分进度", "info")
 
-        # 强制停止 adapter
         if hasattr(self.adapter, 'force_stop'):
             self.adapter.force_stop()
 
-        # 设置停止标志
         self.adapter._stop_event.set()
         self.adapter.is_running = False
 
-        # 等待线程结束
-        if self.task_thread and self.task_thread.is_alive():
-            self._log("⚠️ 正在等待后台线程结束...", "warning")
-            # 给线程 2 秒时间来优雅退出
-            self.task_thread.join(timeout=2)
+        # 再等 2 秒
+        stopped = self._task_done_event.wait(timeout=2)
 
-            # 如果线程还在运行，这就是 daemon 线程，会在主线程退出时自动清理
-            if self.task_thread.is_alive():
-                self._log("⚠️ 后台线程仍在运行，将在程序关闭时自动清理", "warning")
-            else:
-                self._log("✅ 后台线程已结束", "success")
+        if stopped:
+            self._log("✅ 后台线程已结束", "success")
+        else:
+            self._log("⚠️ 后台线程仍在运行，将在程序关闭时自动清理", "warning")
 
         self.is_running = False
         self._log("✅ 已发送强行停止信号", "success")
