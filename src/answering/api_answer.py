@@ -14,6 +14,7 @@ from typing import Dict, List, Optional
 from urllib.parse import urlencode, quote
 from src.utils.text import get_chapters
 from src.utils.logging import setup_callback_logging, cleanup_callback_logging
+from src.core.headers import get_api_headers
 
 logger = logging.getLogger(__name__)
 
@@ -168,21 +169,14 @@ class APIAutoAnswer:
         Returns:
             Dict: 请求头字典
         """
-        return {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9",
-            "authorization": f"Bearer {self.access_token}",
-            "content-type": "application/json;charset=UTF-8",
-            "origin": "https://ai.cqzuxia.com",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Chromium";v="138", "Not)A;Brand";v="8"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36"
-        }
+        return get_api_headers(
+            "chrome_138", self.access_token,
+            referer="https://ai.cqzuxia.com/",
+            extra_headers={
+                "content-type": "application/json;charset=UTF-8",
+                "origin": "https://ai.cqzuxia.com",
+            },
+        )
 
     def get_course_list(self) -> Optional[List[Dict]]:
         """

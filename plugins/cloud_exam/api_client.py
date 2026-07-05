@@ -7,6 +7,7 @@ ZX Answering Assistant - 云考试API客户端
 import logging
 import json
 from typing import Optional, List, Dict
+from src.core.headers import get_api_headers
 
 logger = logging.getLogger(__name__)
 
@@ -49,22 +50,15 @@ class CloudExamAPIClient:
         Returns:
             Dict[str, str]: 请求头字典
         """
-        return {
-            "accept": "application/json, text/plain, */*",
-            "accept-language": "zh-CN,zh;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
-            "authorization": f"Bearer {self.access_token}",
-            "content-type": "application/json;charset=UTF-8",
-            "origin": "https://ai.cqzuxia.com",
-            "priority": "u=1, i",
-            "referer": "https://ai.cqzuxia.com/",
-            "sec-ch-ua": '"Microsoft Edge";v="143", "Chromium";v="143", "Not A(Brand";v="24"',
-            "sec-ch-ua-mobile": "?0",
-            "sec-ch-ua-platform": '"Windows"',
-            "sec-fetch-dest": "empty",
-            "sec-fetch-mode": "cors",
-            "sec-fetch-site": "same-origin",
-            "user-agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/143.0.0.0 Safari/537.36 Edg/143.0.0.0"
-        }
+        return get_api_headers(
+            "edge_143", self.access_token,
+            referer="https://ai.cqzuxia.com/",
+            extra_headers={
+                "content-type": "application/json;charset=UTF-8",
+                "origin": "https://ai.cqzuxia.com",
+                "priority": "u=1, i",
+            },
+        )
 
     def get_exam_paper(self, exp_id: str) -> Optional[Dict]:
         """
