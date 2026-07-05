@@ -8,8 +8,9 @@ This module contains the UI components for the lazy AI grading page.
 """
 
 import asyncio
-import threading
 import math
+import re
+import threading
 
 import flet as ft
 
@@ -1311,6 +1312,13 @@ class LazyAIGradingView:
             spacing=10,
         )
 
+        export_btn = secondary_button(
+            "导出成绩",
+            ft.Icons.DOWNLOAD,
+            lambda ev: self._on_export_grades(ev),
+            width=280,
+        )
+
         refresh_btn = secondary_button(
             "刷新列表",
             ft.Icons.REFRESH,
@@ -1333,6 +1341,7 @@ class LazyAIGradingView:
                 grade_all_btn,
                 self._grade_selected_btn,
                 ft.Divider(height=1, color=Palette.BORDER),
+                export_btn,
                 refresh_btn,
                 comment_settings_btn,
             ],
@@ -1439,6 +1448,96 @@ class LazyAIGradingView:
         """严格度变更"""
         self._strictness = e.control.value or "high"
         save_strictness(self._strictness)
+
+    def _on_export_grades(self, e):
+        """导出当前班级成绩 → 弹出系统保存对话框让用户选择路径"""
+        project = self.current_project
+        if not project:
+            return
+
+        # 仅导出已评分的学生
+        graded_list = [r for r in self.result_list if r.is_graded]
+        if not graded_list:
+            snack = ft.SnackBar(
+                content=ft.Text("没有已评分的成绩可导出，请先完成评分"),
+                bgcolor=ft.Colors.ORANGE,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+            return
+
+        # 检查 openpyxl 是否可用
+        try:
+            from openpyxl import Workbook  # noqa: F401
+        except ImportError:
+            snack = ft.SnackBar(
+                content=ft.Text(
+                    "缺少 openpyxl 依赖，请执行: pip install openpyxl",
+                ),
+                bgcolor=ft.Colors.RED,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+            return
+
+        # 文件名：课程名_班级名.xlsx，清理非法字符
+        def _sanitize(name: str) -> str:
+            return re.sub(r'[\\/:*?"<>|\s]+', "_", name).strip("_")
+
+        file_name = f"{_sanitize(project.pro_name)}_{_sanitize(project.class_name)}.xlsx"
+
+        # save_file 是协程，需要用 page.run_task 调度
+        async def do_export():
+            save_path = await ft.FilePicker().save_file(
+                dialog_title="导出成绩",
+                file_name=file_name,
+                file_type=ft.FilePickerFileType.CUSTOM,
+                allowed_extensions=["xlsx"],
+            )
+
+            if not save_path:
+                return
+
+            try:
+                from openpyxl import Workbook
+
+                wb = Workbook()
+                ws = wb.active
+                ws.title = "成绩"
+
+                # 表头
+                ws.append(["姓名", "分数"])
+
+                # 数据行：按分数降序
+                for r in sorted(graded_list, key=lambda x: x.pro_score, reverse=True):
+                    ws.append([r.student_name, r.pro_score])
+
+                # 列宽自适应
+                ws.column_dimensions["A"].width = 20
+                ws.column_dimensions["B"].width = 12
+
+                wb.save(save_path)
+
+                snack = ft.SnackBar(
+                    content=ft.Text(f"成绩已导出: {save_path}"),
+                    bgcolor=ft.Colors.GREEN,
+                )
+                self.page.snack_bar = snack
+                snack.open = True
+                self.page.update()
+
+            except Exception as ex:
+                snack = ft.SnackBar(
+                    content=ft.Text(f"导出失败: {ex}"),
+                    bgcolor=ft.Colors.RED,
+                )
+                self.page.snack_bar = snack
+                snack.open = True
+                self.page.update()
+
+        self.page.run_task(do_export)
 
     def _on_grade_all_click(self, e):
         """一键评分（全部）→ 筛选未评分 + 进度100% 的学生"""
