@@ -41,6 +41,7 @@ class AutoAnswer:
         # 优雅退出控制相关
         self._is_answering_question = False  # 是否正在答题
         self._is_processing_knowledge = False  # 是否正在处理知识点
+        self._stop_requested = False  # 是否请求停止
 
         # 日志回调
         self._log_callback = log_callback
@@ -105,6 +106,7 @@ class AutoAnswer:
 
     def request_stop(self):
         """请求停止（GUI调用）"""
+        self._stop_requested = True
         print("\n\n🛑 用户请求停止...")
         logger.info("🛑 用户请求停止...")
 
@@ -119,13 +121,10 @@ class AutoAnswer:
             logger.info("🛑 立即停止...")
 
     def _check_stop(self) -> bool:
-        """
-        检查是否应该停止
-
-        Returns:
-            bool: True表示应该停止，False表示继续
-        """
-        # 键盘停止功能已移除，此方法保留用于向后兼容
+        """检查是否应该停止"""
+        if self._stop_requested:
+            self._stop_requested = False
+            return True
         return False
 
     def start_api_listener(self):
