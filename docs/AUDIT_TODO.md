@@ -14,10 +14,10 @@
 | 文件 | 行号 |
 |------|------|
 | `src/answering/browser_answer.py` | ~195 |
-| `src/certification/workflow.py` | ~1299 |
+| `src/certification/workflow.py` | ~1289 |
 | `src/certification/api_answer.py` | ~87 |
 
-三个都做：`html.unescape` → 去 HTML 注释 → 去 HTML 标签 → 合并空白。`browser_answer.py` 版本稍复杂（额外保留尖括号内容、去除非 CJK/字母数字字符）。
+三个都做：`html.unescape` → 去 HTML 注释 → 去 HTML 标签 → 合并空白。`browser_answer.py` 版本显著更复杂（额外保留尖括号内容、去除非 CJK/字母数字字符），与另两个差异较大，不能直接共用同一函数。
 
 **建议：** 在 `src/utils/text.py` 中写一个共享的 `normalize_text()`，三个文件改为调用它。
 
@@ -31,13 +31,13 @@
 | `src/answering/browser_answer.py` | ~67-97 |
 | `src/certification/api_answer.py` | ~59-85 |
 
-每个都定义了一个内部 `class CallbackHandler(logging.Handler)`，`emit` 实现几乎相同。
+每个都定义了一个内部 `class CallbackHandler(logging.Handler)`，`emit` 实现基本相同。注意：`src/certification/api_answer.py` 的 `emit` 用 `msg.split(' - ')[-1]`（取末段）而非 `parts[3:]`，且有 `self.handleError(record)` 错误处理，与其他两个略有差异。
 
 **建议：** 在 `src/utils/logging.py` 中写一个共享的 `CallbackHandler` 类 + `setup_callback_logging(callback)` / `cleanup_callback_logging(handler)`。
 
 ---
 
-### 3.3 `get_chapters_from_bank()` — 5 行导航代码块重复 7 次
+### 3.3 `get_chapters(bank)` — 5 行导航代码块重复 7 次（建议新建此函数）
 
 ```python
 chapters = []
@@ -63,8 +63,11 @@ elif "chapters" in question_bank:
 | 文件 | Chromium 版本 |
 |------|--------------|
 | `src/answering/api_answer.py` | v138 |
-| `src/extraction/extractor.py` | v143 |
+| `src/extraction/extractor.py` | v143（×5 处） |
 | `src/certification/api_answer.py` | v144 |
+| `src/certification/workflow.py` | v144 |
+| `src/auth/student.py` | v138（×3 处） |
+| `plugins/cloud_exam/api_client.py` | v143 |
 
 每个 API 方法都内联了完整的 `headers` 字典（`sec-ch-ua`、`user-agent` 等）。
 
@@ -89,7 +92,7 @@ elif "chapters" in question_bank:
 
 | 文件 | 行号 |
 |------|------|
-| `src/auth/student.py` | ~85 |
+| `src/auth/student.py` | ~98 |
 | `src/auth/teacher.py` | ~27 |
 | `src/certification/workflow.py` | ~110 |
 
@@ -210,7 +213,7 @@ elif "chapters" in question_bank:
 
 | 方法 | `browser_answer.py` | `workflow.py` |
 |------|---------------------|---------------|
-| `_normalize_text` | ~195 | ~1299 |
+| `_normalize_text` | ~195 | ~1289 |
 | `_parse_current_question` | ? | ? |
 | `_select_single_answer` | ~854 | ~1481 |
 | `_select_multiple_answers` | ~891 | ~1519 |
@@ -249,8 +252,8 @@ elif "chapters" in question_bank:
 | 严重程度 | 问题 | 位置 |
 |---------|------|------|
 | **Bug** | `export_all_courses` 读取 `"oppotionOrder"`（拼写错误）而非 `"oppentionOrder"`，所有选项排序值永远为 `0` | `src/extraction/exporter.py:315` |
-| **异味** | `sec-ch-ua` 头在 3 个文件中有不同 Chromium 版本（v138/v143/v144），可能触发反爬检测 | `api_answer.py`、`extractor.py`、`certification/api_answer.py` |
-| **异味** | `weban_view.py` 在 UI 线程用 `time.sleep(0.5)` 轮询，阻塞整个 Flet 页面 | `src/ui/views/weban_view.py:595` |
+| **异味** | `sec-ch-ua` 头在 6 个文件中有不同 Chromium 版本（v138/v143/v144），可能触发反爬检测 | `api_answer.py`、`extractor.py`、`certification/api_answer.py`、`workflow.py`、`student.py`、`cloud_exam/api_client.py` |
+| **异味** | `weban_view.py` 在后台线程中用 `time.sleep(0.5)` 轮询并直接操作 Flet 控件，存在线程安全问题 | `src/ui/views/weban_view.py:618` |
 | **异味** | `browser_answer.py` 中 `_check_stop()` 始终返回 `False`，所有停止检查调用都是死代码 | `src/answering/browser_answer.py` |
 
 ---

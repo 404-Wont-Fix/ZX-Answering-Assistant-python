@@ -118,14 +118,15 @@ class PluginContext:
             self._cleanup_resource(resource)
 
     @staticmethod
-    def _cleanup_resource(resource):
+    def _cleanup_resource(resource, context_id=""):
         for method_name in ("cleanup", "dispose", "close"):
             cleanup = getattr(resource, method_name, None)
             if callable(cleanup):
                 try:
                     cleanup()
                 except Exception as e:
-                    print(f"[PluginContext] Failed to {method_name} resource: {e}")
+                    prefix = f"[{context_id}] " if context_id else "[PluginContext] "
+                    print(f"{prefix}Failed to {method_name} resource: {e}")
                 return
 
     def get_plugin_config(self, key: str, default: Any = None) -> Any:

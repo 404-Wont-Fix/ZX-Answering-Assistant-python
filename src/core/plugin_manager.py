@@ -508,17 +508,7 @@ class PluginManager:
 
     @staticmethod
     def _cleanup_resource(plugin_id: str, resource) -> None:
-        for method_name in ("cleanup", "dispose", "close"):
-            cleanup = getattr(resource, method_name, None)
-            if callable(cleanup):
-                try:
-                    cleanup()
-                except Exception as e:
-                    print(
-                        f"[PluginManager] Failed to {method_name} plugin resource "
-                        f"{plugin_id}: {e}"
-                    )
-                return
+        PluginContext._cleanup_resource(resource, context_id=f"PluginManager:{plugin_id}")
 
     def create_plugin_context(self, plugin_id: str, api_client, browser_manager, page=None) -> PluginContext:
         """

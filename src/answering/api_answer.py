@@ -12,6 +12,8 @@ import threading
 import requests
 from typing import Dict, List, Optional
 from urllib.parse import urlencode, quote
+from src.utils.text import get_chapters
+from src.utils.logging import setup_callback_logging, cleanup_callback_logging
 
 logger = logging.getLogger(__name__)
 
@@ -55,36 +57,12 @@ class APIAutoAnswer:
 
     def _setup_log_handler(self):
         """设置日志处理器，将日志转发到回调函数"""
-        if self._log_callback:
-            # 创建自定义日志处理器
-            class CallbackHandler(logging.Handler):
-                def __init__(self, callback):
-                    super().__init__()
-                    self.callback = callback
-
-                def emit(self, record):
-                    try:
-                        msg = self.format(record)
-                        # 移除时间戳和日志级别，只保留消息内容
-                        # 格式通常是：2026-01-20 20:06:11,730 - src.api_auto_answer - INFO - message
-                        parts = msg.split(" - ")
-                        if len(parts) >= 4:
-                            message = " - ".join(parts[3:])  # 只取消息部分
-                        else:
-                            message = msg
-                        self.callback(message.rstrip())
-                    except Exception:
-                        pass
-
-            # 添加处理器到 logger
-            self._log_handler = CallbackHandler(self._log_callback)
-            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            logger.addHandler(self._log_handler)
+        self._log_handler = setup_callback_logging(logger, self._log_callback)
 
     def _cleanup_log_handler(self):
         """清理日志处理器"""
-        if hasattr(self, '_log_handler') and self._log_handler:
-            logger.removeHandler(self._log_handler)
+        cleanup_callback_logging(logger, self._log_handler)
+        self._log_handler = None
 
     def request_stop(self):
         """请求停止（GUI调用）"""
@@ -587,11 +565,7 @@ class APIAutoAnswer:
             logger.info(f"🔍 在题库中查找题目ID: {question_id[:8]}...")
 
             # 遍历题库查找匹配的题目
-            chapters = []
-            if "class" in self.question_bank and "course" in self.question_bank["class"]:
-                chapters = self.question_bank["class"]["course"].get("chapters", [])
-            elif "chapters" in self.question_bank:
-                chapters = self.question_bank["chapters"]
+            chapters = get_chapters(self.question_bank)
 
             for chapter in chapters:
                 for knowledge in chapter.get("knowledges", []):

@@ -95,10 +95,6 @@ _token_manager = get_token_manager()
 # 浏览器管理辅助函数（使用 BrowserManager）
 # ============================================================================
 
-def _get_browser_manager():
-    """获取浏览器管理器实例"""
-    return get_browser_manager()
-
 
 def _ensure_context_and_page(browser_type: BrowserType = BrowserType.STUDENT) -> Tuple[Optional[BrowserContext], Optional[Page]]:
     """
@@ -107,7 +103,7 @@ def _ensure_context_and_page(browser_type: BrowserType = BrowserType.STUDENT) ->
     Returns:
         Tuple[Optional[BrowserContext], Optional[Page]]: (上下文, 页面)
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     context, page = manager.get_context_and_page(browser_type)
 
     if context is None or page is None:
@@ -127,7 +123,7 @@ def _get_student_browser() -> Tuple[Optional[Browser], Optional[Page]]:
     Returns:
         Tuple[Optional[Browser], Optional[Page]]: (浏览器, 页面)
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     browser = manager.get_browser()
     _, page = manager.get_context_and_page(BrowserType.STUDENT)
     return browser, page
@@ -231,7 +227,7 @@ def _get_student_access_token_impl(
         access_token = None
 
         # 使用浏览器管理器
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
 
         # 获取或创建学生端上下文
@@ -433,7 +429,7 @@ def _get_browser_page_impl() -> Optional[Tuple[Browser, Page]]:
         logger.warning("⚠️ 浏览器已挂掉，已自动清理")
         return None
 
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     browser = manager.get_browser()
     _, page = manager.get_context_and_page(BrowserType.STUDENT)
 
@@ -462,7 +458,7 @@ def _get_access_token_from_browser_impl() -> Optional[str]:
         Optional[str]: 提取到的access_token，如果失败则返回None
     """
     try:
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         _, page = manager.get_context_and_page(BrowserType.STUDENT)
 
         if not page:
@@ -583,7 +579,7 @@ def _navigate_to_course_impl(course_id: str) -> bool:
             logger.error("❌ 浏览器不可用，请重新登录")
             return False
 
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         _, page = manager.get_context_and_page(BrowserType.STUDENT)
 
         if not page:
@@ -617,7 +613,7 @@ def close_browser():
     注意：这只关闭学生端上下文，不会关闭整个浏览器（可能还有其他模块在使用）
     """
     try:
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         manager.cleanup_type(BrowserType.STUDENT)
         logger.info("学生端浏览器上下文已关闭")
     except Exception as e:
@@ -760,7 +756,7 @@ def _get_course_progress_from_page_impl() -> Optional[Dict]:
             logger.error("❌ 浏览器不可用，无法获取进度")
             return None
 
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         _, page = manager.get_context_and_page(BrowserType.STUDENT)
 
         if not page:
@@ -1097,7 +1093,7 @@ def is_browser_alive() -> bool:
     Returns:
         bool: 浏览器是否存活
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     return manager.is_browser_alive()
 
 
@@ -1126,7 +1122,7 @@ def cleanup_browser():
     global _cached_access_token, _token_expiry_time
 
     try:
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         manager.cleanup_type(BrowserType.STUDENT)
     except Exception as e:
         logger.error(f"清理浏览器时发生错误: {str(e)}")

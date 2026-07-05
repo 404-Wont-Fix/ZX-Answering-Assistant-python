@@ -9,6 +9,8 @@ import logging
 import re
 from typing import Dict, List, Optional
 from src.core.api_client import get_api_client
+from src.utils.text import normalize_text, get_chapters
+from src.utils.logging import setup_callback_logging, cleanup_callback_logging
 
 # 创建模块 logger
 logger = logging.getLogger(__name__)
@@ -58,58 +60,16 @@ class APICourseAnswer:
 
     def _setup_log_handler(self):
         """设置日志处理器，将日志输出到GUI"""
-        if self._log_callback:
-            # 创建自定义日志处理器
-            class CallbackHandler(logging.Handler):
-                def __init__(self, callback):
-                    super().__init__()
-                    self.callback = callback
-
-                def emit(self, record):
-                    try:
-                        msg = self.format(record)
-                        # 移除时间戳等前缀，只保留消息内容
-                        msg = msg.split(' - ')[-1] if ' - ' in msg else msg
-                        self.callback(msg)
-                    except Exception:
-                        self.handleError(record)
-
-            self._log_handler = CallbackHandler(self._log_callback)
-            self._log_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
-            logger.addHandler(self._log_handler)
+        self._log_handler = setup_callback_logging(logger, self._log_callback)
 
     def _cleanup_log_handler(self):
         """清理日志处理器"""
-        if hasattr(self, '_log_handler') and self._log_handler:
-            logger.removeHandler(self._log_handler)
-            self._log_handler.close()
+        cleanup_callback_logging(logger, self._log_handler)
+        self._log_handler = None
 
     def _normalize_text(self, text: str) -> str:
-        """
-        标准化文本，去除HTML实体和多余空格
-
-        Args:
-            text: 原始文本
-
-        Returns:
-            str: 标准化后的文本
-        """
-        if not text:
-            return ""
-
-        # 解码HTML实体
-        text = html.unescape(text)
-
-        # 去除HTML注释
-        text = re.sub(r'<!--.*?-->', '', text, flags=re.DOTALL)
-
-        # 去除HTML标签
-        text = re.sub(r'<[^>]+>', '', text)
-
-        # 去除多余空格和换行
-        text = re.sub(r'\s+', ' ', text)
-
-        return text.strip()
+        """标准化文本"""
+        return normalize_text(text)
 
     def get_course_tree(self, ecourse_id: str) -> Optional[Dict]:
         """
@@ -319,11 +279,7 @@ class APICourseAnswer:
                 logger.info(f"   题目ID: {question_id}")
 
             # 获取题库章节列表
-            chapters = []
-            if "class" in question_bank and "course" in question_bank["class"]:
-                chapters = question_bank["class"]["course"].get("chapters", [])
-            elif "chapters" in question_bank:
-                chapters = question_bank["chapters"]
+            chapters = get_chapters(question_bank)
 
             # 方式1：通过questionID精确匹配
             if question_id:
@@ -458,11 +414,7 @@ class APICourseAnswer:
             Optional[Dict]: 匹配的知识点对象，如果未找到则返回None
         """
         # 获取题库章节列表
-        chapters = []
-        if "class" in question_bank and "course" in question_bank["class"]:
-            chapters = question_bank["class"]["course"].get("chapters", [])
-        elif "chapters" in question_bank:
-            chapters = question_bank["chapters"]
+        chapters = get_chapters(question_bank)
 
         # 遍历查找匹配的知识点
         for chapter in chapters:

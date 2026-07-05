@@ -23,6 +23,7 @@ from src.core.browser import (
     BrowserType,
     run_in_thread_if_asyncio
 )
+from src.utils.text import normalize_text, get_chapters
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -106,10 +107,6 @@ _question_bank_cache = QuestionBankCache()
 # 浏览器管理辅助函数（使用 BrowserManager）
 # ============================================================================
 
-def _get_browser_manager():
-    """获取浏览器管理器实例"""
-    return get_browser_manager()
-
 
 def _ensure_context_and_page() -> tuple:
     """
@@ -118,7 +115,7 @@ def _ensure_context_and_page() -> tuple:
     Returns:
         tuple: (context, page)
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     context, page = manager.get_context_and_page(BrowserType.COURSE_CERTIFICATION)
 
     if context is None or page is None:
@@ -235,7 +232,7 @@ def close_browser():
     注意：这只关闭课程认证上下文，不会关闭整个浏览器（可能还有其他模块在使用）
     """
     try:
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         manager.cleanup_type(BrowserType.COURSE_CERTIFICATION)
         print("[OK] 课程认证浏览器上下文已关闭")
     except Exception as e:
@@ -262,7 +259,7 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
         logger.info(f"使用账户: {username}")
 
         # 使用浏览器管理器
-        manager = _get_browser_manager()
+        manager = get_browser_manager()
         logger.info("正在启动浏览器...")
         manager.start_browser(headless=None)  # 从配置文件读取无头模式设置
         logger.info("浏览器已启动")
@@ -474,7 +471,7 @@ def start_answering():
     开始做题功能
     登录并获取课程列表
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     if not manager.is_worker_thread():
         return manager.submit_task(start_answering)
 
@@ -619,7 +616,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
         page: Playwright page实例
         access_token: 访问令牌
     """
-    manager = _get_browser_manager()
+    manager = get_browser_manager()
     if not manager.is_worker_thread():
         return manager.submit_task(navigate_to_course_page, ecourse_id, page, access_token)
 
@@ -1287,34 +1284,8 @@ class CourseAutoAnswer:
         print("[OK] API监听器已停止")
 
     def _normalize_text(self, text: str) -> str:
-        """
-        标准化文本（参考学生端逻辑）
-
-        Args:
-            text: 原始文本
-
-        Returns:
-            str: 标准化后的文本
-        """
-        if not text:
-            return ""
-
-        import html
-        import re
-
-        # 解码HTML实体
-        text = html.unescape(text)
-
-        # 移除HTML注释
-        text = re.sub(r'<!--.*?-->', '', text)
-
-        # 移除HTML标签
-        text = re.sub(r'<[^>]+>', '', text)
-
-        # 移除多余空白
-        text = re.sub(r'\s+', ' ', text)
-
-        return text.strip()
+        """标准化文本"""
+        return normalize_text(text)
 
     def _parse_question_type(self) -> tuple:
         """
@@ -1602,11 +1573,7 @@ class CourseAutoAnswer:
                 print(f"🎯 使用API模式，题目ID: {current_question_id}")
 
                 # 在题库中查找匹配的questionID
-                chapters = []
-                if "class" in question_bank and "course" in question_bank["class"]:
-                    chapters = question_bank["class"]["course"].get("chapters", [])
-                elif "chapters" in question_bank:
-                    chapters = question_bank["chapters"]
+                chapters = get_chapters(question_bank)
 
                 for chapter in chapters:
                     for knowledge in chapter.get("knowledges", []):
@@ -1645,11 +1612,7 @@ class CourseAutoAnswer:
                     current_option_contents.append(content)
 
             # 遍历题库查找匹配的题目
-            chapters = []
-            if "class" in question_bank and "course" in question_bank["class"]:
-                chapters = question_bank["class"]["course"].get("chapters", [])
-            elif "chapters" in question_bank:
-                chapters = question_bank["chapters"]
+            chapters = get_chapters(question_bank)
 
             # 收集候选题目
             candidates = []
