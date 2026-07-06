@@ -116,6 +116,11 @@ class LazyAIGradingView:
         self._student_card_refs: dict = {}  # {result_id: {'icon': Icon, 'container': Container}}
         self._strictness: str = load_strictness()  # 'high' / 'medium' / 'low'
 
+        # 项目批量评分多选状态（跨页保持，按 ClassProject.source_id 去重）
+        self.selected_projects: dict[int, ClassProject] = {}
+        self._batch_count_text = None  # 「已选 N 个项目」文本控件引用
+        self._batch_grade_btn = None   # 「批量评分」按钮引用（按已选数切禁用态）
+
         # 设置管理器
         self.settings_manager = get_settings_manager()
 
@@ -512,7 +517,7 @@ class LazyAIGradingView:
             [
                 page_heading(
                     "产教融合项目",
-                    "选择需要 AI 评分的产教融合项目",
+                    "选择需要自动评分的产教融合项目",
                     ft.Icons.FOLDER_OUTLINED,
                 ),
                 # 工具栏：搜索 + 每页条数
@@ -552,6 +557,8 @@ class LazyAIGradingView:
                     alignment=ft.MainAxisAlignment.SPACE_BETWEEN,
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
+                # 批量评分操作行（勾选多个项目后一键评分）
+                *self._build_batch_toolbar(),
                 # 列表区
                 self.list_container,
                 # 分页行
@@ -663,6 +670,81 @@ class LazyAIGradingView:
             self.next_btn.disabled = self.list_loading or self.page_index >= self._total_pages()
         if self.page_text is not None:
             self.page_text.value = self._page_text_value()
+
+    # ==================== 项目批量评分多选 ====================
+
+    def _build_batch_toolbar(self) -> list:
+        """项目列表屏的批量评分操作行（勾选计数 + 全选/清空 + 批量评分按钮）。
+
+        返回 list 以便 _get_project_list_content 用 * 展开注入 Column；同时把
+        _batch_count_text / _batch_grade_btn 挂到 self，供局部刷新。
+        """
+        self._batch_count_text = ft.Text(
+            "已选 0 个项目", size=13, color=Palette.TEXT_MUTED
+        )
+        self._batch_grade_btn = primary_button(
+            "批量评分", ft.Icons.GRADE, lambda e: self._on_batch_grade_click(e)
+        )
+        self._batch_grade_btn.disabled = True
+        return [
+            ft.Row(
+                [
+                    ft.Icon(ft.Icons.CHECKLIST, size=16, color=Palette.TEXT_MUTED),
+                    self._batch_count_text,
+                    secondary_button(
+                        "全选当前页",
+                        ft.Icons.SELECT_ALL,
+                        lambda e: self._on_select_all_projects(e),
+                    ),
+                    secondary_button(
+                        "清空选择",
+                        ft.Icons.DESELECT,
+                        lambda e: self._on_clear_selected_projects(e),
+                    ),
+                    ft.Container(expand=True),
+                    self._batch_grade_btn,
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            )
+        ]
+
+    def _update_batch_selection_ui(self):
+        """根据 selected_projects 数量刷新计数文案与按钮禁用态（局部 update，不重建列表）"""
+        n = len(self.selected_projects)
+        if self._batch_count_text is not None:
+            self._batch_count_text.value = f"已选 {n} 个项目"
+            try:
+                self._batch_count_text.update()
+            except Exception:
+                pass
+        if self._batch_grade_btn is not None:
+            self._batch_grade_btn.disabled = n == 0
+            try:
+                self._batch_grade_btn.update()
+            except Exception:
+                pass
+
+    def _on_project_check(self, e, project: ClassProject):
+        """项目卡片勾选框：加入/移出批量选中集合（跨页保持）"""
+        if getattr(e.control, "value", False):
+            self.selected_projects[project.source_id] = project
+        else:
+            self.selected_projects.pop(project.source_id, None)
+        self._update_batch_selection_ui()
+
+    def _on_select_all_projects(self, e):
+        """全选当前页项目（不影响其它页已选项）"""
+        for p in self.project_list:
+            self.selected_projects[p.source_id] = p
+        self._refresh_list_area()  # 重建卡片以反映勾选态
+        self._update_batch_selection_ui()
+
+    def _on_clear_selected_projects(self, e):
+        """清空所有已选项目（含其它页）"""
+        self.selected_projects.clear()
+        self._refresh_list_area()
+        self._update_batch_selection_ui()
 
     def _build_project_card(self, p: ClassProject) -> ft.Control:
         """构建单条项目卡片（参照 course_certification_view 的 GestureDetector 卡片）"""
@@ -800,7 +882,27 @@ class LazyAIGradingView:
             on_tap=lambda e, project=p: self._on_project_click(e, project),
             mouse_cursor=ft.MouseCursor.CLICK,
         )
-        return card
+
+        # 批量评分勾选框：必须放在卡片 GestureDetector 之外作为兄弟控件
+        # （参照 _build_student_card 的注释：Checkbox + GestureDetector 同层会双事件冲突）。
+        # 点勾选框切换选中；点卡片主体仍进入项目学生屏。
+        checkbox = ft.Checkbox(
+            value=p.source_id in self.selected_projects,
+            on_change=lambda e, project=p: self._on_project_check(e, project),
+            scale=0.9,
+        )
+        return ft.Row(
+            [
+                ft.Container(
+                    content=checkbox,
+                    width=30,
+                    alignment=ft.Alignment(0, 0),
+                ),
+                ft.Container(content=card, expand=True),
+            ],
+            spacing=0,
+            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+        )
 
     # ==================== 列表数据加载与刷新 ====================
 
@@ -1663,16 +1765,66 @@ class LazyAIGradingView:
 
     # ---------- 评分确认弹窗 ----------
 
+    def _build_grading_rules_content(self, cfg) -> list:
+        """构造确认弹窗里的「评分规则 + 免责声明」内容块（单项目/批量共用）"""
+        range_min = MINIMUM_NOT_MET_SCORE  # 内容不达标时的保底分（76）
+        low, high = cfg["tier3"]
+        return [
+            ft.Text("评分规则：", size=12, weight=ft.FontWeight.W_600),
+            ft.Text(f"• 分数范围：{range_min} ~ {high}", size=12),
+            ft.Text(f"• 截图>9 或 字数>500 → {low}~{high}", size=12),
+            ft.Text("• 截图≥6 或 字数≥400 → 中间档", size=12),
+            ft.Text(f"• 内容不达标(截图<3且字数<150) → 保底{range_min}分（标注混子）", size=12),
+            ft.Text("• 日志不足3个 → 酌情扣3~5分", size=12),
+            ft.Text(f"• 无附件 → 酌情扣{NO_ATTACHMENT_DEDUCTION}分", size=12),
+            ft.Text("• ≥80分评语≥20字，≥95分评语≥100字", size=12),
+            ft.Divider(height=4, color=ft.Colors.TRANSPARENT),
+            ft.Container(
+                content=ft.Column(
+                    [
+                        ft.Row(
+                            [
+                                ft.Icon(
+                                    ft.Icons.INFO_OUTLINE,
+                                    size=14,
+                                    color=Palette.WARNING,
+                                ),
+                                ft.Text(
+                                    "免责声明",
+                                    size=11,
+                                    weight=ft.FontWeight.W_600,
+                                    color=Palette.WARNING,
+                                ),
+                            ],
+                            spacing=4,
+                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        ),
+                        ft.Text(
+                            "本功能由程序既定规则自动评分，分数与评语仅供参考，可能存在偏差。"
+                            "最终成绩以教师人工复核为准，建议提交后抽检。"
+                            "使用本功能即表示知悉并接受上述风险。",
+                            size=10,
+                            color=Palette.TEXT_MUTED,
+                        ),
+                    ],
+                    spacing=2,
+                ),
+                padding=8,
+                bgcolor=Palette.WARNING_SOFT,
+                border_radius=Radius.SMALL,
+            ),
+        ]
+
     def _show_grade_confirm(self, targets: list[ProjectResult]):
-        """显示评分确认弹窗"""
+        """显示评分确认弹窗（单项目）：人数 + 档位 + 规则 + 免责声明"""
         cfg = STRICTNESS_CONFIG.get(self._strictness, STRICTNESS_CONFIG["high"])
         label = cfg["label"]
-        range_min = MINIMUM_NOT_MET_SCORE  # 不满足最低要求时的保底分（76）
-        low, high = cfg["tier3"]
+        range_min = MINIMUM_NOT_MET_SCORE
+        _, high = cfg["tier3"]
 
         confirm_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("确认开始 AI 评分"),
+            title=ft.Text("确认开始自动评分"),
             content=ft.Column(
                 [
                     ft.Text(f"即将为 {len(targets)} 名学生自动评分", size=14),
@@ -1683,14 +1835,7 @@ class LazyAIGradingView:
                         weight=ft.FontWeight.W_600,
                         color=Palette.PRIMARY,
                     ),
-                    ft.Text("评分规则：", size=12, weight=ft.FontWeight.W_600),
-                    ft.Text(f"• 分数范围：{range_min} ~ {high}", size=12),
-                    ft.Text(f"• 截图>9 或 字数>500 → {low}~{high}", size=12),
-                    ft.Text("• 截图≥6 或 字数≥400 → 中间档", size=12),
-                    ft.Text(f"• 内容不达标(截图<3且字数<150) → 保底{range_min}分（标注混子）", size=12),
-                    ft.Text("• 日志不足3个 → 酌情扣3~5分", size=12),
-                    ft.Text(f"• 无附件 → 酌情扣{NO_ATTACHMENT_DEDUCTION}分", size=12),
-                    ft.Text("• ≥80分评语≥20字，≥95分评语≥100字", size=12),
+                    *self._build_grading_rules_content(cfg),
                 ],
                 tight=True,
                 spacing=4,
@@ -1708,10 +1853,182 @@ class LazyAIGradingView:
         )
         self.page.show_dialog(confirm_dialog)
 
+    def _show_batch_grade_confirm(self, groups):
+        """显示批量评分确认弹窗：N 个项目 / M 名学生 + 档位 + 规则 + 免责声明"""
+        cfg = STRICTNESS_CONFIG.get(self._strictness, STRICTNESS_CONFIG["high"])
+        label = cfg["label"]
+        range_min = MINIMUM_NOT_MET_SCORE
+        _, high = cfg["tier3"]
+
+        n_projects = len(groups)
+        n_students = sum(len(t) for _, t in groups)
+
+        # 项目清单（最多列 8 条，超出合并为一行，避免弹窗过长）
+        proj_lines = []
+        for i, (pname, _) in enumerate(groups):
+            if i >= 8:
+                proj_lines.append(
+                    ft.Text(
+                        f"  • ……等共 {n_projects} 个项目",
+                        size=11,
+                        color=Palette.TEXT_MUTED,
+                    )
+                )
+                break
+            proj_lines.append(
+                ft.Text(
+                    f"  • {pname}",
+                    size=11,
+                    color=Palette.TEXT_MUTED,
+                    max_lines=1,
+                    overflow=ft.TextOverflow.ELLIPSIS,
+                )
+            )
+
+        confirm_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("确认批量评分"),
+            content=ft.Column(
+                [
+                    ft.Text(
+                        f"即将为 {n_projects} 个项目、共 {n_students} 名学生批量评分",
+                        size=14,
+                        weight=ft.FontWeight.W_600,
+                    ),
+                    ft.Divider(height=4, color=ft.Colors.TRANSPARENT),
+                    *proj_lines,
+                    ft.Divider(height=4, color=ft.Colors.TRANSPARENT),
+                    ft.Text(
+                        f"当前严格度：{label}（{range_min} ~ {high}）",
+                        size=12,
+                        weight=ft.FontWeight.W_600,
+                        color=Palette.PRIMARY,
+                    ),
+                    *self._build_grading_rules_content(cfg),
+                ],
+                tight=True,
+                spacing=4,
+            ),
+            actions=[
+                ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
+                ft.ElevatedButton(
+                    "开始批量评分",
+                    bgcolor=Palette.PRIMARY,
+                    color=Palette.SURFACE,
+                    on_click=lambda _: self._start_batch_grading(confirm_dialog, groups),
+                ),
+            ],
+            actions_alignment=ft.MainAxisAlignment.END,
+        )
+        self.page.show_dialog(confirm_dialog)
+
+    def _on_batch_grade_click(self, e):
+        """批量评分入口：先后台汇总所选项目的可评学生（进度≥100%），再弹确认窗"""
+        if self._grading_in_progress:
+            return
+        if self.api_client is None:
+            return
+        projects = list(self.selected_projects.values())
+        if not projects:
+            snack = ft.SnackBar(
+                content=ft.Text("请先勾选要批量评分的项目"),
+                bgcolor=ft.Colors.ORANGE,
+            )
+            self.page.snack_bar = snack
+            snack.open = True
+            self.page.update()
+            return
+
+        # 汇总进度窗
+        self._grading_progress_text = ft.Text(
+            "正在汇总学生名单...", size=13, text_align=ft.TextAlign.CENTER
+        )
+        summary_dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Text("批量评分准备"),
+            content=ft.Column(
+                [
+                    ft.ProgressRing(stroke_width=3),
+                    ft.Divider(height=8, color=ft.Colors.TRANSPARENT),
+                    self._grading_progress_text,
+                ],
+                tight=True,
+                horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                width=360,
+            ),
+        )
+        self.page.show_dialog(summary_dialog)
+
+        def summary_task():
+            groups: list = []
+            failed_projects: list = []
+            n = len(projects)
+
+            def set_progress(text: str):
+                def _do():
+                    self._grading_progress_text.value = text
+                    try:
+                        self._grading_progress_text.update()
+                    except Exception:
+                        pass
+
+                self._post(_do)
+
+            for i, p in enumerate(projects, 1):
+                label = p.pro_name or "未命名项目"
+                set_progress(f"正在汇总：{label}（{i}/{n}）")
+                try:
+                    items = self.api_client.get_class_project_result(
+                        source_id=p.source_id,
+                        class_id=p.class_id,
+                        project_id=p.project_id,
+                    )
+                    targets = [r for r in items if r.project_progress >= 100]
+                    if targets:
+                        groups.append((label, targets))
+                except Exception as ex:
+                    failed_projects.append(f"{label}（{ex}）")
+
+            def _after():
+                try:
+                    self.page.pop_dialog()  # 关汇总进度窗
+                except Exception:
+                    pass
+                if not groups:
+                    msg = "所选项目没有可评分的学生（进度均未达 100%）"
+                    if failed_projects:
+                        msg += f"；且 {len(failed_projects)} 个项目拉取失败"
+                    snack = ft.SnackBar(
+                        content=ft.Text(msg), bgcolor=ft.Colors.ORANGE
+                    )
+                    self.page.snack_bar = snack
+                    snack.open = True
+                    self.page.update()
+                    return
+                if failed_projects:
+                    snack = ft.SnackBar(
+                        content=ft.Text(
+                            f"{len(failed_projects)} 个项目拉取失败，已跳过"
+                        ),
+                        bgcolor=ft.Colors.ORANGE,
+                    )
+                    self.page.snack_bar = snack
+                    snack.open = True
+                    self.page.update()
+                self._show_batch_grade_confirm(groups)
+
+            self._post(_after)
+
+        self._run_background(summary_task)
+
     # ---------- 评分工作流 ----------
 
-    def _start_grading(self, confirm_dialog, targets: list[ProjectResult]):
-        """关闭确认弹窗，展示进度弹窗，后台执行评分任务"""
+    def _launch_grading(self, confirm_dialog, groups, is_batch: bool):
+        """关闭确认弹窗 → 展示进度弹窗 → 后台跑 _grading_inner → 收尾。
+
+        groups: list[(label, list[ProjectResult])]，单项目传 1 组；
+        分布上限在 _grading_inner 内按组分别应用（每个项目独立）。
+        """
         if self._grading_in_progress:
             return
         self.page.pop_dialog()
@@ -1720,8 +2037,6 @@ class LazyAIGradingView:
             self._comment_picker = CommentPicker()
 
         self._grading_in_progress = True
-        strictness = self._strictness  # 快照，评中途改设置不影响本轮
-        needs_distribution = strictness != "high"
         floor_score = MINIMUM_NOT_MET_SCORE  # 未达最低要求的保底分（76），用于标注与完成弹窗
 
         # 进度弹窗
@@ -1730,7 +2045,7 @@ class LazyAIGradingView:
         )
         progress_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("自动评分中"),
+            title=ft.Text("批量评分中" if is_batch else "自动评分中"),
             content=ft.Column(
                 [
                     ft.ProgressRing(stroke_width=3),
@@ -1744,8 +2059,9 @@ class LazyAIGradingView:
         )
         self.page.show_dialog(progress_dialog)
 
+        total = sum(len(t) for _, t in groups)
+
         def grading_task():
-            total = len(targets)
             stats = {
                 "total": total,
                 "graded": 0,
@@ -1766,65 +2082,11 @@ class LazyAIGradingView:
                         self._grading_progress_text.update()
                     except Exception:
                         pass
+
                 self._post(_do)
 
             try:
-                # ── 阶段一：逐个拉取详情 + 计算分数 ──
-                analyzed: list[dict] = []
-                for i, student in enumerate(targets, 1):
-                    name = student.student_name or "未知"
-                    set_progress(f"正在分析：{name}（{i}/{total}）")
-
-                    try:
-                        detail = self.api_client.get_student_result_with_logs(
-                            student.id
-                        )
-                        student.commit_logs_raw = detail.get("commitLogs") or []
-
-                        score = calculate_score(
-                            screenshot_count=student.screenshot_count,
-                            desc_char_count=student.desc_char_count,
-                            has_attachment=student.has_attachment,
-                            log_stage_count=student.log_stage_count,
-                            log_total_chars=student.log_total_chars,
-                            strictness=strictness,
-                        )
-                        analyzed.append({"student": student, "score": score})
-                    except Exception as ex:
-                        stats["failed"] += 1
-                        stats["failed_names"].append(f"{name}（{ex}）")
-
-                # ── 阶段二：应用分布限制（中等/宽松档） ──
-                if needs_distribution and analyzed:
-                    set_progress("正在调整分数分布...")
-                    analyzed = enforce_distribution_limits(analyzed)
-
-                # ── 阶段三：逐个提交评分 ──
-                for i, item in enumerate(analyzed, 1):
-                    student = item["student"]
-                    score = item["score"]
-                    name = student.student_name or "未知"
-
-                    set_progress(f"正在提交：{name}（{i}/{len(analyzed)}）")
-
-                    try:
-                        min_len = 100 if score >= 95 else 20 if score >= 80 else 0
-                        comment = self._comment_picker.next(min_len=min_len)
-                        self.api_client.audit_result(
-                            rid=student.id,
-                            pro_score=str(score),
-                            review_comments=comment,
-                        )
-                        student.pro_score = score
-                        student.review_comments = comment
-
-                        stats["graded"] += 1
-                        if score == floor_score:
-                            stats["min_score_names"].append(name)
-                    except Exception as ex:
-                        stats["failed"] += 1
-                        stats["failed_names"].append(f"{name}（{ex}）")
-
+                self._grading_inner(groups, set_progress, stats)
             finally:
                 self._grading_in_progress = False
 
@@ -1835,17 +2097,94 @@ class LazyAIGradingView:
                         self.page.pop_dialog()  # 关闭进度弹窗（自动 update）
                     except Exception:
                         pass
-                    # 一次性刷新学生列表，反映最终分数与统计（评分过程中不再逐个刷新，
-                    # 避免每提交一人就重建整张列表 + 整树 diff 造成进度界面卡顿滞后）。
-                    try:
-                        self._refresh_results_area()
-                    except Exception:
-                        pass
+                    if is_batch:
+                        # 批量在项目列表屏：刷新项目卡（更新「已完成」计数等）
+                        try:
+                            self._load_projects()
+                        except Exception:
+                            pass
+                    else:
+                        # 单项目：一次性刷新学生列表，反映最终分数与统计
+                        try:
+                            self._refresh_results_area()
+                        except Exception:
+                            pass
                     self._show_grading_completion(stats, floor_score)
 
                 self._post(_finish)
 
         self._run_background(grading_task)
+
+    def _grading_inner(self, groups, set_progress, stats):
+        """对每个 (label, targets) 分组独立执行 分析→分布→提交；
+        分布上限因此按项目分别应用。stats 跨分组累加。"""
+        strictness = self._strictness  # 快照，评中途改设置不影响本轮
+        needs_distribution = strictness != "high"
+
+        for label, targets in groups:
+            if not targets:
+                continue
+            n = len(targets)
+
+            # ── 阶段一：逐个拉取详情 + 计算分数 ──
+            analyzed: list[dict] = []
+            for i, student in enumerate(targets, 1):
+                name = student.student_name or "未知"
+                set_progress(f"{label}：分析 {name}（{i}/{n}）")
+                try:
+                    detail = self.api_client.get_student_result_with_logs(student.id)
+                    student.commit_logs_raw = detail.get("commitLogs") or []
+                    score = calculate_score(
+                        screenshot_count=student.screenshot_count,
+                        desc_char_count=student.desc_char_count,
+                        has_attachment=student.has_attachment,
+                        log_stage_count=student.log_stage_count,
+                        log_total_chars=student.log_total_chars,
+                        strictness=strictness,
+                    )
+                    analyzed.append({"student": student, "score": score})
+                except Exception as ex:
+                    stats["failed"] += 1
+                    stats["failed_names"].append(f"{label} - {name}（{ex}）")
+
+            # ── 阶段二：应用分布限制（按本项目独立，中等/宽松档） ──
+            if needs_distribution and analyzed:
+                set_progress(f"{label}：调整分数分布...")
+                analyzed = enforce_distribution_limits(analyzed)
+
+            # ── 阶段三：逐个提交评分 ──
+            m = len(analyzed)
+            for i, item in enumerate(analyzed, 1):
+                student = item["student"]
+                score = item["score"]
+                name = student.student_name or "未知"
+                set_progress(f"{label}：提交 {name}（{i}/{m}）")
+                try:
+                    min_len = 100 if score >= 95 else 20 if score >= 80 else 0
+                    comment = self._comment_picker.next(min_len=min_len)
+                    self.api_client.audit_result(
+                        rid=student.id,
+                        pro_score=str(score),
+                        review_comments=comment,
+                    )
+                    student.pro_score = score
+                    student.review_comments = comment
+
+                    stats["graded"] += 1
+                    if score == MINIMUM_NOT_MET_SCORE:
+                        stats["min_score_names"].append(f"{label} - {name}")
+                except Exception as ex:
+                    stats["failed"] += 1
+                    stats["failed_names"].append(f"{label} - {name}（{ex}）")
+
+    def _start_grading(self, confirm_dialog, targets: list[ProjectResult]):
+        """单项目评分入口：包成 1 组（label=当前项目名）后启动"""
+        label = self.current_project.pro_name if self.current_project else "当前项目"
+        self._launch_grading(confirm_dialog, [(label, targets)], is_batch=False)
+
+    def _start_batch_grading(self, confirm_dialog, groups):
+        """批量评分入口：groups 由 _on_batch_grade_click 汇总而来"""
+        self._launch_grading(confirm_dialog, groups, is_batch=True)
 
     # ---------- 评分完成弹窗 ----------
 
