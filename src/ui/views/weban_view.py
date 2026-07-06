@@ -396,7 +396,7 @@ class WeBanView:
                             content=self.log_text,
                             padding=10,
                             bgcolor=ft.Colors.GREY_100,
-                            border=ft.border.all(1, ft.Colors.GREY_300),
+                            border=ft.Border.all(1, ft.Colors.GREY_300),
                         ),
 
                         # 提示信息

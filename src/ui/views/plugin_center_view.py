@@ -75,7 +75,7 @@ class PluginCenterView:
             ),
             padding=5,
             bgcolor=Palette.SURFACE_ALT,
-            border=ft.border.all(1, Palette.BORDER),
+            border=ft.Border.all(1, Palette.BORDER),
             border_radius=Radius.MEDIUM,
         )
 

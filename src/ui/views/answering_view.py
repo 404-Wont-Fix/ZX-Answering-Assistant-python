@@ -252,7 +252,7 @@ class AnsweringView:
             ),
             width=400,
             bgcolor=Palette.SURFACE,
-            border=ft.border.all(1, Palette.BORDER_STRONG),
+            border=ft.Border.all(1, Palette.BORDER_STRONG),
             border_radius=Radius.SMALL,
             padding=ft.Padding.only(left=0, top=0, right=0, bottom=0),
         )
@@ -2560,7 +2560,7 @@ class AnsweringView:
                                     scroll=ft.ScrollMode.AUTO,
                                 ),
                                 expand=True,
-                                border=ft.border.all(1, ft.Colors.GREY_300),
+                                border=ft.Border.all(1, ft.Colors.GREY_300),
                                 border_radius=8,
                                 padding=10,
                             ),
