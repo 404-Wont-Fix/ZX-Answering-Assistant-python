@@ -1690,7 +1690,6 @@ class LazyAIGradingView:
                     ft.Text(f"• 内容不达标(截图<3且字数<150) → 保底{range_min}分（标注混子）", size=12),
                     ft.Text("• 日志不足3个 → 酌情扣3~5分", size=12),
                     ft.Text(f"• 无附件 → 酌情扣{NO_ATTACHMENT_DEDUCTION}分", size=12),
-                    ft.Text("• 同班同项目分布上限：满分≤2、95+≤7、90+≤12", size=12),
                     ft.Text("• ≥80分评语≥20字，≥95分评语≥100字", size=12),
                 ],
                 tight=True,
@@ -1722,6 +1721,7 @@ class LazyAIGradingView:
 
         self._grading_in_progress = True
         strictness = self._strictness  # 快照，评中途改设置不影响本轮
+        needs_distribution = strictness != "high"
         floor_score = MINIMUM_NOT_MET_SCORE  # 未达最低要求的保底分（76），用于标注与完成弹窗
 
         # 进度弹窗
@@ -1794,8 +1794,8 @@ class LazyAIGradingView:
                         stats["failed"] += 1
                         stats["failed_names"].append(f"{name}（{ex}）")
 
-                # ── 阶段二：应用分布上限（所有档位均服从：满分≤2、95+≤7、90+≤12） ──
-                if analyzed:
+                # ── 阶段二：应用分布限制（中等/宽松档） ──
+                if needs_distribution and analyzed:
                     set_progress("正在调整分数分布...")
                     analyzed = enforce_distribution_limits(analyzed)
 
