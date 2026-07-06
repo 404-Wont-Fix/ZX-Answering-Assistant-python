@@ -1,7 +1,7 @@
 {
   "id": "one_click_rating_for_projects",
   "name": "摸鱼速评助手",
-  "version": "2.5.0",
+  "version": "2.5.5",
   "description": "自动批改产教融合项目的分数，一键完成 评分",
   "icon": "auto_awesome",
   "author": "TianJiaJi",
