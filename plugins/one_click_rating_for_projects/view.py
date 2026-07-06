@@ -39,6 +39,8 @@ from .scoring import (
     save_strictness,
     STRICTNESS_CONFIG,
     enforce_distribution_limits,
+    MINIMUM_NOT_MET_SCORE,
+    NO_ATTACHMENT_DEDUCTION,
 )
 
 
@@ -155,6 +157,30 @@ class LazyAIGradingView:
         thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
         thread.start()
         return thread
+
+    def _post(self, fn):
+        """把 UI 变更投递到 Flet 会话线程执行。
+
+        后台线程（_run_background 起的线程）严禁直接调用 page.update() / show_dialog()
+        / 重建控件树——那会与 UI 线程的整树 diff（ObjectPatch.from_diff）竞争，触发
+        'RuntimeError: dictionary changed size during iteration' 崩溃。这里用
+        page.run_task（内部 asyncio.run_coroutine_threadsafe）把回调投递回会话事件
+        循环，确保控件树的读写与 diff 始终发生在同一线程。
+        """
+        async def _run():
+            try:
+                fn()
+            except Exception:
+                pass
+
+        try:
+            self.page.run_task(_run)
+        except Exception:
+            # run_task 不可用时退化为直接执行（兜底，正常路径不会走到）
+            try:
+                fn()
+            except Exception:
+                pass
 
     # ==================== 落地页 ====================
 
@@ -804,7 +830,9 @@ class LazyAIGradingView:
             self.project_list = []
         finally:
             self.list_loading = False
-            self._refresh_list_area()
+            # 后台线程不能直接 _refresh_list_area()（内部 page.update() 会与 UI 线程
+            # 的整树 diff 竞争），投递到会话线程执行。
+            self._post(self._refresh_list_area)
 
     def _refresh_list_area(self):
         """局部刷新列表屏的动态区域（不重建整屏，保留搜索框焦点）"""
@@ -1084,7 +1112,9 @@ class LazyAIGradingView:
             # 持久化的选择可能已不在列表里，清理一下
             existing_ids = {r.id for r in self.result_list}
             self.selected_result_ids &= existing_ids
-            self._refresh_results_area()
+            # 后台线程不能直接 _refresh_results_area()（内部 page.update() 会与 UI
+            # 线程的整树 diff 竞争），投递到会话线程执行。
+            self._post(self._refresh_results_area)
 
     # ---------- 学生卡片 ----------
 
@@ -1115,8 +1145,8 @@ class LazyAIGradingView:
             border_radius=Radius.SMALL,
         )
 
-        # "混子"标签：评分后恰好为保底分的学生
-        is_slacker = r.is_graded and r.pro_score == 76
+        # "混子"标签：未达最低要求、拿到保底分（76）的学生
+        is_slacker = r.is_graded and r.pro_score == MINIMUM_NOT_MET_SCORE
         name_controls = [
             ft.Text(
                 r.student_name or "未知",
@@ -1491,11 +1521,11 @@ class LazyAIGradingView:
         self._push_all_cards_scoped()
 
     def _on_select_completed(self, e):
-        """选取项目进度 100% 且未评分的学生"""
+        """选取项目进度 100% 的学生（含已评分，可重新评分）"""
         ft.context.disable_auto_update()
         self.selected_result_ids = {
             r.id for r in self.result_list
-            if r.project_progress >= 100 and not r.is_graded
+            if r.project_progress >= 100
         }
         self._sync_all_cards()
         self._update_selection_stats()
@@ -1597,14 +1627,14 @@ class LazyAIGradingView:
         self.page.run_task(do_export)
 
     def _on_grade_all_click(self, e):
-        """一键评分（全部）→ 筛选未评分 + 进度100% 的学生"""
+        """一键评分（全部）→ 筛选进度100% 的学生（含已评分，可重新评分）"""
         targets = [
             r for r in self.result_list
-            if not r.is_graded and r.project_progress >= 100
+            if r.project_progress >= 100
         ]
         if not targets:
             snack = ft.SnackBar(
-                content=ft.Text("没有需要评分的学生（进度不足或已全部评分）"),
+                content=ft.Text("没有可评分的学生（进度均未达 100%）"),
                 bgcolor=ft.Colors.ORANGE,
             )
             self.page.snack_bar = snack
@@ -1614,16 +1644,15 @@ class LazyAIGradingView:
         self._show_grade_confirm(targets)
 
     def _on_grade_selected_click(self, e):
-        """评分已选学生 → 筛选已选 + 未评分 + 进度100%"""
+        """评分已选学生 → 筛选已选 + 进度100%（含已评分，可重新评分）"""
         targets = [
             r for r in self.result_list
             if r.id in self.selected_result_ids
-            and not r.is_graded
             and r.project_progress >= 100
         ]
         if not targets:
             snack = ft.SnackBar(
-                content=ft.Text("选中的学生中没有需要评分的"),
+                content=ft.Text("选中的学生中没有进度达 100% 可评分的"),
                 bgcolor=ft.Colors.ORANGE,
             )
             self.page.snack_bar = snack
@@ -1638,7 +1667,7 @@ class LazyAIGradingView:
         """显示评分确认弹窗"""
         cfg = STRICTNESS_CONFIG.get(self._strictness, STRICTNESS_CONFIG["high"])
         label = cfg["label"]
-        floor = cfg["floor"]
+        range_min = MINIMUM_NOT_MET_SCORE  # 不满足最低要求时的保底分（76）
         low, high = cfg["tier3"]
 
         confirm_dialog = ft.AlertDialog(
@@ -1649,17 +1678,19 @@ class LazyAIGradingView:
                     ft.Text(f"即将为 {len(targets)} 名学生自动评分", size=14),
                     ft.Divider(height=6, color=ft.Colors.TRANSPARENT),
                     ft.Text(
-                        f"当前严格度：{label}（{floor} ~ {high}）",
+                        f"当前严格度：{label}（{range_min} ~ {high}）",
                         size=12,
                         weight=ft.FontWeight.W_600,
                         color=Palette.PRIMARY,
                     ),
                     ft.Text("评分规则：", size=12, weight=ft.FontWeight.W_600),
-                    ft.Text(f"• 分数范围：{floor} ~ {high}", size=12),
+                    ft.Text(f"• 分数范围：{range_min} ~ {high}", size=12),
                     ft.Text(f"• 截图>9 或 字数>500 → {low}~{high}", size=12),
                     ft.Text("• 截图≥6 或 字数≥400 → 中间档", size=12),
-                    ft.Text(f"• 最低要求不满足 → 保底 {floor}", size=12),
-                    ft.Text("• 无附件有额外上限", size=12),
+                    ft.Text(f"• 内容不达标(截图<3且字数<150) → 保底{range_min}分（标注混子）", size=12),
+                    ft.Text("• 日志不足3个 → 酌情扣3~5分", size=12),
+                    ft.Text(f"• 无附件 → 酌情扣{NO_ATTACHMENT_DEDUCTION}分", size=12),
+                    ft.Text("• 同班同项目分布上限：满分≤2、95+≤7、90+≤12", size=12),
                     ft.Text("• ≥80分评语≥20字，≥95分评语≥100字", size=12),
                 ],
                 tight=True,
@@ -1691,8 +1722,7 @@ class LazyAIGradingView:
 
         self._grading_in_progress = True
         strictness = self._strictness  # 快照，评中途改设置不影响本轮
-        needs_distribution = strictness != "high"
-        floor_score = STRICTNESS_CONFIG[strictness]["floor"]
+        floor_score = MINIMUM_NOT_MET_SCORE  # 未达最低要求的保底分（76），用于标注与完成弹窗
 
         # 进度弹窗
         self._grading_progress_text = ft.Text(
@@ -1700,7 +1730,7 @@ class LazyAIGradingView:
         )
         progress_dialog = ft.AlertDialog(
             modal=True,
-            title=ft.Text("AI 评分中"),
+            title=ft.Text("自动评分中"),
             content=ft.Column(
                 [
                     ft.ProgressRing(stroke_width=3),
@@ -1724,18 +1754,26 @@ class LazyAIGradingView:
                 "failed_names": [],
             }
 
+            def set_progress(text: str):
+                """更新进度文案（仅刷新这一个文本控件，投递到会话线程）。
+
+                绝不要在这里调 self.page.update()——整树 diff 单次 ~370ms 且会与
+                UI 线程竞争；只 update 这一个叶子控件即可秒级响应。
+                """
+                def _do():
+                    self._grading_progress_text.value = text
+                    try:
+                        self._grading_progress_text.update()
+                    except Exception:
+                        pass
+                self._post(_do)
+
             try:
                 # ── 阶段一：逐个拉取详情 + 计算分数 ──
                 analyzed: list[dict] = []
                 for i, student in enumerate(targets, 1):
                     name = student.student_name or "未知"
-                    self._grading_progress_text.value = (
-                        f"正在分析：{name}（{i}/{total}）"
-                    )
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
+                    set_progress(f"正在分析：{name}（{i}/{total}）")
 
                     try:
                         detail = self.api_client.get_student_result_with_logs(
@@ -1756,13 +1794,9 @@ class LazyAIGradingView:
                         stats["failed"] += 1
                         stats["failed_names"].append(f"{name}（{ex}）")
 
-                # ── 阶段二：应用分布限制（中等/宽松档） ──
-                if needs_distribution and analyzed:
-                    self._grading_progress_text.value = "正在调整分数分布..."
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
+                # ── 阶段二：应用分布上限（所有档位均服从：满分≤2、95+≤7、90+≤12） ──
+                if analyzed:
+                    set_progress("正在调整分数分布...")
                     analyzed = enforce_distribution_limits(analyzed)
 
                 # ── 阶段三：逐个提交评分 ──
@@ -1771,13 +1805,7 @@ class LazyAIGradingView:
                     score = item["score"]
                     name = student.student_name or "未知"
 
-                    self._grading_progress_text.value = (
-                        f"正在提交：{name}（{i}/{len(analyzed)}）"
-                    )
-                    try:
-                        self.page.update()
-                    except Exception:
-                        pass
+                    set_progress(f"正在提交：{name}（{i}/{len(analyzed)}）")
 
                     try:
                         min_len = 100 if score >= 95 else 20 if score >= 80 else 0
@@ -1797,16 +1825,25 @@ class LazyAIGradingView:
                         stats["failed"] += 1
                         stats["failed_names"].append(f"{name}（{ex}）")
 
-                    self._refresh_results_area()
-
             finally:
                 self._grading_in_progress = False
-                try:
-                    progress_dialog.open = False
-                    self.page.update()
-                except Exception:
-                    pass
-                self._show_grading_completion(stats, floor_score)
+
+                # 收尾的 UI 变更（关弹窗 + 刷列表 + 出完成弹窗）统一投递到会话线程，
+                # 避免后台线程直接 show_dialog()/page.update() 与整树 diff 竞争崩溃。
+                def _finish():
+                    try:
+                        self.page.pop_dialog()  # 关闭进度弹窗（自动 update）
+                    except Exception:
+                        pass
+                    # 一次性刷新学生列表，反映最终分数与统计（评分过程中不再逐个刷新，
+                    # 避免每提交一人就重建整张列表 + 整树 diff 造成进度界面卡顿滞后）。
+                    try:
+                        self._refresh_results_area()
+                    except Exception:
+                        pass
+                    self._show_grading_completion(stats, floor_score)
+
+                self._post(_finish)
 
         self._run_background(grading_task)
 
@@ -1921,7 +1958,7 @@ class LazyAIGradingView:
             value=self._strictness,
             options=[
                 ft.dropdown.Option("high", "严格（76 ~ 90）"),
-                ft.dropdown.Option("medium", "中等（76 ~ 95）"),
+                ft.dropdown.Option("medium", "中等（76 ~ 90）"),
                 ft.dropdown.Option("low", "宽松（76 ~ 100）"),
             ],
             width=220,

@@ -1,17 +1,25 @@
 """
 懒狗一键评分 — 评分算法与批语模板管理
 
-三档严格度：
+三档严格度（保持 high=严格 / low=宽松 的方向）：
   HIGH（严格）：76 ~ 90
-  MEDIUM（中等）：76 ~ 95
+  MEDIUM（中等）：76 ~ 90（中间档更宽松）
   LOW（宽松）：76 ~ 100
 
+保底分规则：
+  内容不达标（截图<3 且 字数<150）→ 固定保底 76 分（触发"混子"标注）
+  其他情况 → 正常评分（最低 77 分）
+
+酌情扣分（不触发标注，扣完不低于各档 floor 77）：
+  无附件            → 扣 5 分
+  提交日志不足 3 个 → 扣 3~5 分（0条扣5、1条扣4、2条扣3）
+
+内容最低要求：
+  截图 ≥ 3 或 描述字数 ≥ 150
+
 系统硬规则（所有档位均遵守）：
-  截图 <3 且 字数 <150        → 直接给保底 76
-  截图 ≥3 或 字数 ≥150        → 可达 76+
-  截图 ≥6 或 字数 ≥400        → 可达 80+
-  截图 >9 或 字数 >500        → 可达 90+
-  附件为空 → 有额外上限
+  截图 ≥6 或 字数 ≥400        → 可达中间档
+  截图 >9 或 字数 >500        → 可达最高档
   评语 ≥80分 不少于 20 字，≥95分 不少于 100 字
   分布上限：满分≤2人，95+≤7人，90+≤12人
 """
@@ -25,28 +33,31 @@ from typing import Dict, List
 # 严格度配置
 # ────────────────────────────────────────────────
 
+# 不满足最低要求时的保底分；满足最低要求时各档最低 77 分（cfg["floor"]）。
+MINIMUM_NOT_MET_SCORE = 76
+# 无附件时的酌情扣分（不再用封顶区间压分，改扣固定分，
+# 保证"内容质量越好→分数越高"的单调性，避免无附件学生被压进窄区间）。
+NO_ATTACHMENT_DEDUCTION = 5
+
 STRICTNESS_CONFIG = {
     "high": {
         "label": "严格",
-        "floor": 76,
-        "no_att_cap": 80,
-        "tier1": (76, 80),
+        "floor": 77,
+        "tier1": (77, 80),
         "tier2": (80, 85),
         "tier3": (85, 90),
     },
     "medium": {
         "label": "中等",
-        "floor": 76,
-        "no_att_cap": 85,
-        "tier1": (76, 80),
+        "floor": 77,
+        "tier1": (77, 80),
         "tier2": (80, 88),
-        "tier3": (85, 95),
+        "tier3": (85, 90),  # 中档与严格同封顶 90，但 tier2 更宽
     },
     "low": {
         "label": "宽松",
-        "floor": 76,
-        "no_att_cap": 90,
-        "tier1": (76, 80),
+        "floor": 77,
+        "tier1": (77, 80),
         "tier2": (80, 92),
         "tier3": (88, 100),
     },
@@ -214,39 +225,41 @@ def _quality_factor(
     log_stage_count: int,
     log_total_chars: int,
 ) -> float:
-    """综合质量因子 0.0 ~ 1.0。"""
+    """综合质量因子 0.0 ~ 1.0。
+
+    日志维度按"阶段数 × 阶段均字数质量"连续评估；阶段不足 3 个不再在此处
+    一刀切压低（改由 calculate_score 的酌情扣分处理，避免把日志不足直接打成保底）。
+    """
     factors: list[float] = []
     factors.append(min(screenshot_count / 10.0, 1.0))
     factors.append(min(desc_char_count / 600.0, 1.0))
 
     if log_stage_count == 0:
-        factors.append(0.0)
-    elif log_stage_count < 3:
-        # 一把梭哈：阶段不足3个，直接给极低分
-        factors.append(0.08)
+        factors.append(0.2)
     else:
-        # 3个阶段以上才正常评估
         stage_score = min(log_stage_count / 5.0, 1.0)
         avg = log_total_chars / log_stage_count
         if avg < 30:
-            per_quality = 0.2
+            per_quality = 0.3
         elif avg < 80:
             per_quality = 0.6
-        elif avg <= 350:
-            per_quality = 1.0
-        elif avg <= 500:
-            per_quality = 0.8
         else:
-            per_quality = 0.5
+            # ≥80 字/阶段即视为认真记录，不再因"写得太详细"反而降权
+            per_quality = 1.0
         factors.append(stage_score * per_quality)
 
-    quality = sum(factors) / len(factors) if factors else 0.0
+    return sum(factors) / len(factors) if factors else 0.0
 
-    # 阶段不足3个时，额外打折（不论其他维度多好）
-    if log_stage_count < 3:
-        quality *= 0.45
 
-    return quality
+def meets_minimum_requirement(
+    screenshot_count: int,
+    desc_char_count: int,
+) -> bool:
+    """内容最低要求（触发保底76+"混子"标注）：截图 ≥3 或 描述字数 ≥150。
+
+    日志不足3个不再算作不达标，改由 calculate_score 酌情扣分。
+    """
+    return (screenshot_count >= 3) or (desc_char_count >= 150)
 
 
 def calculate_score(
@@ -262,42 +275,50 @@ def calculate_score(
     """
     cfg = STRICTNESS_CONFIG.get(strictness, STRICTNESS_CONFIG["high"])
 
-    # ── 不满足最低要求 → 固定 76（无论严格度） ──
-    meets_minimum = (screenshot_count >= 3) or (desc_char_count >= 150)
-    if not meets_minimum:
-        return 76
+    # ── 内容不达标 → 固定保底 76（触发"混子"标注） ──
+    if not meets_minimum_requirement(screenshot_count, desc_char_count):
+        return MINIMUM_NOT_MET_SCORE
 
     quality = _quality_factor(
         screenshot_count, desc_char_count, log_stage_count, log_total_chars
     )
 
-    if not has_attachment:
-        floor = cfg["floor"]
-        cap = cfg["no_att_cap"]
-        return int(floor + quality * (cap - floor))
-
+    # 按内容丰富度选档、统一计算基础分（有无附件走同一套区间，保证单调性）
     can_90_plus = (screenshot_count > 9) or (desc_char_count > 500)
     can_80_plus = (screenshot_count >= 6) or (desc_char_count >= 400)
-
     if can_90_plus:
         low, high = cfg["tier3"]
     elif can_80_plus:
         low, high = cfg["tier2"]
     else:
         low, high = cfg["tier1"]
-
     score = max(low, min(high, int(low + quality * (high - low))))
 
-    # 阶段不足3个 → 不能进入最高分段（tier3），上限卡死到 tier2 顶部
+    # ── 无附件：酌情扣分（不再用封顶压区间，内容质量仍主导分数） ──
+    if not has_attachment:
+        score = max(cfg["floor"], score - NO_ATTACHMENT_DEDUCTION)
+
+    # ── 日志不足3个：酌情扣分（不低于各档 floor） ──
     if log_stage_count < 3:
-        score = min(score, cfg["tier2"][1])
+        deduction = 5 - log_stage_count  # 0条→扣5，1条→扣4，2条→扣3
+        score = max(cfg["floor"], score - deduction)
 
     return score
 
 
 def enforce_distribution_limits(scored_items: list) -> list:
     """
-    应用系统分布上限：满分≤2人，95+≤7人，90+≤12人。
+    应用同班/同项目内的分布上限（按 quality 从高到低择优保留高分）：
+      满分(100) ≤ 2 人
+      95 分以上 ≤ 7 人（含满分的 2 人）
+      90 分以上 ≤ 12 人（含 95+ 的 7 人）
+    实现方式：按 quality 降序排名后——
+      第 1~2 名   不封顶（最高可达 100）
+      第 3~7 名   封顶 99（即仍可 95~99，但拿不到满分）
+      第 8~12 名  封顶 94（即仍可 90~94，但进不了 95+）
+      第 13 名起  封顶 89（即进不了 90+）
+    ——等价于上述三档嵌套计数上限，且仅下调、不上调。
+    所有严格度档位均执行此分布限制。
     scored_items: [{'student': ..., 'score': int}, ...]，就地修改。
     """
     for item in scored_items:
