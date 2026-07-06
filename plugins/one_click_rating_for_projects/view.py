@@ -703,6 +703,13 @@ class LazyAIGradingView:
                     ),
                     ft.Container(expand=True),
                     self._batch_grade_btn,
+                    ft.IconButton(
+                        ft.Icons.SETTINGS_OUTLINED,
+                        icon_size=18,
+                        icon_color=Palette.TEXT_MUTED,
+                        tooltip="评语与严格度设置",
+                        on_click=lambda e: self._show_comment_settings(e),
+                    ),
                 ],
                 spacing=8,
                 vertical_alignment=ft.CrossAxisAlignment.CENTER,
@@ -876,7 +883,7 @@ class LazyAIGradingView:
                 ),
                 padding=16,
                 bgcolor=Palette.SURFACE,
-                border=ft.border.all(1, Palette.BORDER),
+                border=ft.Border.all(1, Palette.BORDER),
                 border_radius=Radius.MEDIUM,
             ),
             on_tap=lambda e, project=p: self._on_project_click(e, project),
@@ -1343,7 +1350,7 @@ class LazyAIGradingView:
             ),
             padding=ft.Padding.symmetric(horizontal=12, vertical=10),
             bgcolor=card_bg,
-            border=ft.border.all(1, card_border),
+            border=ft.Border.all(1, card_border),
             border_radius=Radius.MEDIUM,
         )
         # 存储引用供 _update_single_card 使用
@@ -1975,7 +1982,7 @@ class LazyAIGradingView:
                 self._post(_do)
 
             for i, p in enumerate(projects, 1):
-                label = p.pro_name or "未命名项目"
+                label = f"{p.pro_name or '未命名项目'}（{p.class_name or '未知班级'}）"
                 set_progress(f"正在汇总：{label}（{i}/{n}）")
                 try:
                     items = self.api_client.get_class_project_result(
@@ -2178,8 +2185,12 @@ class LazyAIGradingView:
                     stats["failed_names"].append(f"{label} - {name}（{ex}）")
 
     def _start_grading(self, confirm_dialog, targets: list[ProjectResult]):
-        """单项目评分入口：包成 1 组（label=当前项目名）后启动"""
-        label = self.current_project.pro_name if self.current_project else "当前项目"
+        """单项目评分入口：包成 1 组（label=项目名（班级名））后启动"""
+        p = self.current_project
+        if p:
+            label = f"{p.pro_name or '未命名项目'}（{p.class_name or '未知班级'}）"
+        else:
+            label = "当前项目"
         self._launch_grading(confirm_dialog, [(label, targets)], is_batch=False)
 
     def _start_batch_grading(self, confirm_dialog, groups):
@@ -2220,6 +2231,9 @@ class LazyAIGradingView:
                 )
 
         if stats["min_score_names"]:
+            _show_max = 15
+            names = stats["min_score_names"]
+            _truncated = len(names) > _show_max
             controls.append(ft.Divider(height=4, color=ft.Colors.TRANSPARENT))
             controls.append(
                 ft.Container(
@@ -2233,7 +2247,7 @@ class LazyAIGradingView:
                                         size=18,
                                     ),
                                     ft.Text(
-                                        f"以下 {len(stats['min_score_names'])} 名学生"
+                                        f"以下 {len(names)} 名学生"
                                         f"未达最低要求，给予保底分数（{floor_score}分）：",
                                         size=12,
                                         weight=ft.FontWeight.W_600,
@@ -2249,15 +2263,29 @@ class LazyAIGradingView:
                                     size=12,
                                     color=Palette.DANGER,
                                     weight=ft.FontWeight.W_500,
+                                    max_lines=1,
+                                    overflow=ft.TextOverflow.ELLIPSIS,
                                 )
-                                for name in stats["min_score_names"]
+                                for name in names[:_show_max]
                             ],
+                            *(
+                                [
+                                    ft.Text(
+                                        f"  • ……等共 {len(names)} 人（仅显示前 {_show_max} 条）",
+                                        size=11,
+                                        color=Palette.DANGER,
+                                        weight=ft.FontWeight.W_500,
+                                    )
+                                ]
+                                if _truncated
+                                else []
+                            ),
                         ],
                         spacing=4,
                     ),
                     padding=12,
                     bgcolor="#FDE8ED",
-                    border=ft.border.all(1, Palette.DANGER),
+                    border=ft.Border.all(1, Palette.DANGER),
                     border_radius=Radius.SMALL,
                 )
             )
@@ -2287,12 +2315,12 @@ class LazyAIGradingView:
     # ---------- 设置弹窗（严格度 + 评语列表管理） ----------
 
     def _show_comment_settings(self, e):
-        """显示设置弹窗：严格度 + 短/长评语模板列表"""
-        from .scoring import STRICTNESS_CONFIG
-
+        """显示设置弹窗：严格度卡片 + 短/长评语分区（彩色标题栏 + 卡片化列表）"""
         templates = load_templates()
+        short_items = templates.get("short", [])
+        long_items = templates.get("long", [])
 
-        # 严格度下拉框
+        # 严格度下拉框（无事件，关闭时读 value）
         strictness_dd = ft.Dropdown(
             value=self._strictness,
             options=[
@@ -2303,20 +2331,6 @@ class LazyAIGradingView:
             width=220,
         )
 
-        # ---- 短评语列表 ----
-        short_column = ft.Column(spacing=6)
-        for i, text in enumerate(templates.get("short", [])):
-            short_column.controls.append(
-                self._build_template_item("short", i, text)
-            )
-
-        # ---- 长评语列表 ----
-        long_column = ft.Column(spacing=6)
-        for i, text in enumerate(templates.get("long", [])):
-            long_column.controls.append(
-                self._build_template_item("long", i, text)
-            )
-
         # 关闭时保存严格度
         def on_close(_):
             self._strictness = strictness_dd.value or "high"
@@ -2324,67 +2338,73 @@ class LazyAIGradingView:
             self.page.pop_dialog()
 
         dialog = ft.AlertDialog(
-            title=ft.Text("设置"),
+            title=ft.Row(
+                [
+                    ft.Icon(ft.Icons.TUNE, size=20, color=Palette.PRIMARY),
+                    ft.Text("评语与严格度设置", size=18, weight=ft.FontWeight.W_600),
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
             content=ft.Container(
                 content=ft.Column(
                     [
-                        # ---- 严格度 ----
-                        ft.Row(
-                            [
-                                ft.Text(
-                                    "批改严格度",
-                                    size=13,
-                                    weight=ft.FontWeight.W_600,
-                                ),
-                                ft.Container(expand=True),
-                                strictness_dd,
-                            ],
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        # ---- 严格度（紧凑卡片） ----
+                        surface_card(
+                            ft.Row(
+                                [
+                                    ft.Icon(ft.Icons.SPEED, size=18, color=Palette.PRIMARY),
+                                    ft.Column(
+                                        [
+                                            ft.Text(
+                                                "批改严格度",
+                                                size=13,
+                                                weight=ft.FontWeight.W_600,
+                                                color=Palette.TEXT,
+                                            ),
+                                            ft.Text(
+                                                "决定分数区间与扣分上限",
+                                                size=11,
+                                                color=Palette.TEXT_MUTED,
+                                            ),
+                                        ],
+                                        spacing=0,
+                                    ),
+                                    ft.Container(expand=True),
+                                    strictness_dd,
+                                ],
+                                spacing=10,
+                                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                            ),
+                            padding=14,
                         ),
-                        ft.Divider(height=4),
-                        # ---- 短评语 ----
-                        ft.Row(
-                            [
-                                ft.Text(
-                                    "短评语模板（< 95 分使用）",
-                                    size=13,
-                                    weight=ft.FontWeight.W_600,
-                                ),
-                                ft.Container(expand=True),
-                                ft.TextButton(
-                                    "＋ 添加",
-                                    icon=ft.Icons.ADD,
-                                    on_click=lambda ev: self._add_template("short"),
-                                ),
-                            ],
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        # ---- 短评语分区 ----
+                        self._build_template_section(
+                            pool="short",
+                            title="短评语模板",
+                            usage="用于 < 95 分",
+                            icon=ft.Icons.SHORT_TEXT,
+                            items=short_items,
+                            min_chars=20,
+                            accent=Palette.PRIMARY,
+                            accent_soft=Palette.PRIMARY_SOFT,
                         ),
-                        short_column,
-                        ft.Divider(height=4),
-                        # ---- 长评语 ----
-                        ft.Row(
-                            [
-                                ft.Text(
-                                    "长评语模板（≥ 95 分使用，≥ 100 字）",
-                                    size=13,
-                                    weight=ft.FontWeight.W_600,
-                                ),
-                                ft.Container(expand=True),
-                                ft.TextButton(
-                                    "＋ 添加",
-                                    icon=ft.Icons.ADD,
-                                    on_click=lambda ev: self._add_template("long"),
-                                ),
-                            ],
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                        # ---- 长评语分区 ----
+                        self._build_template_section(
+                            pool="long",
+                            title="长评语模板",
+                            usage="用于 ≥ 95 分",
+                            icon=ft.Icons.ARTICLE_OUTLINED,
+                            items=long_items,
+                            min_chars=100,
+                            accent=Palette.ACCENT,
+                            accent_soft=Palette.ACCENT_SOFT,
                         ),
-                        long_column,
                     ],
-                    spacing=10,
-                    scroll=ft.ScrollMode.AUTO,
+                    spacing=12,
                 ),
-                width=600,
-                padding=6,
+                width=660,
+                padding=4,
             ),
             actions=[
                 ft.ElevatedButton(
@@ -2398,62 +2418,140 @@ class LazyAIGradingView:
         )
         self.page.show_dialog(dialog)
 
-    def _build_template_item(
-        self, pool: str, index: int, text: str
+    def _build_template_section(
+        self,
+        pool: str,
+        title: str,
+        usage: str,
+        icon,
+        items: list,
+        min_chars: int,
+        accent: str,
+        accent_soft: str,
     ) -> ft.Container:
-        """构建单条评语模板卡片（序号 + 预览 + 编辑/删除按钮）"""
-        preview = text[:55] + ("..." if len(text) > 55 else "")
-        return ft.Container(
+        """设置弹窗里的一个评语分区：彩色标题栏 + 可滚动模板卡片列表"""
+        if items:
+            cards = [
+                self._build_template_item(pool, i, t, min_chars)
+                for i, t in enumerate(items)
+            ]
+        else:
+            cards = [
+                ft.Container(
+                    content=ft.Text(
+                        "暂无模板，点右上角「添加」",
+                        size=12,
+                        color=Palette.TEXT_MUTED,
+                        text_align=ft.TextAlign.CENTER,
+                    ),
+                    padding=20,
+                    alignment=ft.Alignment(0, 0),
+                )
+            ]
+        list_view = ft.ListView(
+            controls=cards,
+            spacing=8,
+            height=190,
+            scroll=ft.ScrollMode.AUTO,
+        )
+        # 彩色标题栏
+        header = ft.Container(
             content=ft.Row(
                 [
-                    # 序号圆圈
-                    ft.Container(
-                        content=ft.Text(
-                            str(index + 1),
-                            size=10,
-                            color=Palette.SURFACE,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                        width=20,
-                        height=20,
-                        alignment=ft.Alignment(0, 0),
-                        bgcolor=Palette.PRIMARY,
-                        border_radius=10,
-                    ),
-                    # 预览文本
+                    ft.Icon(icon, size=16, color=accent),
                     ft.Text(
-                        preview,
+                        title,
+                        size=13,
+                        weight=ft.FontWeight.W_600,
+                        color=Palette.TEXT,
+                    ),
+                    ft.Text(
+                        f"{usage} · 共 {len(items)} 条 · 建议 ≥ {min_chars} 字",
+                        size=11,
+                        color=Palette.TEXT_MUTED,
+                    ),
+                    ft.Container(expand=True),
+                    secondary_button(
+                        "添加",
+                        ft.Icons.ADD,
+                        lambda ev, p=pool: self._add_template(p),
+                    ),
+                ],
+                spacing=8,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            bgcolor=accent_soft,
+            border_radius=Radius.SMALL,
+            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
+        )
+        return ft.Container(
+            content=ft.Column([header, list_view], spacing=8),
+            border=ft.Border.all(1, Palette.BORDER),
+            border_radius=Radius.MEDIUM,
+            padding=8,
+        )
+
+    def _build_template_item(
+        self, pool: str, index: int, text: str, min_chars: int
+    ) -> ft.Container:
+        """单条评语模板卡片：全文预览 + 字数状态徽标 + 编辑/删除"""
+        n = len(text.strip())
+        ok = n >= min_chars
+        badge_color = Palette.ACCENT if ok else Palette.WARNING
+        badge_bg = Palette.ACCENT_SOFT if ok else Palette.WARNING_SOFT
+
+        return ft.Container(
+            content=ft.Column(
+                [
+                    # 评语全文（可选中文本，方便核对）
+                    ft.Text(
+                        text,
                         size=12,
                         color=Palette.TEXT,
-                        expand=True,
-                        max_lines=2,
-                        overflow=ft.TextOverflow.ELLIPSIS,
+                        selectable=True,
                     ),
-                    # 操作按钮
-                    ft.IconButton(
-                        ft.Icons.EDIT_OUTLINED,
-                        icon_size=16,
-                        icon_color=Palette.PRIMARY,
-                        tooltip="编辑",
-                        on_click=lambda ev, p=pool, i=index: self._edit_template(
-                            p, i
-                        ),
-                    ),
-                    ft.IconButton(
-                        ft.Icons.DELETE_OUTLINE,
-                        icon_size=16,
-                        icon_color=Palette.DANGER,
-                        tooltip="删除",
-                        on_click=lambda ev, p=pool, i=index: self._delete_template(
-                            p, i
-                        ),
+                    # 字数状态 + 操作
+                    ft.Row(
+                        [
+                            status_chip(
+                                f"{n} 字",
+                                color=badge_color,
+                                bgcolor=badge_bg,
+                            ),
+                            ft.Text(
+                                "✓ 达标" if ok else f"建议 ≥ {min_chars} 字",
+                                size=10,
+                                color=badge_color,
+                            ),
+                            ft.Container(expand=True),
+                            ft.IconButton(
+                                ft.Icons.EDIT_OUTLINED,
+                                icon_size=16,
+                                icon_color=Palette.TEXT_MUTED,
+                                tooltip="编辑",
+                                on_click=lambda ev, p=pool, i=index: self._edit_template(
+                                    p, i
+                                ),
+                            ),
+                            ft.IconButton(
+                                ft.Icons.DELETE_OUTLINE,
+                                icon_size=16,
+                                icon_color=Palette.DANGER,
+                                tooltip="删除",
+                                on_click=lambda ev, p=pool, i=index: self._delete_template(
+                                    p, i
+                                ),
+                            ),
+                        ],
+                        spacing=6,
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
                     ),
                 ],
                 spacing=6,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
             ),
-            padding=ft.Padding.symmetric(horizontal=8, vertical=4),
-            border=ft.border.all(1, Palette.BORDER),
+            padding=10,
+            bgcolor=Palette.SURFACE,
+            border=ft.Border.all(1, Palette.BORDER),
             border_radius=Radius.SMALL,
         )
 

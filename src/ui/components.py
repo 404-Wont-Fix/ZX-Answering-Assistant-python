@@ -20,7 +20,7 @@ def surface_card(
         padding=padding,
         width=width,
         bgcolor=bgcolor,
-        border=ft.border.all(1, Palette.BORDER),
+        border=ft.Border.all(1, Palette.BORDER),
         border_radius=Radius.CARD,
         shadow=ft.BoxShadow(
             blur_radius=18,
