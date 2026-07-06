@@ -1,6 +1,6 @@
 [project]
 name = "zx-answering-assistant"
-version = "3.7.2"
+version = "3.9.8"
 description = "Intelligent Answering Assistant System"
 readme = "README.md"
 requires-python = ">=3.10"
