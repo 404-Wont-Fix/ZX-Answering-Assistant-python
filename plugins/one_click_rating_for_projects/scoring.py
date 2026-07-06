@@ -2,13 +2,13 @@
 懒狗一键评分 — 评分算法与批语模板管理
 
 三档严格度：
-  HIGH（严格）：75 ~ 90
-  MEDIUM（中等）：70 ~ 95
-  LOW（宽松）：65 ~ 100
+  HIGH（严格）：76 ~ 90
+  MEDIUM（中等）：76 ~ 95
+  LOW（宽松）：76 ~ 100
 
 系统硬规则（所有档位均遵守）：
-  截图 <3 且 字数 <150        → 不能超过 60
-  截图 ≥3 或 字数 ≥150        → 可达 60+
+  截图 <3 且 字数 <150        → 直接给保底 76
+  截图 ≥3 或 字数 ≥150        → 可达 76+
   截图 ≥6 或 字数 ≥400        → 可达 80+
   截图 >9 或 字数 >500        → 可达 90+
   附件为空 → 有额外上限
@@ -28,25 +28,25 @@ from typing import Dict, List
 STRICTNESS_CONFIG = {
     "high": {
         "label": "严格",
-        "floor": 70,
+        "floor": 76,
         "no_att_cap": 80,
-        "tier1": (70, 80),
+        "tier1": (76, 80),
         "tier2": (80, 85),
         "tier3": (85, 90),
     },
     "medium": {
         "label": "中等",
-        "floor": 70,
+        "floor": 76,
         "no_att_cap": 85,
-        "tier1": (70, 80),
+        "tier1": (76, 80),
         "tier2": (80, 88),
         "tier3": (85, 95),
     },
     "low": {
         "label": "宽松",
-        "floor": 70,
+        "floor": 76,
         "no_att_cap": 90,
-        "tier1": (70, 80),
+        "tier1": (76, 80),
         "tier2": (80, 92),
         "tier3": (88, 100),
     },
@@ -262,10 +262,10 @@ def calculate_score(
     """
     cfg = STRICTNESS_CONFIG.get(strictness, STRICTNESS_CONFIG["high"])
 
-    # ── 不满足最低要求 → 固定 70（无论严格度） ──
+    # ── 不满足最低要求 → 固定 76（无论严格度） ──
     meets_minimum = (screenshot_count >= 3) or (desc_char_count >= 150)
     if not meets_minimum:
-        return 70
+        return 76
 
     quality = _quality_factor(
         screenshot_count, desc_char_count, log_stage_count, log_total_chars

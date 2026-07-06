@@ -34,6 +34,7 @@ class ClassProject:
     project_id: int  # raw["projiectLibID"] / projectLib.id → GetClassProjectResult.projectID
     class_id: str
     class_name: str
+    fb_name: str  # 指导老师姓名（GetTeacherClassProject.fbName）
     pro_name: str
     project_type_name: str
     pro_start_time: str
@@ -65,6 +66,7 @@ class ClassProject:
             project_id=raw.get("projiectLibID") or project_lib.get("id") or 0,
             class_id=raw.get("classID", "") or "",
             class_name=raw.get("className", "") or "",
+            fb_name=raw.get("fbName", "") or "",
             # 优先用顶层 proName，缺失时回落到 projectLib.name
             pro_name=(
                 raw.get("proName")

@@ -655,6 +655,38 @@ class LazyAIGradingView:
         subtitle_parts = [part for part in [p.class_name, p.project_type_name] if part]
         subtitle = " · ".join(subtitle_parts) if subtitle_parts else "—"
 
+        # 副标题行：左侧「班级 · 类型」，右侧「指导老师」
+        subtitle_children = [
+            ft.Text(
+                subtitle,
+                size=12,
+                color=Palette.TEXT_MUTED,
+                max_lines=1,
+                overflow=ft.TextOverflow.ELLIPSIS,
+                expand=True,
+            ),
+        ]
+        if p.fb_name:
+            subtitle_children.append(
+                ft.Row(
+                    [
+                        ft.Icon(
+                            ft.Icons.PERSON_OUTLINE,
+                            size=13,
+                            color=Palette.TEXT_SOFT,
+                        ),
+                        ft.Text(
+                            f"指导老师：{p.fb_name}",
+                            size=12,
+                            color=Palette.TEXT_SOFT,
+                            max_lines=1,
+                        ),
+                    ],
+                    spacing=2,
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                )
+            )
+
         # 进度统计 chip 行
         def count_chip(label: str, value: int, color: str, bgcolor: str) -> ft.Control:
             return status_chip(
@@ -703,12 +735,10 @@ class LazyAIGradingView:
                                             max_lines=2,
                                             overflow=ft.TextOverflow.ELLIPSIS,
                                         ),
-                                        ft.Text(
-                                            subtitle,
-                                            size=12,
-                                            color=Palette.TEXT_MUTED,
-                                            max_lines=1,
-                                            overflow=ft.TextOverflow.ELLIPSIS,
+                                        ft.Row(
+                                            subtitle_children,
+                                            spacing=8,
+                                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
                                         ),
                                     ],
                                     spacing=4,
@@ -1086,7 +1116,7 @@ class LazyAIGradingView:
         )
 
         # "混子"标签：评分后恰好为保底分的学生
-        is_slacker = r.is_graded and r.pro_score == 70
+        is_slacker = r.is_graded and r.pro_score == 76
         name_controls = [
             ft.Text(
                 r.student_name or "未知",
@@ -1782,7 +1812,7 @@ class LazyAIGradingView:
 
     # ---------- 评分完成弹窗 ----------
 
-    def _show_grading_completion(self, stats: dict, floor_score: int = 70):
+    def _show_grading_completion(self, stats: dict, floor_score: int = 76):
         """显示评分完成弹窗，75 分保底学生着重高亮"""
         controls = [
             ft.Row(
@@ -1890,9 +1920,9 @@ class LazyAIGradingView:
         strictness_dd = ft.Dropdown(
             value=self._strictness,
             options=[
-                ft.dropdown.Option("high", "严格（70 ~ 90）"),
-                ft.dropdown.Option("medium", "中等（70 ~ 95）"),
-                ft.dropdown.Option("low", "宽松（70 ~ 100）"),
+                ft.dropdown.Option("high", "严格（76 ~ 90）"),
+                ft.dropdown.Option("medium", "中等（76 ~ 95）"),
+                ft.dropdown.Option("low", "宽松（76 ~ 100）"),
             ],
             width=220,
         )
