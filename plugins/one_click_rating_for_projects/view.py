@@ -2402,8 +2402,10 @@ class LazyAIGradingView:
                         ),
                     ],
                     spacing=12,
+                    scroll=ft.ScrollMode.AUTO,
                 ),
                 width=660,
+                height=520,
                 padding=4,
             ),
             actions=[
@@ -2451,7 +2453,7 @@ class LazyAIGradingView:
         list_view = ft.ListView(
             controls=cards,
             spacing=8,
-            height=190,
+            height=150,
             scroll=ft.ScrollMode.AUTO,
         )
         # 彩色标题栏
