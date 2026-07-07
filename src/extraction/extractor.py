@@ -296,13 +296,43 @@ class Extractor:
         
         return filtered
     
+    def _select_from_list(self, items: list, label_fn, prompt: str = "请选择") -> Optional[int]:
+        """
+        通用列表选择辅助方法
+
+        Args:
+            items: 待选项列表
+            label_fn: 接受 (index, item) 返回显示字符串的函数
+            prompt: 提示语
+
+        Returns:
+            选中项的索引（从0开始），取消返回 None
+        """
+        print(f"\n{prompt}：")
+        for i, item in enumerate(items, 1):
+            print(label_fn(i, item))
+        print("0. 取消")
+
+        while True:
+            choice = input("请输入选项：").strip()
+            if choice == "0":
+                return None
+            try:
+                choice_int = int(choice)
+                if 1 <= choice_int <= len(items):
+                    return choice_int - 1
+                else:
+                    print("❌ 无效的选项，请重新输入")
+            except ValueError:
+                print("❌ 请输入数字")
+
     def select_grade(self, class_list: List[Dict]) -> Optional[str]:
         """
         让用户选择年级
-        
+
         Args:
             class_list: 班级列表
-            
+
         Returns:
             Optional[str]: 选择的年级，如果取消则返回None
         """
@@ -312,35 +342,23 @@ class Extractor:
             grade = cls.get("grade", "")
             if grade:
                 grades.add(grade)
-        
+
         if not grades:
             print("❌ 未找到可用的年级")
             return None
-        
+
         grades = sorted(grades, reverse=True)
-        
-        print("\n请选择年级：")
-        for i, grade in enumerate(grades, 1):
-            # 统计该年级的班级数量
+
+        def label_fn(i, grade):
             count = len(self.filter_by_grade(class_list, grade))
-            print(f"{i}. {grade}级 ({count}个班级)")
-        print("0. 取消")
-        
-        while True:
-            choice = input("请输入选项：").strip()
-            if choice == "0":
-                return None
-            
-            try:
-                choice_int = int(choice)
-                if 1 <= choice_int <= len(grades):
-                    selected_grade = grades[choice_int - 1]
-                    print(f"✅ 已选择：{selected_grade}级")
-                    return selected_grade
-                else:
-                    print("❌ 无效的选项，请重新输入")
-            except ValueError:
-                print("❌ 请输入数字")
+            return f"{i}. {grade}级 ({count}个班级)"
+
+        idx = self._select_from_list(grades, label_fn, "请选择年级")
+        if idx is None:
+            return None
+        selected_grade = grades[idx]
+        print(f"✅ 已选择：{selected_grade}级")
+        return selected_grade
     
     def get_course_list(self, class_id: str, max_retries: Optional[int] = None) -> Optional[List[Dict]]:
         """从GetEvaluationSummaryByClassID API获取课程列表"""
@@ -395,40 +413,26 @@ class Extractor:
     def select_class(self, class_list: List[Dict]) -> Optional[Dict]:
         """
         让用户选择班级
-        
+
         Args:
             class_list: 班级列表
-            
+
         Returns:
             Optional[Dict]: 选择的班级信息，如果取消则返回None
         """
         if not class_list:
             print("❌ 没有可用的班级")
             return None
-        
-        print("\n请选择班级：")
-        for i, cls in enumerate(class_list, 1):
-            class_name = cls.get("className", "")
-            class_id = cls.get("id", "")
-            stats = cls.get("stats", 0)
-            print(f"{i}. {class_name} (ClassID: {class_id})")
-        print("0. 取消")
-        
-        while True:
-            choice = input("请输入选项：").strip()
-            if choice == "0":
-                return None
-            
-            try:
-                choice_int = int(choice)
-                if 1 <= choice_int <= len(class_list):
-                    selected_class = class_list[choice_int - 1]
-                    print(f"✅ 已选择：{selected_class.get('className', '')}")
-                    return selected_class
-                else:
-                    print("❌ 无效的选项，请重新输入")
-            except ValueError:
-                print("❌ 请输入数字")
+
+        def label_fn(i, cls):
+            return f"{i}. {cls.get('className', '')} (ClassID: {cls.get('id', '')})"
+
+        idx = self._select_from_list(class_list, label_fn, "请选择班级")
+        if idx is None:
+            return None
+        selected_class = class_list[idx]
+        print(f"✅ 已选择：{selected_class.get('className', '')}")
+        return selected_class
     
     def extract(self) -> Optional[Dict]:
         """
@@ -585,41 +589,30 @@ class Extractor:
     def select_course(self, course_list: List[Dict]) -> Optional[Dict]:
         """
         让用户选择课程
-        
+
         Args:
             course_list: 课程列表
-            
+
         Returns:
             Optional[Dict]: 选择的课程信息，如果取消则返回None
         """
         if not course_list:
             print("❌ 没有可用的课程")
             return None
-        
-        print("\n请选择课程：")
-        for i, course in enumerate(course_list, 1):
-            course_name = course.get("courseName", "")
-            course_id = course.get("courseID", "")
-            knowledge_sum = course.get("knowledgeSum", 0)
-            shulian = course.get("shulian", 0)
-            print(f"{i}. {course_name} (courseID: {course_id}, 知识点: {knowledge_sum}, 已完成: {shulian})")
-        print("0. 取消")
-        
-        while True:
-            choice = input("请输入选项：").strip()
-            if choice == "0":
-                return None
-            
-            try:
-                choice_int = int(choice)
-                if 1 <= choice_int <= len(course_list):
-                    selected_course = course_list[choice_int - 1]
-                    print(f"✅ 已选择：{selected_course.get('courseName', '')}")
-                    return selected_course
-                else:
-                    print("❌ 无效的选项，请重新输入")
-            except ValueError:
-                print("❌ 请输入数字")
+
+        def label_fn(i, course):
+            name = course.get("courseName", "")
+            cid = course.get("courseID", "")
+            ks = course.get("knowledgeSum", 0)
+            done = course.get("shulian", 0)
+            return f"{i}. {name} (courseID: {cid}, 知识点: {ks}, 已完成: {done})"
+
+        idx = self._select_from_list(course_list, label_fn, "请选择课程")
+        if idx is None:
+            return None
+        selected_course = course_list[idx]
+        print(f"✅ 已选择：{selected_course.get('courseName', '')}")
+        return selected_course
     
     def extract_single_course(self) -> Optional[Dict]:
         """

@@ -921,13 +921,13 @@ class CloudExamView:
 
         return dialog
 
-    def _show_success_dialog(self, title: str, message: str):
-        """显示成功对话框"""
+    def _show_dialog(self, title: str, message: str, icon: ft.Icons, color: str):
+        """显示通用提示对话框"""
         dialog = ft.AlertDialog(
             title=ft.Row(
                 [
-                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN),
-                    ft.Text(title, color=ft.Colors.GREEN),
+                    ft.Icon(icon, color=color),
+                    ft.Text(title, color=color),
                 ],
                 spacing=10,
             ),
@@ -937,37 +937,15 @@ class CloudExamView:
             ],
         )
         self.page.show_dialog(dialog)
+
+    def _show_success_dialog(self, title: str, message: str):
+        """显示成功对话框"""
+        self._show_dialog(title, message, ft.Icons.CHECK_CIRCLE, ft.Colors.GREEN)
 
     def _show_error_dialog(self, message: str):
         """显示错误对话框"""
-        dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
-                    ft.Text("错误", color=ft.Colors.RED),
-                ],
-                spacing=10,
-            ),
-            content=ft.Text(message),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        self._show_dialog("错误", message, ft.Icons.ERROR, ft.Colors.RED)
 
     def _show_warning_dialog(self, title: str, message: str):
         """显示警告对话框"""
-        dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
-                    ft.Text(title, color=ft.Colors.ORANGE),
-                ],
-                spacing=10,
-            ),
-            content=ft.Text(message),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        self._show_dialog(title, message, ft.Icons.WARNING, ft.Colors.ORANGE)

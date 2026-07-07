@@ -34,6 +34,53 @@ class LazyGradingAPIClient:
         # 首次为 0，之后用响应里的真实 dataCount 更新。
         self._data_count = 0
 
+    def _build_headers(self, extra: dict = None) -> dict:
+        """构建通用请求头"""
+        headers = {
+            "accept": "application/json, text/plain, */*",
+            "authorization": f"Bearer {self.access_token}",
+            "referer": "https://admin.cqzuxia.com/",
+        }
+        if extra:
+            headers.update(extra)
+        return headers
+
+    def _request(self, method: str, url: str, error_label: str, **kwargs) -> dict:
+        """
+        发送 HTTP 请求并统一处理响应校验。
+
+        Args:
+            method: "get" 或 "post"
+            url: 请求 URL
+            error_label: 错误消息前缀（如 "获取项目列表"）
+            **kwargs: 透传给 api_client.get/post 的参数
+
+        Returns:
+            响应 JSON body dict
+
+        Raises:
+            RuntimeError: 网络/HTTP/业务失败
+        """
+        api_client = get_api_client()
+        requester = getattr(api_client, method)
+        response = requester(url, **kwargs)
+
+        if response is None:
+            raise RuntimeError(f"{error_label}失败：网络错误或已超时，请重试或重新登录")
+        if response.status_code != 200:
+            raise RuntimeError(f"{error_label}失败：服务器返回 {response.status_code}")
+
+        body = {}
+        try:
+            body = response.json() or {}
+        except ValueError:
+            raise RuntimeError(f"{error_label}失败：响应不是合法的 JSON")
+
+        if body.get("code") != 0 and not body.get("success"):
+            raise RuntimeError(body.get("msg") or f"{error_label}失败")
+
+        return body
+
     def get_class_projects(
         self,
         *,
@@ -59,11 +106,6 @@ class LazyGradingAPIClient:
         Raises:
             RuntimeError: 网络失败、HTTP 非 200 或业务信封标识失败时抛出
         """
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "authorization": f"Bearer {self.access_token}",
-            "referer": "https://admin.cqzuxia.com/",
-        }
         params = {
             "pageIndex": page_index,
             "pageSize": page_size,
@@ -73,29 +115,8 @@ class LazyGradingAPIClient:
             "sourceType": source_type,
         }
 
-        # 遵循主程序速率限制设置（由 cli_config.json api_settings.rate_level 控制）
-        response = get_api_client().get(
-            PROJECT_LIST_URL,
-            headers=headers,
-            params=params,
-        )
-
-        if response is None:
-            raise RuntimeError("获取项目列表失败：网络错误或已超时，请重试或重新登录")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"获取项目列表失败：服务器返回 {response.status_code}"
-            )
-
-        body = {}
-        try:
-            body = response.json() or {}
-        except ValueError:
-            raise RuntimeError("获取项目列表失败：响应不是合法的 JSON")
-
-        # 兼容 code==0 与 success==true 两种成功标识
-        if body.get("code") != 0 and not body.get("success"):
-            raise RuntimeError(body.get("msg") or "获取项目列表失败")
+        body = self._request("get", PROJECT_LIST_URL, "获取项目列表",
+                             headers=self._build_headers(), params=params)
 
         payload = body.get("data") or {}
         raw_items = payload.get("data") or []
@@ -132,11 +153,6 @@ class LazyGradingAPIClient:
         Raises:
             RuntimeError: 网络/HTTP/业务失败
         """
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "authorization": f"Bearer {self.access_token}",
-            "referer": "https://admin.cqzuxia.com/",
-        }
         params = {
             "sourceid": source_id,
             "classID": class_id,
@@ -145,27 +161,8 @@ class LazyGradingAPIClient:
             "keyWord": key_word,
         }
 
-        response = get_api_client().get(
-            PROJECT_RESULT_URL,
-            headers=headers,
-            params=params,
-        )
-
-        if response is None:
-            raise RuntimeError("获取学生成果失败：网络错误或已超时，请重试或重新登录")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"获取学生成果失败：服务器返回 {response.status_code}"
-            )
-
-        body = {}
-        try:
-            body = response.json() or {}
-        except ValueError:
-            raise RuntimeError("获取学生成果失败：响应不是合法的 JSON")
-
-        if body.get("code") != 0 and not body.get("success"):
-            raise RuntimeError(body.get("msg") or "获取学生成果失败")
+        body = self._request("get", PROJECT_RESULT_URL, "获取学生成果",
+                             headers=self._build_headers(), params=params)
 
         # GetClassProjectResult 的 data 字段直接就是列表（非分页结构）
         raw_items = body.get("data") or []
@@ -188,35 +185,9 @@ class LazyGradingAPIClient:
         Raises:
             RuntimeError: 网络/HTTP/业务失败
         """
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "authorization": f"Bearer {self.access_token}",
-            "referer": "https://admin.cqzuxia.com/",
-        }
-        params = {"rid": rid}
-
-        response = get_api_client().get(
-            STUDENT_DETAIL_URL,
-            headers=headers,
-            params=params,
-        )
-
-        if response is None:
-            raise RuntimeError(f"获取学生详情失败（rid={rid}）：网络错误")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"获取学生详情失败（rid={rid}）：服务器返回 {response.status_code}"
-            )
-
-        body = {}
-        try:
-            body = response.json() or {}
-        except ValueError:
-            raise RuntimeError(f"获取学生详情失败（rid={rid}）：响应不是合法的 JSON")
-
-        if body.get("code") != 0 and not body.get("success"):
-            raise RuntimeError(body.get("msg") or f"获取学生详情失败（rid={rid}）")
-
+        body = self._request("get", STUDENT_DETAIL_URL,
+                             f"获取学生详情（rid={rid}）",
+                             headers=self._build_headers(), params={"rid": rid})
         return body.get("data") or {}
 
     # ------------------------------------------------------------------
@@ -245,13 +216,10 @@ class LazyGradingAPIClient:
         Raises:
             RuntimeError: 网络/HTTP/业务失败
         """
-        headers = {
-            "accept": "application/json, text/plain, */*",
-            "authorization": f"Bearer {self.access_token}",
+        headers = self._build_headers(extra={
             "content-type": "application/json",
             "origin": "https://admin.cqzuxia.com",
-            "referer": "https://admin.cqzuxia.com/",
-        }
+        })
         payload = {
             "rid": rid,
             "proScore": pro_score,
@@ -259,26 +227,7 @@ class LazyGradingAPIClient:
             "auditStatus": audit_status,
         }
 
-        response = get_api_client().post(
-            AUDIT_RESULT_URL,
-            headers=headers,
-            json=payload,
-        )
-
-        if response is None:
-            raise RuntimeError(f"提交评分失败（rid={rid}）：网络错误")
-        if response.status_code != 200:
-            raise RuntimeError(
-                f"提交评分失败（rid={rid}）：服务器返回 {response.status_code}"
-            )
-
-        body = {}
-        try:
-            body = response.json() or {}
-        except ValueError:
-            raise RuntimeError(f"提交评分失败（rid={rid}）：响应不是合法的 JSON")
-
-        if body.get("code") != 0 and not body.get("success"):
-            raise RuntimeError(body.get("msg") or f"提交评分失败（rid={rid}）")
-
+        body = self._request("post", AUDIT_RESULT_URL,
+                             f"提交评分（rid={rid}）",
+                             headers=headers, json=payload)
         return body.get("data") or {}

@@ -14,6 +14,14 @@ import threading
 import subprocess
 from typing import Optional, Callable, List, Dict, Any
 
+# 日志级别对应的 emoji 前缀
+LEVEL_EMOJI = {
+    "info": "ℹ️",
+    "success": "✅",
+    "warning": "⚠️",
+    "error": "❌",
+}
+
 def _find_weban_path() -> Optional[Path]:
     """
     查找 WeBan 模块路径
@@ -148,13 +156,7 @@ class WeBanAdapter:
 
     def _default_callback(self, message: str, level: str = "info"):
         """默认进度回调"""
-        prefix_map = {
-            "info": "ℹ️",
-            "success": "✅",
-            "warning": "⚠️",
-            "error": "❌",
-        }
-        print(f"{prefix_map.get(level, 'ℹ️')} {message}")
+        print(f"{LEVEL_EMOJI.get(level, 'ℹ️')} {message}")
 
     def _default_input(self, prompt: str) -> str:
         """默认输入回调（CLI 模式）"""
@@ -744,6 +746,13 @@ class WeBanAdapter:
                 "data": {}
             }
 
+    def _should_stop(self, account_index: int) -> bool:
+        """检查用户是否请求停止，若停止则记录日志"""
+        if self._stop_event.is_set():
+            self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+            return True
+        return False
+
     def run_account(self, config: Dict[str, Any], account_index: int) -> bool:
         """
         运行单个账号的任务
@@ -755,8 +764,7 @@ class WeBanAdapter:
         Returns:
             是否执行成功
         """
-        if self._stop_event.is_set():
-            self._log(f"账号 {account_index+1}: 用户中断", "warning")
+        if self._should_stop(account_index):
             return False
 
         if not self._ensure_weban_available():
@@ -793,8 +801,7 @@ class WeBanAdapter:
             client._adapter = self
 
             # 登录前检查停止标志
-            if self._stop_event.is_set():
-                self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+            if self._should_stop(account_index):
                 return False
 
             if not client.login():
@@ -804,30 +811,26 @@ class WeBanAdapter:
             self._log(f"[账号 {account_index+1}] 登录成功，开始同步答案", "info")
 
             # 同步答案前检查停止标志
-            if self._stop_event.is_set():
-                self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+            if self._should_stop(account_index):
                 return False
             client.sync_answers()
 
             if study:
                 # 学习前检查停止标志
-                if self._stop_event.is_set():
-                    self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+                if self._should_stop(account_index):
                     return False
                 self._log(f"[账号 {account_index+1}] 开始学习 (每个任务时长: {study_time}秒)", "info")
                 client.run_study(study_time, restudy_time)
 
             if exam:
                 # 考试前检查停止标志
-                if self._stop_event.is_set():
-                    self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+                if self._should_stop(account_index):
                     return False
                 self._log(f"[账号 {account_index+1}] 开始考试 (总时长: {exam_use_time}秒)", "info")
                 client.run_exam(exam_use_time)
 
             # 最终同步前检查停止标志
-            if self._stop_event.is_set():
-                self._log(f"[账号 {account_index+1}]: 用户中断", "warning")
+            if self._should_stop(account_index):
                 return False
             self._log(f"[账号 {account_index+1}] 最终同步答案", "info")
             client.sync_answers()

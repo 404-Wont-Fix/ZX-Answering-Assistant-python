@@ -689,14 +689,7 @@ class WeBanView:
             "warning": ft.Colors.ORANGE,
             "error": ft.Colors.RED,
         }
-        prefix_map = {
-            "info": "ℹ️",
-            "success": "✅",
-            "warning": "⚠️",
-            "error": "❌",
-        }
-
-        prefix = prefix_map.get(level, "ℹ️")
+        prefix = weban_adapter.LEVEL_EMOJI.get(level, "ℹ️")
 
         # 线程安全的UI更新
         def update_ui():

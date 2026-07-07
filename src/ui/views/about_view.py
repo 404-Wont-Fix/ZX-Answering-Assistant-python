@@ -5,6 +5,7 @@ About View - 关于页面
 """
 
 import flet as ft
+import webbrowser
 from pathlib import Path
 from src.ui.components import page_heading, primary_button, secondary_button, status_chip, surface_card
 from src.ui.theme import Palette, Radius
@@ -178,14 +179,6 @@ class AboutView:
     def _open_url(self, url: str):
         """打开 URL"""
         try:
-            import subprocess
-            import sys
-            # 使用系统默认浏览器打开 URL
-            if sys.platform == 'win32':
-                subprocess.run(['start', '', url], shell=True)
-            elif sys.platform == 'darwin':
-                subprocess.run(['open', url])
-            else:
-                subprocess.run(['xdg-open', url])
+            webbrowser.open(url)
         except Exception as e:
             print(f"打开链接失败: {e}")
