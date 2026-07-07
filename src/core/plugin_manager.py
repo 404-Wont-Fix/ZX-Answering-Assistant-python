@@ -118,35 +118,25 @@ class PluginManager:
         except importlib_metadata.PackageNotFoundError:
             return False
 
-    def _get_missing_plugin_dependencies(self, plugin_dir: Path) -> List[str]:
-        """返回插件声明但当前环境尚未提供的包。"""
-        requirements_file = plugin_dir / "requirements.txt"
+    def _report_missing_dependencies(self, plugin_info: PluginInfo):
+        """检查并提示缺少的依赖（仅打印警告，不阻止加载）。"""
+        requirements_file = plugin_info.path / "requirements.txt"
         if not requirements_file.exists():
-            return []
+            return
 
         try:
             with open(requirements_file, 'r', encoding='utf-8') as f:
                 requirements = [line.strip() for line in f if line.strip() and not line.startswith('#')]
         except Exception as e:
-            print(f"[PluginManager] Failed to read requirements.txt in {plugin_dir.name}: {e}")
-            return []
+            print(f"[PluginManager] Failed to read requirements.txt in {plugin_info.path.name}: {e}")
+            return
 
-        return [
-            requirement
-            for requirement in requirements
-            if not self._check_package_installed(requirement)
-        ]
-
-    def _report_missing_dependencies(self, plugin_info: PluginInfo) -> List[str]:
-        """提示缺少的依赖，不在应用启动或扫描期间修改运行环境。"""
-        missing = self._get_missing_plugin_dependencies(plugin_info.path)
+        missing = [r for r in requirements if not self._check_package_installed(r)]
         if missing:
-            requirements_file = plugin_info.path / "requirements.txt"
             print(f"[PluginManager] Missing dependencies for plugin: {plugin_info.name}")
-            for requirement in missing:
-                print(f"  - {requirement}")
+            for req in missing:
+                print(f"  - {req}")
             print(f"  Install with: {sys.executable} -m pip install -r {requirements_file}")
-        return missing
 
     def _get_unavailable_plugin_dependencies(self, plugin_info: PluginInfo) -> List[str]:
         """返回缺失或未启用的插件级依赖。"""

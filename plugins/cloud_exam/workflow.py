@@ -42,9 +42,7 @@ class NetworkMonitor:
         """判断 URL 是否为目标试卷题目接口。"""
         if not url:
             return False
-
-        normalized_pattern = self.target_pattern.replace("*", "").lower()
-        return normalized_pattern in url.lower()
+        return self.target_pattern.lower() in url.lower()
 
     def _log(self, message: str):
         """输出日志"""

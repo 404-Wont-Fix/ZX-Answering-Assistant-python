@@ -1027,37 +1027,7 @@ class ExtractionView:
                     # 复制路径的函数
                     def copy_path(e):
                         try:
-                            # 使用系统命令直接复制到剪贴板（无需 tkinter）
-                            if os.name == 'nt':  # Windows
-                                # Windows 使用 clip 命令（使用 utf-16-le 编码，不添加BOM）
-                                subprocess.run(
-                                    ['clip'],
-                                    input=abs_file_path.encode('utf-16-le'),
-                                    check=True,
-                                    creationflags=subprocess.CREATE_NO_WINDOW
-                                )
-                            elif sys.platform == 'darwin':  # macOS
-                                # macOS 使用 pbcopy 命令
-                                subprocess.run(
-                                    ['pbcopy'],
-                                    input=abs_file_path.encode('utf-8'),
-                                    check=True
-                                )
-                            else:  # Linux
-                                # Linux 使用 xclip 命令（需要安装 xclip）
-                                try:
-                                    subprocess.run(
-                                        ['xclip', '-selection', 'clipboard'],
-                                        input=abs_file_path.encode('utf-8'),
-                                        check=True
-                                    )
-                                except FileNotFoundError:
-                                    # 如果 xclip 不可用，尝试 xsel
-                                    subprocess.run(
-                                        ['xsel', '--clipboard', '--input'],
-                                        input=abs_file_path.encode('utf-8'),
-                                        check=True
-                                    )
+                            self.page.set_clipboard(abs_file_path)
 
                             # 显示复制成功提示
                             copy_tooltip = ft.SnackBar(

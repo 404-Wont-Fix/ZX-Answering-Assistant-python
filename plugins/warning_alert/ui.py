@@ -955,25 +955,45 @@ class WarningAlertPlugin:
             self.page.snack_bar.open = True
             self.page.update()
 
+    def _pick_file(self, is_save: bool = False, title: str = "", initialfile: str = "") -> str:
+        """
+        使用系统文件对话框选择文件路径
+
+        Args:
+            is_save: True 为保存对话框，False 为打开对话框
+            title: 对话框标题
+            initialfile: 保存时的默认文件名
+
+        Returns:
+            选择的文件路径，取消返回空字符串
+        """
+        from tkinter import filedialog
+        import tkinter as tk
+
+        root = tk.Tk()
+        root.withdraw()
+
+        filetypes = [("JSON文件", "*.json"), ("所有文件", "*.*")]
+        if is_save:
+            file_path = filedialog.asksaveasfilename(
+                title=title,
+                defaultextension=".json",
+                filetypes=filetypes,
+                initialfile=initialfile,
+            )
+        else:
+            file_path = filedialog.askopenfilename(
+                title=title,
+                filetypes=filetypes,
+            )
+
+        root.destroy()
+        return file_path
+
     def export_config(self, e):
         """导出配置到文件"""
         try:
-            from tkinter import filedialog
-            import tkinter as tk
-
-            # 创建隐藏的tkinter窗口
-            root = tk.Tk()
-            root.withdraw()
-
-            # 选择保存位置
-            file_path = filedialog.asksaveasfilename(
-                title="导出配置文件",
-                defaultextension=".json",
-                filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")],
-                initialfile="warning_config_export.json"
-            )
-
-            root.destroy()
+            file_path = self._pick_file(is_save=True, title="导出配置文件", initialfile="warning_config_export.json")
 
             if file_path:
                 # 保存配置到指定位置
@@ -1001,20 +1021,7 @@ class WarningAlertPlugin:
     def import_config(self, e):
         """从文件导入配置"""
         try:
-            from tkinter import filedialog
-            import tkinter as tk
-
-            # 创建隐藏的tkinter窗口
-            root = tk.Tk()
-            root.withdraw()
-
-            # 选择文件
-            file_path = filedialog.askopenfilename(
-                title="导入配置文件",
-                filetypes=[("JSON文件", "*.json"), ("所有文件", "*.*")]
-            )
-
-            root.destroy()
+            file_path = self._pick_file(is_save=False, title="导入配置文件")
 
             if file_path:
                 # 加载配置文件

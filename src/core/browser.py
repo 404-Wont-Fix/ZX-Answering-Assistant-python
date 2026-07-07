@@ -734,23 +734,7 @@ class BrowserManager:
 
         try:
             if context:
-                # 先关闭该上下文下的所有页面
-                pages_to_close = []
-                try:
-                    pages_to_close = context.pages
-                    logger.debug(f"找到 {len(pages_to_close)} 个页面需要关闭")
-                except (PlaywrightError, RuntimeError) as e:
-                    logger.debug(f"获取页面列表失败: {e}")
-
-                for page in pages_to_close:
-                    try:
-                        if not page.is_closed():
-                            page.close()
-                            logger.debug(f"页面已关闭")
-                    except (PlaywrightError, RuntimeError) as e:
-                        logger.debug(f"关闭页面失败: {e}")
-
-                # 关闭上下文
+                # context.close() 会自动关闭其下所有页面
                 context.close()
                 logger.debug(f"上下文已关闭 ({browser_type.value})")
         except (PlaywrightError, RuntimeError, OSError) as e:

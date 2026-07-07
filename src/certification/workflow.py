@@ -14,6 +14,7 @@ from typing import Optional, List, Dict
 import time
 import logging
 import threading
+import requests
 from src.core.api_client import get_api_client
 from src.certification.api_answer import APICourseAnswer
 
