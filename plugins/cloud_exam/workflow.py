@@ -16,6 +16,7 @@ from urllib.parse import urlparse, parse_qs
 
 from .models import ExamPaper, ExamQuestion, QuestionOption
 from .api_client import CloudExamAPIClient
+from src.utils.bank_matcher import find_correct_answer_ids
 
 logger = logging.getLogger(__name__)
 
@@ -494,39 +495,9 @@ class CloudExamWorkflow:
             'total_count': total_count
         }
 
-    def _iter_question_bank_chapters(self) -> List[Dict]:
-        """收集题库中的章节，兼容单课程、顶层章节和多课程导出结构。"""
-        if not self.question_bank_data:
-            return []
-
-        chapters = []
-
-        class_info = self.question_bank_data.get("class", {})
-        course_info = class_info.get("course", {}) if isinstance(class_info, dict) else {}
-        chapters.extend(course_info.get("chapters", []))
-
-        chapters.extend(self.question_bank_data.get("chapters", []))
-
-        for course in self.question_bank_data.get("courses", []):
-            chapters.extend(course.get("chapters", []))
-
-        for course in self.question_bank_data.get("course_list", []):
-            chapters.extend(course.get("chapters", []))
-
-        return chapters
-
-    @staticmethod
-    def _read_question_id(question_data: Dict) -> str:
-        """从题库题目记录中读取题目 ID，只做字段兼容，不做标题模糊匹配。"""
-        for key in ("QuestionID", "questionID", "question_id", "id"):
-            value = question_data.get(key)
-            if value is not None:
-                return str(value).strip()
-        return ""
-
     def _find_answer_in_bank(self, question_id: str) -> Optional[List[str]]:
         """
-        在题库中查找题目的答案ID
+        在题库中查找题目的答案ID（委托共享匹配器 src.utils.bank_matcher）
 
         Args:
             question_id: 题目ID
@@ -536,27 +507,8 @@ class CloudExamWorkflow:
         """
         if not self.question_bank_data:
             return None
-
         try:
-            target_question_id = str(question_id).strip()
-
-            for chapter in self._iter_question_bank_chapters():
-                for knowledge in chapter.get("knowledges", []):
-                    for bank_question in knowledge.get("questions", []):
-                        if self._read_question_id(bank_question) == target_question_id:
-                            # 获取正确答案的ID
-                            answer_ids = []
-                            for opt in bank_question.get("options", []):
-                                if opt.get("isTrue"):
-                                    option_id = opt.get("id") or opt.get("answerID") or opt.get("AnswerID")
-                                    if option_id:
-                                        answer_ids.append(str(option_id).strip())
-
-                            if answer_ids:
-                                return answer_ids
-
-            return None
-
+            return find_correct_answer_ids(self.question_bank_data, question_id)
         except Exception as e:
             logger.debug(f"查找题库失败: {e}")
             return None
