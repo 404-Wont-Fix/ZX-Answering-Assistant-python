@@ -904,16 +904,13 @@ class Extractor:
             return None
 
     def close(self):
-        """关闭浏览器"""
-        if self.browser:
-            self.browser.close()
-            self.browser = None
-            self.context = None
-            self.page = None
-        if self.playwright:
-            self.playwright.stop()
-            self.playwright = None
-            print("浏览器已关闭")
+        """释放资源（空操作）。
+
+        Extractor 不持有自己的 browser/playwright 实例——它通过共享的
+        BrowserManager 单例访问浏览器（见 login() 中的 get_browser_manager()），
+        因此无需也无法在此释放浏览器资源。保留方法仅为兼容既有调用方。
+        """
+        pass
 
 
 def extract_questions() -> Optional[Dict]:
@@ -1051,7 +1048,7 @@ def extract_course_answers(course_id: str, username: str = None, password: str =
         print("="*50)
         print(f"课程ID: {course_id}")
         print(f"班级ID: {class_id}")
-        print(f"班级名称: {selected_class.get('name', '')}")
+        print(f"班级名称: {class_name}")
         print(f"章节数量: {len(selected_course_chapters)}")
         print(f"知识点数量: {len(selected_course_knowledges)}")
         print(f"题目数量: {sum(len(questions) for questions in knowledge_questions.values())}")
@@ -1059,7 +1056,7 @@ def extract_course_answers(course_id: str, username: str = None, password: str =
         
         # 返回完整的数据结构
         return {
-            "class_info": selected_class,
+            "class_info": {"id": class_id, "className": class_name},
             "course_info": {"courseID": course_id},
             "chapters": selected_course_chapters,
             "knowledges": selected_course_knowledges,

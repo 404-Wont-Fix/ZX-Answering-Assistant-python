@@ -1043,21 +1043,6 @@ def clear_access_token():
     logger.info("🗑️ access_token缓存已清除")
 
 
-def is_token_valid() -> bool:
-    """
-    检查缓存的access_token是否有效
-
-    Returns:
-        bool: token是否有效
-    """
-    global _cached_access_token, _token_expiry_time
-    if not _cached_access_token:
-        return False
-    if _token_expiry_time and time.time() > _token_expiry_time:
-        return False
-    return True
-
-
 # ==================== 浏览器健康检查和恢复 ====================
 
 def is_browser_alive() -> bool:
@@ -1093,17 +1078,14 @@ def cleanup_browser():
     """
     强制清理学生端浏览器实例（包括挂掉的浏览器）
     """
-    global _cached_access_token, _token_expiry_time
-
     try:
         manager = get_browser_manager()
         manager.cleanup_type(BrowserType.STUDENT)
     except Exception as e:
         logger.error(f"清理浏览器时发生错误: {str(e)}")
     finally:
-        # 清空 token 缓存
-        _cached_access_token = None
-        _token_expiry_time = None
+        # 清空 token 缓存（token 由 TokenManager 统一管理）
+        _token_manager.clear_student_token()
         logger.info("✅ 学生端浏览器实例已强制清理")
 
 

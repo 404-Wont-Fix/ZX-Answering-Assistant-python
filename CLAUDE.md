@@ -206,12 +206,10 @@ Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and mod
 ### Data Management
 - **[src/extraction/exporter.py](src/extraction/exporter.py)** - JSON export
 - **[src/extraction/importer.py](src/extraction/importer.py)** - Question bank import
-- **[src/extraction/file_handler.py](src/extraction/file_handler.py)** - File I/O utilities
 
 ### API Client and Rate Limiting
 - **[src/core/api_client.py](src/core/api_client.py)** - Unified HTTP client
   - Singleton instance via `get_api_client()`
-  - Request caching with TTL
   - Smart retry with exponential backoff
   - **Rate limiting**: `low` (50ms), `medium` (1s), `medium_high` (2s), `high` (3s)
 
@@ -503,8 +501,7 @@ src/
 ├── extraction/         # Data extraction pipeline
 │   ├── extractor.py
 │   ├── exporter.py
-│   ├── importer.py
-│   └── file_handler.py
+│   └── importer.py
 ├── answering/          # Auto-answering modules
 │   ├── browser_answer.py
 │   └── api_answer.py

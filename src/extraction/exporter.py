@@ -157,7 +157,7 @@ class DataExporter:
                             "questionsID": option.get("questionsID", ""),
                             "oppentionContent": option.get("oppentionContent", ""),
                             "isTrue": option.get("isTrue", False),
-                            "oppentionOrder": option.get("oppotionOrder", 0),
+                            "oppentionOrder": option.get("oppentionOrder", 0),
                         })
 
                     knowledge_data["questions"].append(question_data)
