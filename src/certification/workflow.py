@@ -964,10 +964,10 @@ class CourseAutoAnswer(BaseAnswer):
         self.page = page
         self.api_question_ids = []
         self.api_listener_active = False
+        self.current_question_index = 0  # 当前题目索引（用于API模式）
 
     def _get_page(self):
         return self.page
-        self.current_question_index = 0  # 当前题目索引（用于API模式）
 
     def _setup_api_listener(self):
         """设置API监听器，捕获题目ID"""

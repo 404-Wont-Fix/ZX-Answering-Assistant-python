@@ -949,64 +949,7 @@ class WeBanAdapter:
         self._stop_event.set()
         self.is_running = False
 
-        # 尝试清理资源
-        try:
-            # 如果有终端进程，尝试关闭
-            if hasattr(self, '_terminal_process') and self._terminal_process:
-                try:
-                    if hasattr(self._terminal_process, 'kill'):
-                        self._terminal_process.kill()
-                    self._log("✅ 已关闭终端进程", "success")
-                except Exception as e:
-                    self._log(f"⚠️ 关闭终端失败: {e}", "warning")
-        except Exception as e:
-            self._log(f"⚠️ 强行停止时出错: {e}", "error")
-
         self._log("✅ 已强行停止任务", "success")
-
-    def start_in_terminal(self) -> bool:
-        """
-        在独立终端窗口中运行 WeBan
-
-        这个方法会打开一个新的终端窗口，在其中运行 WeBan 模块。
-        所有用户交互（验证码输入、手动答题等）都在新终端中进行。
-
-        Returns:
-            是否成功启动
-        """
-        if not self._config:
-            self._log("没有可执行的账号配置", "error")
-            return False
-
-        try:
-            # 从同一目录导入 WeBanRunner
-            import importlib.util
-            runner_path = Path(__file__).parent / "weban_runner.py"
-            spec = importlib.util.spec_from_file_location("weban_runner", runner_path)
-            weban_runner = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(weban_runner)
-            WeBanRunner = weban_runner.WeBanRunner
-
-            runner = WeBanRunner()
-
-            self._log(f"正在启动 WeBan 独立终端...", "info")
-            self._log(f"配置账号数: {len(self._config)}", "info")
-
-            # 在独立终端中运行
-            process = runner.run_in_terminal(self._config)
-
-            self._log("✅ WeBan 独立终端已启动", "success")
-            self._log("💡 所有交互（验证码、答题等）请在新终端窗口中进行", "info")
-
-            self.is_running = True
-            self._terminal_process = process
-            return True
-
-        except Exception as e:
-            self._log(f"❌ 启动独立终端失败: {e}", "error")
-            import traceback
-            traceback.print_exc()
-            return False
 
     # 实现 loguru logger 的接口，使 WeBanClient 可以使用
     def info(self, msg: str, *args, **kwargs):
