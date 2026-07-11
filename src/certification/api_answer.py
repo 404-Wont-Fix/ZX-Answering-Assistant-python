@@ -10,6 +10,7 @@ import re
 from typing import Dict, List, Optional
 from src.core.api_client import get_api_client
 from src.utils.text import normalize_text, get_chapters
+from src.utils.bank_matcher import find_correct_answer_ids
 from src.utils.logging import setup_callback_logging, cleanup_callback_logging
 from src.core.headers import get_api_headers
 
@@ -275,48 +276,15 @@ class APICourseAnswer:
             # 获取题库章节列表
             chapters = get_chapters(question_bank)
 
-            # 方式1：通过questionID精确匹配
+            # 方式1：通过questionID精确匹配（委托共享匹配器 src.utils.bank_matcher）
             if question_id:
-                # 如果提供了knowledge参数，只在该知识点内搜索
-                search_targets = []
-                if knowledge:
-                    search_targets = [(knowledge, knowledge.get("Knowledge", "当前知识点"))]
-                else:
-                    # 否则全局搜索（原有逻辑）
-                    for chapter in chapters:
-                        for kn in chapter.get("knowledges", []):
-                            search_targets.append((kn, kn.get("Knowledge", "")))
-
-                for kn, kn_name in search_targets:
-                    for bank_question in kn.get("questions", []):
-                        if bank_question.get("QuestionID") == question_id:
-                            if verbose:
-                                logger.info(f"✅ ID匹配成功（知识点: {kn_name}）")
-
-                            # 获取正确答案的选项
-                            bank_options = bank_question.get("options", [])
-
-                            if verbose:
-                                logger.info(f"   📚 题库选项数: {len(bank_options)}")
-
-                            # 直接使用题库中的选项ID（与API的answerID一致）
-                            correct_ids = []
-                            for opt in bank_options:
-                                if opt.get("isTrue"):
-                                    option_id = opt.get("id")
-                                    if option_id:
-                                        correct_ids.append(option_id)
-                                        if verbose:
-                                            logger.info(f"   ✅ 正确答案: ID={option_id[:8]}...")
-
-                            if correct_ids:
-                                if verbose:
-                                    logger.info(f"   ⚡ 直接使用题库选项ID: {len(correct_ids)} 个")
-                                return correct_ids
-                            else:
-                                if verbose:
-                                    logger.warning(f"   ❌ 未找到正确答案")
-                                return None
+                correct_ids = find_correct_answer_ids(
+                    question_bank, question_id, scope_knowledge=knowledge
+                )
+                if correct_ids:
+                    if verbose:
+                        logger.info(f"✅ ID匹配成功（{len(correct_ids)} 个正确选项）")
+                    return correct_ids
 
                 if verbose:
                     if knowledge:

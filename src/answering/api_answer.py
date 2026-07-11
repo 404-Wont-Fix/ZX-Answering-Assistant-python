@@ -12,7 +12,7 @@ import threading
 import requests
 from typing import Dict, List, Optional
 from urllib.parse import urlencode, quote
-from src.utils.text import get_chapters
+from src.utils.bank_matcher import find_correct_answer_ids
 from src.utils.logging import setup_callback_logging, cleanup_callback_logging
 from src.core.headers import get_api_headers
 
@@ -543,7 +543,7 @@ class APIAutoAnswer:
 
     def find_answer_in_bank(self, question_id: str) -> Optional[List[str]]:
         """
-        在题库中查找题目的答案ID
+        在题库中查找题目的答案ID（委托共享匹配器 src.utils.bank_matcher）
 
         Args:
             question_id: 题目ID
@@ -557,32 +557,12 @@ class APIAutoAnswer:
 
         try:
             logger.info(f"🔍 在题库中查找题目ID: {question_id[:8]}...")
-
-            # 遍历题库查找匹配的题目
-            chapters = get_chapters(self.question_bank)
-
-            for chapter in chapters:
-                for knowledge in chapter.get("knowledges", []):
-                    for bank_question in knowledge.get("questions", []):
-                        # 检查题目ID是否匹配
-                        if bank_question.get("QuestionID") == question_id:
-                            logger.info(f"✅ 在题库中找到题目")
-
-                            # 获取正确答案的ID
-                            answer_ids = []
-                            for opt in bank_question.get("options", []):
-                                if opt.get("isTrue"):
-                                    answer_ids.append(opt.get("id", ""))
-
-                            if answer_ids:
-                                logger.info(f"   正确答案ID: {answer_ids}")
-                                return answer_ids
-                            else:
-                                logger.warning("⚠️ 题库中未标记正确答案")
-                                return None
-
-            logger.warning(f"⚠️ 题库中未找到题目ID: {question_id[:8]}...")
-            return None
+            answer_ids = find_correct_answer_ids(self.question_bank, question_id)
+            if answer_ids:
+                logger.info(f"✅ 在题库中找到题目，正确答案ID: {answer_ids}")
+            else:
+                logger.warning(f"⚠️ 题库中未找到题目ID: {question_id[:8]}...")
+            return answer_ids
 
         except Exception as e:
             logger.error(f"❌ 查找题库失败: {str(e)}")
