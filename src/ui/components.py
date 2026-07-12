@@ -497,3 +497,193 @@ def show_bank_load_result_dialog(page: ft.Page, result, *, success_note: str = "
             actions=[ft.TextButton("确定", on_click=lambda _: page.pop_dialog())],
         )
     )
+
+
+class _ProgressTheme:
+    """进度对话框主题配色。"""
+
+    __slots__ = ("primary", "primary_dark", "bar_bgcolor")
+
+    def __init__(self, primary, primary_dark, bar_bgcolor):
+        self.primary = primary
+        self.primary_dark = primary_dark
+        self.bar_bgcolor = bar_bgcolor
+
+
+_PROGRESS_THEMES = {
+    "blue": _ProgressTheme(ft.Colors.BLUE, ft.Colors.BLUE_800, ft.Colors.BLUE_GREY_100),
+    "orange": _ProgressTheme(ft.Colors.ORANGE, ft.Colors.ORANGE_700, ft.Colors.ORANGE_100),
+}
+
+
+class AnswerProgressDialog:
+    """答题进度对话框（参数化主题、是否含日志区、是否大百分比）。
+
+    统一 AnsweringView / CourseCertificationView 的 _create_answer_log_dialog，
+    内聚进度条/百分比/计数/日志区的构建与更新。进度更新通过 page.run_task 调度，
+    确保在后台线程驱动时 UI 仍能实时刷新。
+    """
+
+    def __init__(
+        self,
+        page: ft.Page,
+        *,
+        title: str,
+        theme: str = "blue",
+        title_icon=None,
+        show_log_panel: bool = False,
+        show_big_percent: bool = False,
+        width: int = 400,
+        log_panel_height: int = 300,
+        on_stop: Optional[Callable] = None,
+    ):
+        self._page = page
+        self._theme = _PROGRESS_THEMES.get(theme, _PROGRESS_THEMES["blue"])
+        self._show_log_panel = show_log_panel
+        self._on_stop = on_stop
+
+        # 百分比文本（大字/小字）
+        percent_size = 32 if show_big_percent else 16
+        self._percent_text = ft.Text(
+            "0%", size=percent_size, weight=ft.FontWeight.BOLD, color=self._theme.primary
+        )
+        # 大字时左对齐（用 Container 包裹），小字时跟随 Column 居中
+        percent_control = (
+            ft.Container(content=self._percent_text, alignment=ft.Alignment(0, 0))
+            if show_big_percent
+            else self._percent_text
+        )
+
+        # 进度条
+        self._progress_bar = ft.ProgressBar(
+            width=width - 50,
+            value=0.0,
+            color=self._theme.primary,
+            bgcolor=self._theme.bar_bgcolor,
+            bar_height=10,
+        )
+
+        # 计数/状态文本
+        self._count_text = ft.Text("准备开始...", size=14, color=ft.Colors.GREY_700)
+
+        # 日志区（可选）
+        self._log_text = None
+        controls = [
+            percent_control,
+            ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+            self._progress_bar,
+            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+            self._count_text,
+        ]
+        if show_log_panel:
+            self._log_text = ft.Text(
+                "", size=12, color=ft.Colors.BLACK, selectable=True, max_lines=None
+            )
+            log_panel = ft.Container(
+                content=ft.Column([self._log_text], scroll=ft.ScrollMode.ALWAYS, auto_scroll=False),
+                width=width - 50,
+                height=log_panel_height,
+                bgcolor=ft.Colors.GREY_100,
+                border=ft.Border.all(1, ft.Colors.GREY_300),
+                border_radius=8,
+                padding=10,
+            )
+            controls += [
+                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                ft.Text("答题日志：", size=12, weight=ft.FontWeight.BOLD),
+                ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
+                log_panel,
+                ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                ft.Text(
+                    "⏳ 正在答题中...点击下方按钮可随时停止",
+                    size=12,
+                    color=self._theme.primary_dark,
+                    weight=ft.FontWeight.BOLD,
+                ),
+            ]
+
+        icon = title_icon if title_icon is not None else ft.Icons.AUTO_GRAPH
+        self._dialog = ft.AlertDialog(
+            modal=True,
+            title=ft.Row(
+                [
+                    ft.Icon(icon, color=self._theme.primary, size=28),
+                    ft.Text(
+                        title,
+                        size=18 if show_big_percent else 16,
+                        weight=ft.FontWeight.BOLD,
+                        color=self._theme.primary_dark,
+                    ),
+                ],
+                spacing=10,
+            ),
+            content=ft.Container(
+                content=ft.Column(
+                    controls,
+                    spacing=0,
+                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
+                    tight=True,
+                ),
+                width=width,
+                padding=ft.Padding.symmetric(horizontal=20, vertical=25),
+            ),
+            actions=[
+                ft.ElevatedButton(
+                    "🛑 停止答题",
+                    icon=ft.Icons.STOP,
+                    bgcolor=ft.Colors.RED,
+                    color=ft.Colors.WHITE,
+                    style=ft.ButtonStyle(
+                        shape=ft.RoundedRectangleBorder(radius=8),
+                        padding=ft.Padding.symmetric(horizontal=30, vertical=14),
+                    ),
+                    on_click=on_stop,
+                )
+            ],
+            actions_alignment=ft.MainAxisAlignment.CENTER,
+        )
+
+    @property
+    def dialog(self) -> ft.AlertDialog:
+        return self._dialog
+
+    def update_progress(self, current=None, total=None, message: str = "") -> None:
+        """更新进度。有 current/total 时显示具体百分比与计数；否则显示不确定动画。"""
+        if not self._page:
+            return
+
+        async def update_ui():
+            try:
+                if current is not None and total is not None and total > 0:
+                    progress_value = min(current / total, 1.0)
+                    self._progress_bar.value = progress_value
+                    self._percent_text.value = f"{int(progress_value * 100)}%"
+                    self._count_text.value = f"{current}/{total}"
+                else:
+                    self._progress_bar.value = None
+                    self._percent_text.value = "⏳"
+                    self._count_text.value = message or "正在处理..."
+                self._page.update()
+            except Exception as e:
+                print(f"❌ 进度UI更新异常: {e}")
+
+        self._page.run_task(update_ui)
+
+    def append_log(self, message: str) -> None:
+        """追加日志到日志区（仅 show_log_panel=True 时有效）。"""
+        if not self._log_text or not self._page:
+            return
+
+        current_text = self._log_text.value if self._log_text.value else ""
+        new_text = current_text + message + "\n"
+        if len(new_text) > 2000:
+            new_text = "...(日志已截断)\n" + new_text[-2000:]
+
+        async def update_log():
+            try:
+                self._log_text.value = new_text
+                self._page.update()
+            except Exception as e:
+                print(f"⚠️ 日志UI更新失败: {e}")
+
+        self._page.run_task(update_log)

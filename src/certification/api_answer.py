@@ -21,13 +21,15 @@ logger = logging.getLogger(__name__)
 class APICourseAnswer:
     """API模式做题器"""
 
-    def __init__(self, access_token: str, log_callback=None):
+    def __init__(self, access_token: str, log_callback=None, progress_callback=None):
         """
         初始化 API 做题器
 
         Args:
             access_token: 访问令牌
             log_callback: 日志回调函数（可选），用于将日志输出到GUI
+            progress_callback: 进度回调函数（可选），签名为 (current, total, message)，
+                用于更新进度条
         """
         self.access_token = access_token
         self.api_client = get_api_client()
@@ -49,6 +51,8 @@ class APICourseAnswer:
 
         # 日志回调函数
         self._log_callback = log_callback
+        # 进度回调函数（current, total, message）
+        self._progress_callback = progress_callback
 
         # 设置日志处理器
         self._setup_log_handler()
@@ -445,6 +449,10 @@ class APICourseAnswer:
             logger.info(f"✅ 课程名称: {course_name}")
             logger.info(f"   章节数: {len(chapter_list)}")
 
+            # 预计算知识点总数（用于进度回调）
+            total_kp = sum(len(ch.get("teacherKPList", [])) for ch in chapter_list)
+            processed_kp = 0
+
             # 2. 遍历每个章节和知识点
             for chapter_idx, chapter in enumerate(chapter_list):
                 chapter_title = chapter.get('titleContent', f'第{chapter_idx+1}章')
@@ -458,6 +466,11 @@ class APICourseAnswer:
                     is_pass = knowledge.get('isPass')
 
                     logger.info(f"\n正在做 {chapter_title} - {kp_name}")
+
+                    # 进度回调（遍历到知识点即推进，含跳过的，最终达 100%）
+                    processed_kp += 1
+                    if self._progress_callback:
+                        self._progress_callback(processed_kp, total_kp, f"{chapter_title} - {kp_name}")
 
                     # 检查是否需要做这个知识点
                     if is_pass is True:

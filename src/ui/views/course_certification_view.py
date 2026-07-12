@@ -11,6 +11,7 @@ from src.extraction.importer import QuestionBankImporter
 from src.extraction.bank_service import apply_bank_result, load_question_bank
 from src.core.config import get_settings_manager
 from src.ui.components import (
+    AnswerProgressDialog,
     build_select_mismatch_warning_dialog,
     create_animated_switcher,
     handle_stop_answering,
@@ -55,6 +56,7 @@ class CourseCertificationView:
         self.is_answering = False
         self.answer_dialog = None
         self.log_text = None
+        self.progress_dialog = None  # AnswerProgressDialog 实例（_create_answer_log_dialog 内创建）
         self.auto_answer_instance = None
         self.should_stop_answering = False
 
@@ -846,177 +848,23 @@ class CourseCertificationView:
         self.page.run_thread(lambda: self._run_certification_task(course_id, question_bank_data))
 
     def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
-        """创建答题日志对话框"""
-        self.log_text = ft.Text(
-            "",
-            size=12,
-            color=ft.Colors.BLACK,
-            selectable=True,
-            no_wrap=False,
-            max_lines=None,
+        """创建答题进度对话框（委托 AnswerProgressDialog 组件）。"""
+        self.progress_dialog = AnswerProgressDialog(
+            self.page,
+            title=title,
+            theme="orange",
+            title_icon=ft.Icons.FLASH_ON,
+            show_log_panel=True,
+            width=650,
+            log_panel_height=300,
+            on_stop=self._on_stop_answering,
         )
-
-        # 添加进度条控件
-        self.progress_text = ft.Text("准备开始...", size=14, weight=ft.FontWeight.BOLD)
-        self.progress_bar = ft.ProgressBar(
-            width=600,
-            value=0.0,
-            color=ft.Colors.ORANGE,
-            bgcolor=ft.Colors.ORANGE_100,
-            bar_height=12,
-            visible=False,  # 初始隐藏，有进度时才显示
-        )
-        self.progress_percent = ft.Text("", size=16, weight=ft.FontWeight.BOLD, color=ft.Colors.ORANGE_700)
-
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.FLASH_ON, color=ft.Colors.ORANGE),
-                    ft.Text(title, color=ft.Colors.ORANGE, weight=ft.FontWeight.BOLD),
-                ],
-                spacing=10,
-            ),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        # 进度显示区域
-                        ft.Column(
-                            [
-                                self.progress_text,
-                                ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
-                                self.progress_bar,
-                                ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
-                                ft.Row(
-                                    [self.progress_percent],
-                                    alignment=ft.MainAxisAlignment.CENTER,
-                                ),
-                            ],
-                            horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                            visible=False,  # 初始隐藏
-                        ),
-                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                        ft.Text("答题日志：", size=12, weight=ft.FontWeight.BOLD),
-                        ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
-                        ft.Container(
-                            content=ft.Column(
-                                [self.log_text],
-                                scroll=ft.ScrollMode.ALWAYS,
-                                auto_scroll=False,
-                            ),
-                            width=600,
-                            height=300,
-                            bgcolor=ft.Colors.GREY_100,
-                            border=ft.Border.all(1, ft.Colors.GREY_300),
-                            border_radius=8,
-                            padding=10,
-                        ),
-                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                        ft.Text(
-                            "⏳ 正在答题中...点击下方按钮可随时停止",
-                            size=12,
-                            color=ft.Colors.ORANGE_700,
-                            weight=ft.FontWeight.BOLD,
-                        ),
-                    ],
-                    spacing=0,
-                ),
-                width=650,
-                padding=20,
-            ),
-            actions=[
-                ft.ElevatedButton(
-                    "🛑 停止答题",
-                    icon=ft.Icons.STOP,
-                    bgcolor=ft.Colors.RED,
-                    color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.Padding.symmetric(horizontal=30, vertical=15),
-                    ),
-                    on_click=self._on_stop_answering,
-                ),
-            ],
-            actions_alignment=ft.MainAxisAlignment.CENTER,
-        )
-
-        # 保存进度区域的引用
-        self.progress_column = dialog.content.content.controls[0]
-
-        return dialog
+        return self.progress_dialog.dialog
 
     def _append_log(self, message: str):
-        """追加日志（使用 page.run_task 确保实时更新）"""
-        if not self.log_text:
-            return
-
-        # 准备新的日志文本
-        current_text = self.log_text.value if self.log_text.value else ""
-        new_text = current_text + message + "\n"
-        if len(new_text) > 2000:
-            new_text = "...(日志已截断)\n" + new_text[-2000:]
-
-        # 在主线程中更新UI
-        async def update_log():
-            try:
-                self.log_text.value = new_text
-                self.page.update()
-            except Exception as e:
-                print(f"⚠️ UI更新失败: {e}")
-
-        # 使用 run_task 调度UI更新
-        self.page.run_task(update_log)
-
-    def _update_progress(self, message: str, current: int = None, total: int = None):
-        """
-        更新进度（使用 page.run_task 确保实时更新）
-
-        Args:
-            message: 进度消息
-            current: 当前进度（可选）
-            total: 总数（可选）
-        """
-        print(f"[进度更新] {message} - 当前: {current}, 总数: {total}")
-
-        # 检查控件是否已初始化
-        if not all([self.progress_text, self.progress_bar, self.progress_percent]):
-            print(f"⚠️ 进度控件未初始化")
-            return
-
-        # 在主线程中更新UI
-        async def update_ui():
-            try:
-                # 更新进度文本
-                self.progress_text.value = message
-
-                # 更新进度条
-                if current is not None and total is not None and total > 0:
-                    # 显示进度区域
-                    self.progress_column.visible = True
-                    self.progress_bar.visible = True
-
-                    # 计算进度
-                    progress_value = min(current / total, 1.0)
-                    self.progress_bar.value = progress_value
-                    self.progress_percent.value = f"{int(progress_value * 100)}%"
-
-                    print(f"[进度UI] 进度条更新为 {progress_value:.2%} ({current}/{total})")
-                else:
-                    # 隐藏进度条
-                    self.progress_bar.visible = False
-                    self.progress_percent.value = ""
-
-                # 刷新UI
-                self.page.update()
-                print(f"[进度UI] UI刷新成功")
-
-            except Exception as e:
-                print(f"❌ UI更新异常: {e}")
-                import traceback
-                traceback.print_exc()
-
-        # 使用 run_task 调度UI更新
-        self.page.run_task(update_ui)
+        """追加日志（薄适配层，转调 AnswerProgressDialog.append_log）。"""
+        if self.progress_dialog:
+            self.progress_dialog.append_log(message)
 
     def _on_stop_answering(self, e):
         """处理停止答题"""
@@ -1039,10 +887,11 @@ class CourseCertificationView:
 
             self._append_log(f"✅ Access Token已获取\n")
 
-            # 创建API答题器，传入日志回调
+            # 创建API答题器，传入日志回调与进度回调
             answerer = APICourseAnswer(
                 access_token=self.access_token,
-                log_callback=self._append_log
+                log_callback=self._append_log,
+                progress_callback=self.progress_dialog.update_progress if self.progress_dialog else None,
             )
             self.auto_answer_instance = answerer
 

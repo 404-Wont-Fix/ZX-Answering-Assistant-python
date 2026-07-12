@@ -22,6 +22,7 @@ from src.auth.student import (
 )
 from src.core.config import get_settings_manager
 from src.ui.components import (
+    AnswerProgressDialog,
     build_select_mismatch_warning_dialog,
     create_animated_switcher,
     handle_stop_answering,
@@ -79,6 +80,7 @@ class AnsweringView:
         self.auto_answer_instance = None  # 自动答题实例
         self.should_stop_answering = False  # 停止答题标志
         self.answer_progress = {"current": 0, "total": 0}  # 答题进度信息
+        self.progress_dialog = None  # AnswerProgressDialog 实例（_create_answer_log_dialog 内创建）
 
         # 设置管理器
         self.settings_manager = get_settings_manager()
@@ -1132,149 +1134,31 @@ class AnsweringView:
         self._start_answering("brute", course_id)
 
     def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
-        """
-        创建答题进度对话框（简洁版）
-
-        Args:
-            title: 对话框标题
-
-        Returns:
-            ft.AlertDialog: 进度对话框
-        """
-        # 进度百分比文本
-        self.progress_percent_text = ft.Text(
-            "0%",
-            size=32,
-            weight=ft.FontWeight.BOLD,
-            color=ft.Colors.BLUE,
-        )
-
-        # 进度信息文本（显示：10/16）
-        self.progress_info_text = ft.Text(
-            "准备开始...",
-            size=16,
-            color=ft.Colors.GREY_700,
-        )
-
-        # 进度条
-        self.progress_bar = ft.ProgressBar(
+        """创建答题进度对话框（委托 AnswerProgressDialog 组件）。"""
+        self.progress_dialog = AnswerProgressDialog(
+            self.page,
+            title=title,
+            theme="blue",
+            title_icon=ft.Icons.AUTO_GRAPH,
+            show_big_percent=True,
             width=400,
-            value=0.0,
-            color=ft.Colors.BLUE,
-            bgcolor=ft.Colors.BLUE_GREY_100,
-            bar_height=10,
+            on_stop=self._on_stop_answering,
         )
-
-        # 创建对话框
-        dialog = ft.AlertDialog(
-            modal=True,
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.AUTO_GRAPH, color=ft.Colors.BLUE, size=28),
-                    ft.Text(title, size=18, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_800),
-                ],
-                spacing=10,
-            ),
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        # 进度百分比
-                        ft.Container(
-                            content=self.progress_percent_text,
-                            alignment=ft.Alignment(0, 0),
-                        ),
-                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-
-                        # 进度条
-                        self.progress_bar,
-                        ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-
-                        # 进度信息（如：10/16）
-                        self.progress_info_text,
-                    ],
-                    spacing=0,
-                    horizontal_alignment=ft.CrossAxisAlignment.CENTER,
-                    tight=True,
-                ),
-                width=400,
-                padding=ft.Padding.symmetric(horizontal=20, vertical=25),
-            ),
-            actions=[
-                ft.ElevatedButton(
-                    "🛑 停止答题",
-                    icon=ft.Icons.STOP,
-                    bgcolor=ft.Colors.RED,
-                    color=ft.Colors.WHITE,
-                    style=ft.ButtonStyle(
-                        shape=ft.RoundedRectangleBorder(radius=8),
-                        padding=ft.Padding.symmetric(horizontal=30, vertical=12),
-                    ),
-                    on_click=self._on_stop_answering,
-                ),
-            ],
-            actions_alignment=ft.MainAxisAlignment.CENTER,
-        )
-
-        return dialog
+        return self.progress_dialog.dialog
 
     def _update_progress(self, message: str, current: int = None, total: int = None):
-        """
-        更新答题进度（使用 page.run_task 确保UI实时更新）
+        """更新答题进度（薄适配层，转调 AnswerProgressDialog.update_progress）。
 
-        Args:
-            message: 进度消息
-            current: 当前进度（可选）
-            total: 总数（可选）
+        保留 (message, current, total) 签名以兼容 ~15 个手动调用点与 _progress_update 包装器；
+        保留 answer_progress dict 维护（_perform_progress_update 轮询依赖）。
         """
         print(f"[进度更新] {message} - 当前: {current}, 总数: {total}")
 
-        # 检查控件是否已初始化
-        if not all([self.progress_info_text, self.progress_bar, self.progress_percent_text]):
-            print(f"⚠️ 进度控件未初始化")
-            return
+        if current is not None and total is not None and total > 0:
+            self.answer_progress = {"current": current, "total": total}
 
-        # 检查page是否可用
-        if not self.page:
-            print(f"⚠️ page 对象不可用")
-            return
-
-        # 在主线程中更新UI（使用 run_task 确保实时更新）
-        async def update_ui():
-            try:
-                # 构建进度信息文本
-                if current is not None and total is not None and total > 0:
-                    progress_info = f"{current}/{total}"
-                else:
-                    progress_info = "正在处理..."
-
-                # 更新进度信息文本
-                self.progress_info_text.value = progress_info
-
-                # 更新进度条和百分比
-                if current is not None and total is not None and total > 0:
-                    # 确定进度：显示具体百分比
-                    progress_value = min(current / total, 1.0)
-                    self.progress_bar.value = progress_value
-                    self.progress_percent_text.value = f"{int(progress_value * 100)}%"
-                    self.answer_progress = {"current": current, "total": total}
-                    print(f"[进度UI] 进度条更新为 {progress_value:.2%} ({current}/{total})")
-                else:
-                    # 不确定进度：显示动画
-                    self.progress_bar.value = None
-                    self.progress_percent_text.value = "⏳"
-                    print(f"[进度UI] 不确定进度模式")
-
-                # 刷新UI
-                self.page.update()
-                print(f"[进度UI] UI刷新成功")
-
-            except Exception as e:
-                print(f"❌ UI更新异常: {e}")
-                import traceback
-                traceback.print_exc()
-
-        # 使用 run_task 调度UI更新（关键！）
-        self.page.run_task(update_ui)
+        if self.progress_dialog:
+            self.progress_dialog.update_progress(current, total, message)
 
     def _on_stop_answering(self, e):
         """处理停止答题按钮点击事件"""
