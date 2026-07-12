@@ -254,15 +254,21 @@ def _get_student_access_token_impl(
             def handle_response(response):
                 nonlocal access_token
                 # 监听token响应
-                if "/connect/token" in response.url and response.status == 200:
-                    try:
-                        response_body = response.body()
-                        response_data = json.loads(response_body.decode('utf-8'))
-                        if "access_token" in response_data:
-                            access_token = response_data["access_token"]
-                            logger.info("成功获取access_token")
-                    except Exception as e:
-                        logger.error(f"解析token响应失败: {str(e)}")
+                if "/connect/token" in response.url:
+                    logger.info(f"捕获到token响应: status={response.status}")
+                    if response.status == 200:
+                        try:
+                            response_body = response.body()
+                            response_data = json.loads(response_body.decode('utf-8'))
+                            if "access_token" in response_data:
+                                access_token = response_data["access_token"]
+                                logger.info("✅ 成功获取access_token")
+                            else:
+                                logger.warning(f"⚠️ token响应缺少access_token字段，响应键: {list(response_data.keys())}")
+                        except Exception as e:
+                            logger.error(f"解析token响应失败: {str(e)}")
+                    else:
+                        logger.warning(f"⚠️ token响应状态码非200: {response.status}")
 
             page.on("request", handle_request)
             page.on("response", handle_response)
@@ -309,9 +315,9 @@ def _get_student_access_token_impl(
 
             # 等待登录成功或获取到token
             try:
-                # 等待最多20秒获取token
+                # 等待最多40秒获取token（网络/服务器慢时给足时间）
                 start_time = time.time()
-                while not access_token and (time.time() - start_time) < 20:
+                while not access_token and (time.time() - start_time) < 40:
                     time.sleep(0.3)
                     # 检查是否有错误提示
                     try:
@@ -336,16 +342,16 @@ def _get_student_access_token_impl(
 
                     return access_token
                 else:
-                    # 检查是否登录成功
+                    # 检查是否登录成功（页面是否已跳转到主页）
                     current_url = page.url
-                    logger.info(f"当前页面URL: {current_url}")
+                    logger.info(f"当前页面URL: {current_url}（已等待 {time.time()-start_time:.0f} 秒）")
                     if "home" in current_url or "home-2024" in current_url:
-                        logger.warning("⚠️ 登录成功但未捕获到access_token")
+                        logger.warning("⚠️ 页面已跳转主页但未捕获到access_token（token响应未到达或解析失败，请查看上方'捕获到token响应'日志）")
                         if not keep_browser:
                             page.close()
                         return None
                     else:
-                        logger.error("❌ 登录失败，未跳转到主页")
+                        logger.error("❌ 登录失败，未跳转到主页（可能凭证错误、网络超时或token响应事件未监听到）")
                         if not keep_browser:
                             page.close()
                         return None
