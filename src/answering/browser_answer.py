@@ -795,7 +795,7 @@ class AutoAnswer(BaseAnswer):
 
             # 刷新网页以确保页面状态最新
             logger.info("🔄 刷新网页以确保知识点列表最新...")
-            self._get_page().reload(wait_until="networkidle")
+            self._get_page().reload(wait_until="domcontentloaded")
             time.sleep(2)  # 等待页面完全加载
             logger.info("✅ 网页刷新完成")
 
