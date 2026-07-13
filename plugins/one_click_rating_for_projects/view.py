@@ -29,16 +29,16 @@ from src.ui.components import (
 from src.ui.theme import Fonts, Palette, Radius
 
 from .api_client import LazyGradingAPIClient
+from .excel_exporter import ExcelExporter
+from .grading_service import GradingService
 from .models import ClassProject, ProjectResult
+from .template_service import TemplateService
 from .scoring import (
-    calculate_score,
     CommentPicker,
     load_templates,
-    save_templates,
     load_strictness,
     save_strictness,
     STRICTNESS_CONFIG,
-    enforce_distribution_limits,
     MINIMUM_NOT_MET_SCORE,
     NO_ATTACHMENT_DEDUCTION,
 )
@@ -1697,24 +1697,7 @@ class LazyAIGradingView:
                 return
 
             try:
-                from openpyxl import Workbook
-
-                wb = Workbook()
-                ws = wb.active
-                ws.title = "成绩"
-
-                # 表头
-                ws.append(["姓名", "分数"])
-
-                # 数据行：按分数降序
-                for r in sorted(graded_list, key=lambda x: x.pro_score, reverse=True):
-                    ws.append([r.student_name, r.pro_score])
-
-                # 列宽自适应
-                ws.column_dimensions["A"].width = 20
-                ws.column_dimensions["B"].width = 12
-
-                wb.save(save_path)
+                ExcelExporter.export(graded_list, save_path)
 
                 snack = ft.SnackBar(
                     content=ft.Text(f"成绩已导出: {save_path}"),
@@ -2123,66 +2106,17 @@ class LazyAIGradingView:
         self._run_background(grading_task)
 
     def _grading_inner(self, groups, set_progress, stats):
-        """对每个 (label, targets) 分组独立执行 分析→分布→提交；
-        分布上限因此按项目分别应用。stats 跨分组累加。"""
-        strictness = self._strictness  # 快照，评中途改设置不影响本轮
-        needs_distribution = strictness != "high"
+        """对每个 (label, targets) 分组执行评分（委托 GradingService）。
 
-        for label, targets in groups:
-            if not targets:
-                continue
-            n = len(targets)
-
-            # ── 阶段一：逐个拉取详情 + 计算分数 ──
-            analyzed: list[dict] = []
-            for i, student in enumerate(targets, 1):
-                name = student.student_name or "未知"
-                set_progress(f"{label}：分析 {name}（{i}/{n}）")
-                try:
-                    detail = self.api_client.get_student_result_with_logs(student.id)
-                    student.commit_logs_raw = detail.get("commitLogs") or []
-                    score = calculate_score(
-                        screenshot_count=student.screenshot_count,
-                        desc_char_count=student.desc_char_count,
-                        has_attachment=student.has_attachment,
-                        log_stage_count=student.log_stage_count,
-                        log_total_chars=student.log_total_chars,
-                        strictness=strictness,
-                    )
-                    analyzed.append({"student": student, "score": score})
-                except Exception as ex:
-                    stats["failed"] += 1
-                    stats["failed_names"].append(f"{label} - {name}（{ex}）")
-
-            # ── 阶段二：应用分布限制（按本项目独立，中等/宽松档） ──
-            if needs_distribution and analyzed:
-                set_progress(f"{label}：调整分数分布...")
-                analyzed = enforce_distribution_limits(analyzed)
-
-            # ── 阶段三：逐个提交评分 ──
-            m = len(analyzed)
-            for i, item in enumerate(analyzed, 1):
-                student = item["student"]
-                score = item["score"]
-                name = student.student_name or "未知"
-                set_progress(f"{label}：提交 {name}（{i}/{m}）")
-                try:
-                    min_len = 100 if score >= 95 else 20 if score >= 80 else 0
-                    comment = self._comment_picker.next(min_len=min_len)
-                    self.api_client.audit_result(
-                        rid=student.id,
-                        pro_score=str(score),
-                        review_comments=comment,
-                    )
-                    student.pro_score = score
-                    student.review_comments = comment
-
-                    stats["graded"] += 1
-                    if score == MINIMUM_NOT_MET_SCORE:
-                        stats["min_score_names"].append(f"{label} - {name}")
-                except Exception as ex:
-                    stats["failed"] += 1
-                    stats["failed_names"].append(f"{label} - {name}（{ex}）")
+        stats 就地累加（GradingService.grade_groups 直接写入传入的 stats dict）。
+        """
+        GradingService(self.api_client).grade_groups(
+            groups,
+            strictness=self._strictness,
+            comment_picker=self._comment_picker,
+            on_progress=set_progress,
+            stats=stats,
+        )
 
     def _start_grading(self, confirm_dialog, targets: list[ProjectResult]):
         """单项目评分入口：包成 1 组（label=项目名（班级名））后启动"""
@@ -2560,8 +2494,7 @@ class LazyAIGradingView:
     def _edit_template(self, pool: str, index: int):
         """编辑单条评语（关闭设置弹窗 → 打开编辑弹窗 → 保存后返回设置弹窗）"""
         self.page.pop_dialog()
-        templates = load_templates()
-        current = templates.get(pool, [])[index] if index < len(templates.get(pool, [])) else ""
+        current = TemplateService().get(pool, index) or ""
 
         field = ft.TextField(
             value=current,
@@ -2575,8 +2508,7 @@ class LazyAIGradingView:
         def on_save(_):
             new_text = field.value.strip()
             if new_text:
-                templates[pool][index] = new_text
-                save_templates(templates)
+                TemplateService().edit(pool, index, new_text)
                 if self._comment_picker is not None:
                     self._comment_picker.reload()
             self.page.pop_dialog()
@@ -2620,9 +2552,7 @@ class LazyAIGradingView:
         def on_save(_):
             new_text = field.value.strip()
             if new_text:
-                templates = load_templates()
-                templates[pool].append(new_text)
-                save_templates(templates)
+                TemplateService().add(pool, new_text)
                 if self._comment_picker is not None:
                     self._comment_picker.reload()
             self.page.pop_dialog()
@@ -2650,9 +2580,7 @@ class LazyAIGradingView:
 
     def _delete_template(self, pool: str, index: int):
         """删除一条评语（直接删除并刷新设置弹窗）"""
-        templates = load_templates()
-        pool_list = templates.get(pool, [])
-        if len(pool_list) <= 1:
+        if not TemplateService().delete(pool, index):
             snack = ft.SnackBar(
                 content=ft.Text("该类评语至少保留一条"),
                 bgcolor=ft.Colors.ORANGE,
@@ -2661,8 +2589,6 @@ class LazyAIGradingView:
             snack.open = True
             self.page.update()
             return
-        pool_list.pop(index)
-        save_templates(templates)
         if self._comment_picker is not None:
             self._comment_picker.reload()
         # 刷新设置弹窗
