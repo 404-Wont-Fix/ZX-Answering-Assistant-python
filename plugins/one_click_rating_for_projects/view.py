@@ -33,6 +33,13 @@ from .excel_exporter import ExcelExporter
 from .grading_service import GradingService
 from .models import ClassProject, ProjectResult
 from .template_service import TemplateService
+from .widgets import (
+    build_batch_toolbar,
+    build_grading_rules_content,
+    build_project_card,
+    build_student_card,
+    build_template_section,
+)
 from .scoring import (
     CommentPicker,
     load_templates,
@@ -40,7 +47,6 @@ from .scoring import (
     save_strictness,
     STRICTNESS_CONFIG,
     MINIMUM_NOT_MET_SCORE,
-    NO_ATTACHMENT_DEDUCTION,
 )
 
 
@@ -513,6 +519,14 @@ class LazyAIGradingView:
         self.page_text = ft.Text(self._page_text_value(), size=13, color=Palette.TEXT_MUTED)
         self._apply_pagination_state()
 
+        # 批量评分工具栏（返回 rows + 控件引用，引用挂 self 供局部刷新）
+        batch_rows, self._batch_count_text, self._batch_grade_btn = build_batch_toolbar(
+            on_batch_grade=self._on_batch_grade_click,
+            on_select_all=self._on_select_all_projects,
+            on_clear=self._on_clear_selected_projects,
+            on_settings=self._show_comment_settings,
+        )
+
         return ft.Column(
             [
                 page_heading(
@@ -558,7 +572,7 @@ class LazyAIGradingView:
                     vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
                 # 批量评分操作行（勾选多个项目后一键评分）
-                *self._build_batch_toolbar(),
+                *batch_rows,
                 # 列表区
                 self.list_container,
                 # 分页行
@@ -659,7 +673,13 @@ class LazyAIGradingView:
             return
 
         self.list_container.controls = [
-            self._build_project_card(p) for p in self.project_list
+            build_project_card(
+                p,
+                is_selected=p.source_id in self.selected_projects,
+                on_click=self._on_project_click,
+                on_check=self._on_project_check,
+            )
+            for p in self.project_list
         ]
 
     def _apply_pagination_state(self):
@@ -673,48 +693,6 @@ class LazyAIGradingView:
 
     # ==================== 项目批量评分多选 ====================
 
-    def _build_batch_toolbar(self) -> list:
-        """项目列表屏的批量评分操作行（勾选计数 + 全选/清空 + 批量评分按钮）。
-
-        返回 list 以便 _get_project_list_content 用 * 展开注入 Column；同时把
-        _batch_count_text / _batch_grade_btn 挂到 self，供局部刷新。
-        """
-        self._batch_count_text = ft.Text(
-            "已选 0 个项目", size=13, color=Palette.TEXT_MUTED
-        )
-        self._batch_grade_btn = primary_button(
-            "批量评分", ft.Icons.GRADE, lambda e: self._on_batch_grade_click(e)
-        )
-        self._batch_grade_btn.disabled = True
-        return [
-            ft.Row(
-                [
-                    ft.Icon(ft.Icons.CHECKLIST, size=16, color=Palette.TEXT_MUTED),
-                    self._batch_count_text,
-                    secondary_button(
-                        "全选当前页",
-                        ft.Icons.SELECT_ALL,
-                        lambda e: self._on_select_all_projects(e),
-                    ),
-                    secondary_button(
-                        "清空选择",
-                        ft.Icons.DESELECT,
-                        lambda e: self._on_clear_selected_projects(e),
-                    ),
-                    ft.Container(expand=True),
-                    self._batch_grade_btn,
-                    ft.IconButton(
-                        ft.Icons.SETTINGS_OUTLINED,
-                        icon_size=18,
-                        icon_color=Palette.TEXT_MUTED,
-                        tooltip="评语与严格度设置",
-                        on_click=lambda e: self._show_comment_settings(e),
-                    ),
-                ],
-                spacing=8,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            )
-        ]
 
     def _update_batch_selection_ui(self):
         """根据 selected_projects 数量刷新计数文案与按钮禁用态（局部 update，不重建列表）"""
@@ -753,163 +731,6 @@ class LazyAIGradingView:
         self._refresh_list_area()
         self._update_batch_selection_ui()
 
-    def _build_project_card(self, p: ClassProject) -> ft.Control:
-        """构建单条项目卡片（参照 course_certification_view 的 GestureDetector 卡片）"""
-        # 状态颜色：进行中(code=3)→ACCENT，其他→TEXT_MUTED
-        if p.status_code == 3:
-            status_color, status_bgcolor = Palette.ACCENT, Palette.ACCENT_SOFT
-        else:
-            status_color, status_bgcolor = Palette.TEXT_MUTED, Palette.SURFACE_ALT
-
-        status_chip_ctl = (
-            status_chip(p.status_str or "未知", color=status_color, bgcolor=status_bgcolor)
-            if p.status_str
-            else ft.Container()
-        )
-
-        subtitle_parts = [part for part in [p.class_name, p.project_type_name] if part]
-        subtitle = " · ".join(subtitle_parts) if subtitle_parts else "—"
-
-        # 副标题行：左侧「班级 · 类型」，右侧「指导老师」
-        subtitle_children = [
-            ft.Text(
-                subtitle,
-                size=12,
-                color=Palette.TEXT_MUTED,
-                max_lines=1,
-                overflow=ft.TextOverflow.ELLIPSIS,
-                expand=True,
-            ),
-        ]
-        if p.fb_name:
-            subtitle_children.append(
-                ft.Row(
-                    [
-                        ft.Icon(
-                            ft.Icons.PERSON_OUTLINE,
-                            size=13,
-                            color=Palette.TEXT_SOFT,
-                        ),
-                        ft.Text(
-                            f"指导老师：{p.fb_name}",
-                            size=12,
-                            color=Palette.TEXT_SOFT,
-                            max_lines=1,
-                        ),
-                    ],
-                    spacing=2,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                )
-            )
-
-        # 进度统计 chip 行
-        def count_chip(label: str, value: int, color: str, bgcolor: str) -> ft.Control:
-            return status_chip(
-                f"{label} {value}",
-                color=color,
-                bgcolor=bgcolor,
-            )
-
-        counts_row = ft.Row(
-            [
-                count_chip("进行中", p.jing_xing_count, Palette.PRIMARY, Palette.PRIMARY_SOFT),
-                count_chip("待审批", p.to_sp_count, Palette.WARNING, Palette.WARNING_SOFT),
-                count_chip("已完成", p.has_ok_count, Palette.ACCENT, Palette.ACCENT_SOFT),
-                count_chip("共", p.class_count, Palette.TEXT_MUTED, Palette.SURFACE_ALT),
-            ],
-            spacing=8,
-            wrap=True,
-            run_spacing=6,
-        )
-
-        card = ft.GestureDetector(
-            content=ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Container(
-                                    content=ft.Icon(
-                                        ft.Icons.WORK_OUTLINE,
-                                        color=Palette.PRIMARY,
-                                        size=22,
-                                    ),
-                                    width=45,
-                                    height=45,
-                                    alignment=ft.Alignment(0, 0),
-                                    bgcolor=Palette.PRIMARY_SOFT,
-                                    border_radius=Radius.SMALL,
-                                ),
-                                ft.Column(
-                                    [
-                                        ft.Text(
-                                            p.pro_name or "未命名项目",
-                                            weight=ft.FontWeight.W_600,
-                                            size=15,
-                                            color=Palette.TEXT,
-                                            max_lines=2,
-                                            overflow=ft.TextOverflow.ELLIPSIS,
-                                        ),
-                                        ft.Row(
-                                            subtitle_children,
-                                            spacing=8,
-                                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                                        ),
-                                    ],
-                                    spacing=4,
-                                    expand=True,
-                                ),
-                                status_chip_ctl,
-                            ],
-                            spacing=12,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        ft.Divider(height=1, color=Palette.BORDER),
-                        ft.Row(
-                            [
-                                ft.Icon(ft.Icons.SCHEDULE, size=14, color=Palette.TEXT_SOFT),
-                                ft.Text(
-                                    p.time_window or "时间未设置",
-                                    size=12,
-                                    color=Palette.TEXT_SOFT,
-                                ),
-                                ft.Container(expand=True),
-                            ],
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        counts_row,
-                    ],
-                    spacing=10,
-                ),
-                padding=16,
-                bgcolor=Palette.SURFACE,
-                border=ft.Border.all(1, Palette.BORDER),
-                border_radius=Radius.MEDIUM,
-            ),
-            on_tap=lambda e, project=p: self._on_project_click(e, project),
-            mouse_cursor=ft.MouseCursor.CLICK,
-        )
-
-        # 批量评分勾选框：必须放在卡片 GestureDetector 之外作为兄弟控件
-        # （参照 _build_student_card 的注释：Checkbox + GestureDetector 同层会双事件冲突）。
-        # 点勾选框切换选中；点卡片主体仍进入项目学生屏。
-        checkbox = ft.Checkbox(
-            value=p.source_id in self.selected_projects,
-            on_change=lambda e, project=p: self._on_project_check(e, project),
-            scale=0.9,
-        )
-        return ft.Row(
-            [
-                ft.Container(
-                    content=checkbox,
-                    width=30,
-                    alignment=ft.Alignment(0, 0),
-                ),
-                ft.Container(content=card, expand=True),
-            ],
-            spacing=0,
-            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-        )
 
     # ==================== 列表数据加载与刷新 ====================
 
@@ -1174,9 +995,16 @@ class LazyAIGradingView:
             ]
             return
 
-        self.result_list_view.controls = [
-            self._build_student_card(r) for r in self.result_list
-        ]
+        cards = []
+        for r in self.result_list:
+            card, refs = build_student_card(
+                r,
+                is_selected=r.id in self.selected_result_ids,
+                on_tap=self._on_student_check,
+            )
+            self._student_card_refs[r.id] = refs
+            cards.append(card)
+        self.result_list_view.controls = cards
 
     def _refresh_results_area(self):
         """局部刷新成果屏的动态区域（列表 + 统计 + 右侧面板）"""
@@ -1226,142 +1054,6 @@ class LazyAIGradingView:
             self._post(self._refresh_results_area)
 
     # ---------- 学生卡片 ----------
-
-    def _build_student_card(self, r: ProjectResult) -> ft.Control:
-        """构建单条学生成果卡片（带左侧勾选图标，整体可点击切换选择）"""
-        selected = r.id in self.selected_result_ids
-
-        # 选择状态图标（被动图标，点击由外层 GestureDetector 处理，
-        # 避免 Checkbox + GestureDetector 双事件 toggle 冲突）
-        check_icon = ft.Icon(
-            ft.Icons.CHECK_BOX if selected else ft.Icons.CHECK_BOX_OUTLINE_BLANK,
-            size=22,
-            color=Palette.PRIMARY if selected else Palette.TEXT_SOFT,
-        )
-
-        # 头像占位：姓名首字
-        avatar = ft.Container(
-            content=ft.Text(
-                r.initial,
-                size=15,
-                weight=ft.FontWeight.BOLD,
-                color=Palette.SURFACE,
-            ),
-            width=40,
-            height=40,
-            alignment=ft.Alignment(0, 0),
-            bgcolor=Palette.PRIMARY,
-            border_radius=Radius.SMALL,
-        )
-
-        # "混子"标签：未达最低要求、拿到保底分（76）的学生
-        is_slacker = r.is_graded and r.pro_score == MINIMUM_NOT_MET_SCORE
-        name_controls = [
-            ft.Text(
-                r.student_name or "未知",
-                size=14,
-                weight=ft.FontWeight.W_600,
-                color=Palette.TEXT,
-                max_lines=1,
-                overflow=ft.TextOverflow.ELLIPSIS,
-            ),
-        ]
-        if is_slacker:
-            name_controls.append(
-                ft.Container(
-                    content=ft.Text(
-                        "混子",
-                        size=10,
-                        color=Palette.SURFACE,
-                        weight=ft.FontWeight.BOLD,
-                    ),
-                    padding=ft.Padding.symmetric(horizontal=8, vertical=2),
-                    bgcolor=Palette.DANGER,
-                    border_radius=12,
-                ),
-            )
-
-        # 左侧文本区
-        name_col = ft.Column(
-            [
-                ft.Row(
-                    name_controls,
-                    spacing=6,
-                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                ),
-                ft.Text(
-                    f"学号: {r.student_id[:8]}…" if len(r.student_id) > 8 else f"学号: {r.student_id}",
-                    size=11,
-                    color=Palette.TEXT_SOFT,
-                ),
-            ],
-            spacing=2,
-            expand=True,
-        )
-
-        # 右侧状态 chips
-        if r.is_graded:
-            # 已评分：直接显示分数，状态标为"已评分"
-            score_color, score_bg = Palette.ACCENT, Palette.ACCENT_SOFT
-            score_label = f"评分 {r.pro_score}"
-            status_label = "已评分"
-            status_color, status_bg = Palette.ACCENT, Palette.ACCENT_SOFT
-        else:
-            # 未评分：分数区显示"—"，状态标为"待评分"
-            score_color, score_bg = Palette.TEXT_MUTED, Palette.SURFACE_ALT
-            score_label = "—"
-            status_label = "待评分"
-            status_color, status_bg = Palette.WARNING, Palette.WARNING_SOFT
-        status_chip_ctl = status_chip(status_label, color=status_color, bgcolor=status_bg)
-        score_chip_ctl = status_chip(score_label, color=score_color, bgcolor=score_bg)
-
-        chips_col = ft.Column(
-            [status_chip_ctl, score_chip_ctl],
-            spacing=4,
-            horizontal_alignment=ft.CrossAxisAlignment.END,
-        )
-
-        # 提交时间（小字）
-        submit_text = ft.Text(
-            r.submit_date or "未提交",
-            size=11,
-            color=Palette.TEXT_SOFT,
-        )
-
-        card_bg = Palette.PRIMARY_SOFT if selected else Palette.SURFACE
-        card_border = Palette.PRIMARY if selected else Palette.BORDER
-
-        # 提取容器为变量，以便后续单独更新属性（不重建控件）
-        container = ft.Container(
-            content=ft.Row(
-                [
-                    check_icon,
-                    avatar,
-                    ft.VerticalDivider(width=1, color=Palette.BORDER),
-                    name_col,
-                    ft.Column(
-                        [submit_text, chips_col],
-                        spacing=4,
-                        horizontal_alignment=ft.CrossAxisAlignment.END,
-                    ),
-                ],
-                spacing=10,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            padding=ft.Padding.symmetric(horizontal=12, vertical=10),
-            bgcolor=card_bg,
-            border=ft.Border.all(1, card_border),
-            border_radius=Radius.MEDIUM,
-        )
-        # 存储引用供 _update_single_card 使用
-        self._student_card_refs[r.id] = {"icon": check_icon, "container": container}
-
-        card = ft.GestureDetector(
-            content=container,
-            on_tap=lambda ev, rid=r.id: self._on_student_check(ev, rid),
-            mouse_cursor=ft.MouseCursor.CLICK,
-        )
-        return card
 
     # ---------- 右侧功能面板 ----------
 
@@ -1755,55 +1447,6 @@ class LazyAIGradingView:
 
     # ---------- 评分确认弹窗 ----------
 
-    def _build_grading_rules_content(self, cfg) -> list:
-        """构造确认弹窗里的「评分规则 + 免责声明」内容块（单项目/批量共用）"""
-        range_min = MINIMUM_NOT_MET_SCORE  # 内容不达标时的保底分（76）
-        low, high = cfg["tier3"]
-        return [
-            ft.Text("评分规则：", size=12, weight=ft.FontWeight.W_600),
-            ft.Text(f"• 分数范围：{range_min} ~ {high}", size=12),
-            ft.Text(f"• 截图>9 或 字数>500 → {low}~{high}", size=12),
-            ft.Text("• 截图≥6 或 字数≥400 → 中间档", size=12),
-            ft.Text(f"• 内容不达标(截图<3且字数<150) → 保底{range_min}分（标注混子）", size=12),
-            ft.Text("• 日志不足3个 → 酌情扣3~5分", size=12),
-            ft.Text(f"• 无附件 → 酌情扣{NO_ATTACHMENT_DEDUCTION}分", size=12),
-            ft.Text("• ≥80分评语≥20字，≥95分评语≥100字", size=12),
-            ft.Divider(height=4, color=ft.Colors.TRANSPARENT),
-            ft.Container(
-                content=ft.Column(
-                    [
-                        ft.Row(
-                            [
-                                ft.Icon(
-                                    ft.Icons.INFO_OUTLINE,
-                                    size=14,
-                                    color=Palette.WARNING,
-                                ),
-                                ft.Text(
-                                    "免责声明",
-                                    size=11,
-                                    weight=ft.FontWeight.W_600,
-                                    color=Palette.WARNING,
-                                ),
-                            ],
-                            spacing=4,
-                            vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                        ),
-                        ft.Text(
-                            "本功能由程序既定规则自动评分，分数与评语仅供参考，可能存在偏差。"
-                            "最终成绩以教师人工复核为准，建议提交后抽检。"
-                            "使用本功能即表示知悉并接受上述风险。",
-                            size=10,
-                            color=Palette.TEXT_MUTED,
-                        ),
-                    ],
-                    spacing=2,
-                ),
-                padding=8,
-                bgcolor=Palette.WARNING_SOFT,
-                border_radius=Radius.SMALL,
-            ),
-        ]
 
     def _show_grade_confirm(self, targets: list[ProjectResult]):
         """显示评分确认弹窗（单项目）：人数 + 档位 + 规则 + 免责声明"""
@@ -1825,7 +1468,7 @@ class LazyAIGradingView:
                         weight=ft.FontWeight.W_600,
                         color=Palette.PRIMARY,
                     ),
-                    *self._build_grading_rules_content(cfg),
+                    *build_grading_rules_content(cfg),
                 ],
                 tight=True,
                 spacing=4,
@@ -1894,7 +1537,7 @@ class LazyAIGradingView:
                         weight=ft.FontWeight.W_600,
                         color=Palette.PRIMARY,
                     ),
-                    *self._build_grading_rules_content(cfg),
+                    *build_grading_rules_content(cfg),
                 ],
                 tight=True,
                 spacing=4,
@@ -2313,7 +1956,7 @@ class LazyAIGradingView:
                             padding=14,
                         ),
                         # ---- 短评语分区 ----
-                        self._build_template_section(
+                        build_template_section(
                             pool="short",
                             title="短评语模板",
                             usage="用于 < 95 分",
@@ -2322,9 +1965,12 @@ class LazyAIGradingView:
                             min_chars=20,
                             accent=Palette.PRIMARY,
                             accent_soft=Palette.PRIMARY_SOFT,
+                            on_add=self._add_template,
+                            on_edit=self._edit_template,
+                            on_delete=self._delete_template,
                         ),
                         # ---- 长评语分区 ----
-                        self._build_template_section(
+                        build_template_section(
                             pool="long",
                             title="长评语模板",
                             usage="用于 ≥ 95 分",
@@ -2333,6 +1979,9 @@ class LazyAIGradingView:
                             min_chars=100,
                             accent=Palette.ACCENT,
                             accent_soft=Palette.ACCENT_SOFT,
+                            on_add=self._add_template,
+                            on_edit=self._edit_template,
+                            on_delete=self._delete_template,
                         ),
                     ],
                     spacing=12,
@@ -2353,143 +2002,6 @@ class LazyAIGradingView:
             actions_alignment=ft.MainAxisAlignment.END,
         )
         self.page.show_dialog(dialog)
-
-    def _build_template_section(
-        self,
-        pool: str,
-        title: str,
-        usage: str,
-        icon,
-        items: list,
-        min_chars: int,
-        accent: str,
-        accent_soft: str,
-    ) -> ft.Container:
-        """设置弹窗里的一个评语分区：彩色标题栏 + 可滚动模板卡片列表"""
-        if items:
-            cards = [
-                self._build_template_item(pool, i, t, min_chars)
-                for i, t in enumerate(items)
-            ]
-        else:
-            cards = [
-                ft.Container(
-                    content=ft.Text(
-                        "暂无模板，点右上角「添加」",
-                        size=12,
-                        color=Palette.TEXT_MUTED,
-                        text_align=ft.TextAlign.CENTER,
-                    ),
-                    padding=20,
-                    alignment=ft.Alignment(0, 0),
-                )
-            ]
-        list_view = ft.ListView(
-            controls=cards,
-            spacing=8,
-            height=150,
-            scroll=ft.ScrollMode.AUTO,
-        )
-        # 彩色标题栏
-        header = ft.Container(
-            content=ft.Row(
-                [
-                    ft.Icon(icon, size=16, color=accent),
-                    ft.Text(
-                        title,
-                        size=13,
-                        weight=ft.FontWeight.W_600,
-                        color=Palette.TEXT,
-                    ),
-                    ft.Text(
-                        f"{usage} · 共 {len(items)} 条 · 建议 ≥ {min_chars} 字",
-                        size=11,
-                        color=Palette.TEXT_MUTED,
-                    ),
-                    ft.Container(expand=True),
-                    secondary_button(
-                        "添加",
-                        ft.Icons.ADD,
-                        lambda ev, p=pool: self._add_template(p),
-                    ),
-                ],
-                spacing=8,
-                vertical_alignment=ft.CrossAxisAlignment.CENTER,
-            ),
-            bgcolor=accent_soft,
-            border_radius=Radius.SMALL,
-            padding=ft.Padding.symmetric(horizontal=10, vertical=6),
-        )
-        return ft.Container(
-            content=ft.Column([header, list_view], spacing=8),
-            border=ft.Border.all(1, Palette.BORDER),
-            border_radius=Radius.MEDIUM,
-            padding=8,
-        )
-
-    def _build_template_item(
-        self, pool: str, index: int, text: str, min_chars: int
-    ) -> ft.Container:
-        """单条评语模板卡片：全文预览 + 字数状态徽标 + 编辑/删除"""
-        n = len(text.strip())
-        ok = n >= min_chars
-        badge_color = Palette.ACCENT if ok else Palette.WARNING
-        badge_bg = Palette.ACCENT_SOFT if ok else Palette.WARNING_SOFT
-
-        return ft.Container(
-            content=ft.Column(
-                [
-                    # 评语全文（可选中文本，方便核对）
-                    ft.Text(
-                        text,
-                        size=12,
-                        color=Palette.TEXT,
-                        selectable=True,
-                    ),
-                    # 字数状态 + 操作
-                    ft.Row(
-                        [
-                            status_chip(
-                                f"{n} 字",
-                                color=badge_color,
-                                bgcolor=badge_bg,
-                            ),
-                            ft.Text(
-                                "✓ 达标" if ok else f"建议 ≥ {min_chars} 字",
-                                size=10,
-                                color=badge_color,
-                            ),
-                            ft.Container(expand=True),
-                            ft.IconButton(
-                                ft.Icons.EDIT_OUTLINED,
-                                icon_size=16,
-                                icon_color=Palette.TEXT_MUTED,
-                                tooltip="编辑",
-                                on_click=lambda ev, p=pool, i=index: self._edit_template(
-                                    p, i
-                                ),
-                            ),
-                            ft.IconButton(
-                                ft.Icons.DELETE_OUTLINE,
-                                icon_size=16,
-                                icon_color=Palette.DANGER,
-                                tooltip="删除",
-                                on_click=lambda ev, p=pool, i=index: self._delete_template(
-                                    p, i
-                                ),
-                            ),
-                        ],
-                        spacing=6,
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                ],
-                spacing=6,
-            ),
-            padding=10,
-            bgcolor=Palette.SURFACE,
-            border=ft.Border.all(1, Palette.BORDER),
-            border_radius=Radius.SMALL,
-        )
 
     def _edit_template(self, pool: str, index: int):
         """编辑单条评语（关闭设置弹窗 → 打开编辑弹窗 → 保存后返回设置弹窗）"""
