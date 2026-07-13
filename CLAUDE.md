@@ -206,6 +206,14 @@ Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and mod
 ### Data Management
 - **[src/extraction/exporter.py](src/extraction/exporter.py)** - JSON export
 - **[src/extraction/importer.py](src/extraction/importer.py)** - Question bank import
+- **[src/extraction/bank_service.py](src/extraction/bank_service.py)** - Shared question bank import service
+
+### Shared Abstractions (reuse, don't re-implement)
+- **[src/utils/bank_matcher.py](src/utils/bank_matcher.py)** - `find_correct_answer_ids(bank, question_id, *, scope_knowledge=None)` — unified "match by question ID + extract correct option IDs" for all pure-API answering paths (student/certification/cloud_exam). Browser-automation paths do NOT use this (they need page value/content).
+- **[src/extraction/bank_service.py](src/extraction/bank_service.py)** - `load_question_bank()` + `apply_bank_result()` — file import + course-ID validation + statistics preview; `course_id_key`/`course_name_key` absorbs student (`courseID`/`courseName`) vs certification (`eCourseID`/`lessonName`) field differences.
+- **`AnswerProgressDialog`** in [src/ui/components.py](src/ui/components.py) - Parameterized progress dialog (theme/log-panel/big-percent); unified `_create_answer_log_dialog` for both Views. `update_progress(current, total, message)` matches engine `progress_callback` signature.
+
+When adding question-bank matching / import / progress-dialog features, reuse these instead of writing new code.
 
 ### API Client and Rate Limiting
 - **[src/core/api_client.py](src/core/api_client.py)** - Unified HTTP client
@@ -501,7 +509,8 @@ src/
 ├── extraction/         # Data extraction pipeline
 │   ├── extractor.py
 │   ├── exporter.py
-│   └── importer.py
+│   ├── importer.py
+│   └── bank_service.py # Shared question bank import service
 ├── answering/          # Auto-answering modules
 │   ├── browser_answer.py
 │   └── api_answer.py
@@ -509,6 +518,6 @@ src/
 │   ├── main_gui.py
 │   └── views/
 ├── modules/            # Extended modules
-├── utils/              # General utilities
+├── utils/              # General utilities (bank_matcher.py, text.py, logging.py, ...)
 └── extract_answers.py  # Standalone extraction script
 ```
