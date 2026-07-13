@@ -34,9 +34,11 @@ from .grading_service import GradingService
 from .models import ClassProject, ProjectResult
 from .template_service import TemplateService
 from .widgets import (
+    ResultPanelProps,
     build_batch_toolbar,
     build_grading_rules_content,
     build_project_card,
+    build_result_action_panel,
     build_student_card,
     build_template_section,
 )
@@ -1058,157 +1060,22 @@ class LazyAIGradingView:
     # ---------- 右侧功能面板 ----------
 
     def _build_result_action_panel(self) -> ft.Column:
-        """构建右侧统计摘要 + 快速选择 + 功能操作按钮面板"""
-        total = len(self.result_list)
-        graded = sum(1 for r in self.result_list if r.is_graded)
-        ungraded = total - graded
-        completed = sum(1 for r in self.result_list if r.project_progress >= 100)
-        selected = len(self.selected_result_ids)
-
-        # 「当前已选」数值需要随勾选实时变化，持有引用以便局部刷新
-        self._stat_selected_text = ft.Text(
-            str(selected), size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT
+        """构建右侧统计摘要 + 快速选择 + 功能操作按钮面板（委托 widgets）。"""
+        props = ResultPanelProps(
+            result_list=self.result_list,
+            selected=len(self.selected_result_ids),
+            on_grade_all=self._on_grade_all_click,
+            on_grade_selected=self._on_grade_selected_click,
+            on_select_all=self._on_select_all,
+            on_deselect_all=self._on_deselect_all,
+            on_select_ungraded=self._on_select_ungraded,
+            on_select_completed=self._on_select_completed,
+            on_export=self._on_export_grades,
+            on_refresh=self._load_results,
+            on_settings=self._show_comment_settings,
         )
-
-        # 统计摘要卡片
-        stats_card = surface_card(
-            ft.Column(
-                [
-                    ft.Text(
-                        "统计概览",
-                        size=15,
-                        weight=ft.FontWeight.W_600,
-                        color=Palette.TEXT,
-                    ),
-                    ft.Divider(height=1, color=Palette.BORDER),
-                    _stat_row("总提交人数", str(total)),
-                    _stat_row("已评分", str(graded)),
-                    _stat_row("未评分", str(ungraded)),
-                    _stat_row("进度100%", str(completed)),
-                    ft.Divider(height=1, color=Palette.BORDER),
-                    ft.Row(
-                        [
-                            ft.Text("当前已选", size=13, color=Palette.TEXT_MUTED),
-                            ft.Container(expand=True),
-                            self._stat_selected_text,
-                        ],
-                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-                    ),
-                ],
-                spacing=10,
-            ),
-            padding=18,
-        )
-
-        # ---- 操作按钮 ----
-        grade_all_btn = primary_button(
-            "一键评分（全部）",
-            ft.Icons.AUTO_AWESOME,
-            lambda ev: self._on_grade_all_click(ev),
-            width=280,
-        )
-        # 持有引用：勾选状态变化时只改 disabled 属性，不重建按钮
-        self._grade_selected_btn = ft.FilledButton(
-            "评分已选学生",
-            icon=ft.Icons.CHECKLIST,
-            width=280,
-            disabled=selected == 0,
-            bgcolor=Palette.PRIMARY,
-            color=Palette.SURFACE,
-            on_click=lambda ev: self._on_grade_selected_click(ev),
-            style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
-                padding=ft.Padding.symmetric(horizontal=24, vertical=16),
-                text_style=Fonts.text(
-                    size=14,
-                    weight=ft.FontWeight.W_600,
-                ),
-            ),
-        )
-
-        # ---- 快速选择按钮组 ----
-        select_section = ft.Column(
-            [
-                ft.Text(
-                    "快速选择",
-                    size=13,
-                    weight=ft.FontWeight.W_600,
-                    color=Palette.TEXT,
-                ),
-                ft.Row(
-                    [
-                        _quick_btn(
-                            "全选",
-                            ft.Icons.CHECKLIST_RTL,
-                            lambda ev: self._on_select_all(ev),
-                        ),
-                        _quick_btn(
-                            "取消选择",
-                            ft.Icons.CLEAR_ALL,
-                            lambda ev: self._on_deselect_all(ev),
-                        ),
-                    ],
-                    spacing=8,
-                    wrap=True,
-                    run_spacing=8,
-                ),
-                ft.Row(
-                    [
-                        _quick_btn(
-                            f"未评分（{ungraded}）",
-                            ft.Icons.HOURGLASS_EMPTY,
-                            lambda ev: self._on_select_ungraded(ev),
-                        ),
-                        _quick_btn(
-                            f"进度100%（{completed}）",
-                            ft.Icons.TASK_ALT,
-                            lambda ev: self._on_select_completed(ev),
-                        ),
-                    ],
-                    spacing=8,
-                    wrap=True,
-                    run_spacing=8,
-                ),
-            ],
-            spacing=10,
-        )
-
-        export_btn = secondary_button(
-            "导出成绩",
-            ft.Icons.DOWNLOAD,
-            lambda ev: self._on_export_grades(ev),
-            width=280,
-        )
-
-        refresh_btn = secondary_button(
-            "刷新列表",
-            ft.Icons.REFRESH,
-            lambda ev: self._load_results(),
-            width=280,
-        )
-        comment_settings_btn = secondary_button(
-            "设置",
-            ft.Icons.SETTINGS,
-            lambda ev: self._show_comment_settings(ev),
-            width=280,
-        )
-
-        return ft.Column(
-            [
-                stats_card,
-                ft.Divider(height=1, color=Palette.BORDER),
-                select_section,
-                ft.Divider(height=1, color=Palette.BORDER),
-                grade_all_btn,
-                self._grade_selected_btn,
-                ft.Divider(height=1, color=Palette.BORDER),
-                export_btn,
-                refresh_btn,
-                comment_settings_btn,
-            ],
-            spacing=12,
-            horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
-        )
+        panel, self._stat_selected_text, self._grade_selected_btn = build_result_action_panel(props)
+        return panel
 
     # ---------- 选择与功能按钮事件 ----------
 
@@ -2108,29 +1975,3 @@ class LazyAIGradingView:
         self._show_comment_settings(None)
 
 
-def _stat_row(label: str, value: str) -> ft.Row:
-    """统计面板中的一行 key-value（模块级函数，避免干扰类结构）。"""
-    return ft.Row(
-        [
-            ft.Text(label, size=13, color=Palette.TEXT_MUTED),
-            ft.Container(expand=True),
-            ft.Text(value, size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT),
-        ],
-        vertical_alignment=ft.CrossAxisAlignment.CENTER,
-    )
-
-
-def _quick_btn(label: str, icon, on_click) -> ft.OutlinedButton:
-    """快速选择区域的紧凑小按钮（模块级辅助函数）。"""
-    return ft.OutlinedButton(
-        label,
-        icon=icon,
-        on_click=on_click,
-        style=ft.ButtonStyle(
-            color=Palette.TEXT,
-            side=ft.BorderSide(1, Palette.BORDER_STRONG),
-            shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
-            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
-            text_style=Fonts.text(size=12, weight=ft.FontWeight.W_500),
-        ),
-    )

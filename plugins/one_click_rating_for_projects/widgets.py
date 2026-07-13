@@ -10,9 +10,11 @@
 """
 
 import flet as ft
+from dataclasses import dataclass
+from typing import Callable
 
-from src.ui.components import primary_button, secondary_button, status_chip
-from src.ui.theme import Palette, Radius
+from src.ui.components import primary_button, secondary_button, status_chip, surface_card
+from src.ui.theme import Fonts, Palette, Radius
 
 from .models import ClassProject, ProjectResult
 from .scoring import MINIMUM_NOT_MET_SCORE, NO_ATTACHMENT_DEDUCTION
@@ -546,3 +548,171 @@ def build_student_card(r: ProjectResult, *, is_selected: bool, on_tap) -> tuple:
     )
     refs = {"icon": check_icon, "container": container}
     return card, refs
+
+
+@dataclass
+class ResultPanelProps:
+    """build_result_action_panel 的参数包（数据 + 回调），避免函数签名爆炸。"""
+
+    result_list: list
+    selected: int
+    on_grade_all: Callable
+    on_grade_selected: Callable
+    on_select_all: Callable
+    on_deselect_all: Callable
+    on_select_ungraded: Callable
+    on_select_completed: Callable
+    on_export: Callable
+    on_refresh: Callable
+    on_settings: Callable
+
+
+def _stat_row(label: str, value: str) -> ft.Row:
+    """统计面板中的一行 key-value。"""
+    return ft.Row(
+        [
+            ft.Text(label, size=13, color=Palette.TEXT_MUTED),
+            ft.Container(expand=True),
+            ft.Text(value, size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT),
+        ],
+        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+    )
+
+
+def _quick_btn(label: str, icon, on_click) -> ft.OutlinedButton:
+    """快速选择区域的紧凑小按钮。"""
+    return ft.OutlinedButton(
+        label,
+        icon=icon,
+        on_click=on_click,
+        style=ft.ButtonStyle(
+            color=Palette.TEXT,
+            side=ft.BorderSide(1, Palette.BORDER_STRONG),
+            shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+            text_style=Fonts.text(size=12, weight=ft.FontWeight.W_500),
+        ),
+    )
+
+
+def build_result_action_panel(props: "ResultPanelProps") -> tuple:
+    """构建右侧统计摘要 + 快速选择 + 功能操作按钮面板。
+
+    Args:
+        props: ResultPanelProps（result_list + selected + 9 个回调）。
+
+    Returns:
+        (panel, stat_selected_text, grade_selected_btn)：panel 是 ft.Column；
+        stat_selected_text/grade_selected_btn 由调用方挂 self 供局部刷新。
+    """
+    total = len(props.result_list)
+    graded = sum(1 for r in props.result_list if r.is_graded)
+    ungraded = total - graded
+    completed = sum(1 for r in props.result_list if r.project_progress >= 100)
+    selected = props.selected
+
+    stat_selected_text = ft.Text(
+        str(selected), size=14, weight=ft.FontWeight.W_600, color=Palette.TEXT
+    )
+
+    stats_card = surface_card(
+        ft.Column(
+            [
+                ft.Text(
+                    "统计概览",
+                    size=15,
+                    weight=ft.FontWeight.W_600,
+                    color=Palette.TEXT,
+                ),
+                ft.Divider(height=1, color=Palette.BORDER),
+                _stat_row("总提交人数", str(total)),
+                _stat_row("已评分", str(graded)),
+                _stat_row("未评分", str(ungraded)),
+                _stat_row("进度100%", str(completed)),
+                ft.Divider(height=1, color=Palette.BORDER),
+                ft.Row(
+                    [
+                        ft.Text("当前已选", size=13, color=Palette.TEXT_MUTED),
+                        ft.Container(expand=True),
+                        stat_selected_text,
+                    ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                ),
+            ],
+            spacing=10,
+        ),
+        padding=18,
+    )
+
+    grade_all_btn = primary_button(
+        "一键评分（全部）",
+        ft.Icons.AUTO_AWESOME,
+        props.on_grade_all,
+        width=280,
+    )
+    grade_selected_btn = ft.FilledButton(
+        "评分已选学生",
+        icon=ft.Icons.CHECKLIST,
+        width=280,
+        disabled=selected == 0,
+        bgcolor=Palette.PRIMARY,
+        color=Palette.SURFACE,
+        on_click=props.on_grade_selected,
+        style=ft.ButtonStyle(
+            shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+            padding=ft.Padding.symmetric(horizontal=24, vertical=16),
+            text_style=Fonts.text(size=14, weight=ft.FontWeight.W_600),
+        ),
+    )
+
+    select_section = ft.Column(
+        [
+            ft.Text(
+                "快速选择",
+                size=13,
+                weight=ft.FontWeight.W_600,
+                color=Palette.TEXT,
+            ),
+            ft.Row(
+                [
+                    _quick_btn("全选", ft.Icons.CHECKLIST_RTL, props.on_select_all),
+                    _quick_btn("取消选择", ft.Icons.CLEAR_ALL, props.on_deselect_all),
+                ],
+                spacing=8,
+                wrap=True,
+                run_spacing=8,
+            ),
+            ft.Row(
+                [
+                    _quick_btn(f"未评分（{ungraded}）", ft.Icons.HOURGLASS_EMPTY, props.on_select_ungraded),
+                    _quick_btn(f"进度100%（{completed}）", ft.Icons.TASK_ALT, props.on_select_completed),
+                ],
+                spacing=8,
+                wrap=True,
+                run_spacing=8,
+            ),
+        ],
+        spacing=10,
+    )
+
+    export_btn = secondary_button("导出成绩", ft.Icons.DOWNLOAD, props.on_export, width=280)
+    refresh_btn = secondary_button("刷新列表", ft.Icons.REFRESH, props.on_refresh, width=280)
+    comment_settings_btn = secondary_button("设置", ft.Icons.SETTINGS, props.on_settings, width=280)
+
+    panel = ft.Column(
+        [
+            stats_card,
+            ft.Divider(height=1, color=Palette.BORDER),
+            select_section,
+            ft.Divider(height=1, color=Palette.BORDER),
+            grade_all_btn,
+            grade_selected_btn,
+            ft.Divider(height=1, color=Palette.BORDER),
+            export_btn,
+            refresh_btn,
+            comment_settings_btn,
+        ],
+        spacing=12,
+        horizontal_alignment=ft.CrossAxisAlignment.STRETCH,
+    )
+    return panel, stat_selected_text, grade_selected_btn
