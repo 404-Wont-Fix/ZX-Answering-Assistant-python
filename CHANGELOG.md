@@ -1,5 +1,34 @@
 # 更新日志
 
+## [v3.9.9] - 2026-07-14
+
+本版本是一次大规模架构重构与稳定性修复：拆分两个最大的上帝类（LazyAIGradingView / student.py）、统一多处重复的题库匹配与后台线程模式、修复 worker 卡死瘫痪与 SPA 导航超时等关键 bug。
+
+### 架构重构（消除重复 + 拆分上帝类）
+
+- **题库匹配统一**（`src/utils/bank_matcher.py`）：学生端纯 API / 认证端纯 API / 云考试三处重复的"按题目 ID 匹配 + 提取正确选项 ID"收敛为一份 `find_correct_answer_ids`，兼容 4 种题库结构、多字段命名，修正了原学生端的空串 bug。
+- **题库导入去重**（`src/extraction/bank_service.py`）：answering_view ↔ certification_view 的 `_process_selected_json_file`（~450 行克隆）收敛为 `load_question_bank` + `apply_bank_result` + `show_bank_load_result_dialog`；新建 `rich_dialog`/`pick_json_file` 等 UI 工厂。
+- **答题进度对话框统一**（`AnswerProgressDialog`）：参数化主题/日志区/大百分比；**认证端进度条接入 progress_callback**（原是死代码从不显示）。
+- **LazyAIGradingView 拆分**（2698→1977 行）：抽出 GradingService/TemplateService/ExcelExporter（业务）+ widgets.py（7 个 build_* UI 函数 + ResultPanelProps），评分/批语/导出可单测。
+- **extraction_view 后台线程统一**：抽 `run_background_task`（components.py），3 处 Event 轮询（登录/拉课/抽题）→ run_thread，删 9 个同步属性。
+- **student.py 拆分**（1130→165 行 façade）：拆出 `_student_courses`/`_student_browser_health`/`_student_browser_ops`/`_student_login` 4 个子模块，17 个公开符号 re-export 保证零调用方改动。
+
+### 关键 Bug 修复
+
+- **BrowserManager worker 卡死自愈**：worker 被 `page.goto` 永久占用会导致整个浏览器子系统瘫痪。新增 `reset_worker`（强杀进程逼 func 退出 + 升代际 + 清状态 + 排空队列）+ worker 代际机制；`submit_task` 300s 超时自动触发 reset。12 处 `page.goto` 补 `timeout=30000`。
+- **SPA 导航超时 + 登录慢**：`ai.cqzuxia.com` 是 SPA 有心跳请求，`wait_until="networkidle"` 永不达成导致 30s 超时。全部改 `domcontentloaded`。
+- **登录 token 等待**：token 响应监听超时 20→40s + 诊断日志。
+- **extraction 进度刷新**：progress_callback 在 run_thread 线程直接 `page.update()` 对 modal 不实时，改回 `run_task(update_ui)` marshal 到 UI 线程。
+- **P0 六个确证 bug**：exporter 选项顺序字段 typo（导出后顺序恒 0）、extract_course_answers 的 selected_class NameError、student.py cleanup_browser 引用未定义全局变量、workflow.py _get_page 死代码、extractor.close() 空操作、weban start_in_terminal 死代码。
+
+### 代码质量
+
+- **68 处 print → logging**（3 view，按 emoji 分级）。
+- **weban `_on_test_input` 调试残留清理**（~190 行两段 Pillow 绘图重复）。
+- 新增 5 个测试文件共 58 个单元测试（bank_matcher/bank_service/answer_progress_dialog/lazy_grading_services/student_facade），覆盖之前无法测试的业务逻辑。
+
+---
+
 ## [v3.9.8] - 2026-07-06
 
 本版本重点重构摸鱼速评助手的评分规则与批量评分能力，同时对设置界面进行了视觉重设计，并在全仓库完成了 Flet 0.83 弃用 API 的前置清理。
