@@ -5,6 +5,9 @@ This module contains the UI components for the answer extraction page.
 """
 
 import flet as ft
+import logging
+
+logger = logging.getLogger(__name__)
 import threading
 import asyncio
 import os
@@ -178,7 +181,7 @@ class ExtractionView:
 
     def _on_extract_click(self, e):
         """处理提取答案按钮点击事件 - 切换到登录界面"""
-        print("DEBUG: 切换到教师端登录界面")  # 调试信息
+        logger.debug("DEBUG: 切换到教师端登录界面")  # 调试信息
 
         # 使用动画切换到登录界面
         login_content = self._get_teacher_login_content()
@@ -267,7 +270,7 @@ class ExtractionView:
 
     def _on_back_click(self, e):
         """处理返回按钮点击事件 - 返回主界面"""
-        print("DEBUG: 返回主界面")  # 调试信息
+        logger.debug("DEBUG: 返回主界面")  # 调试信息
 
         # 切换回主界面
         main_content = self._get_main_content()
@@ -322,10 +325,10 @@ class ExtractionView:
 
                     # 根据复选框状态保存凭据
                     if self.remember_password_checkbox.value:
-                        print("💾 保存教师端凭据...")
+                        logger.debug("💾 保存教师端凭据...")
                         self.settings_manager.set_teacher_credentials(username, password)
                     else:
-                        print("🗑️ 清除教师端凭据...")
+                        logger.debug("🗑️ 清除教师端凭据...")
                         self.settings_manager.clear_teacher_credentials()
 
                     # 获取班级列表
@@ -513,7 +516,7 @@ class ExtractionView:
     def _on_grade_click(self, grade: str):
         """处理年级点击事件"""
         self.selected_grade = grade
-        print(f"DEBUG: 选择年级 {grade}")  # 调试信息
+        logger.debug(f"DEBUG: 选择年级 {grade}")  # 调试信息
 
         # 过滤班级列表
         self.filtered_classes = [
@@ -676,7 +679,7 @@ class ExtractionView:
     def _on_class_click(self, class_info: Dict):
         """处理班级点击事件"""
         self.selected_class = class_info
-        print(f"DEBUG: 选择班级 {class_info.get('className')}")  # 调试信息
+        logger.debug(f"DEBUG: 选择班级 {class_info.get('className')}")  # 调试信息
 
         # 显示加载对话框
         self.progress_dialog = ft.AlertDialog(
@@ -874,7 +877,7 @@ class ExtractionView:
         course_id = course.get('courseID', '')
         class_id = self.selected_class.get('id', '')
 
-        print(f"DEBUG: 提取课程 {course_name} (ID: {course_id})")
+        logger.debug(f"DEBUG: 提取课程 {course_name} (ID: {course_id})")
 
         # 初始化日志
         self.extract_logs = []
@@ -968,7 +971,7 @@ class ExtractionView:
                 self.extract_success = False
                 self.extract_error = str(ex)
                 import traceback
-                print(f"提取异常：{traceback.format_exc()}")
+                logger.debug(f"提取异常：{traceback.format_exc()}")
             finally:
                 self.extract_event.set()
 
@@ -996,13 +999,13 @@ class ExtractionView:
                     file_path = exporter.export_data(result)
                     # 转换为绝对路径
                     abs_file_path = os.path.abspath(file_path)
-                    print(f"✅ 数据已导出到：{abs_file_path}")
+                    logger.info(f"✅ 数据已导出到：{abs_file_path}")
                     export_success = True
                     export_error = None
                 except Exception as e:
                     export_success = False
                     export_error = str(e)
-                    print(f"❌ 导出失败：{export_error}")
+                    logger.error(f"❌ 导出失败：{export_error}")
 
                 # 显示成功对话框
                 if export_success:
@@ -1022,7 +1025,7 @@ class ExtractionView:
                             else:  # Linux
                                 subprocess.Popen(['xdg-open', folder_path])
                         except Exception as ex:
-                            print(f"打开文件夹失败：{ex}")
+                            logger.debug(f"打开文件夹失败：{ex}")
 
                     # 复制路径的函数
                     def copy_path(e):
@@ -1038,7 +1041,7 @@ class ExtractionView:
                             copy_tooltip.open = True
                             self.page.update()
                         except Exception as ex:
-                            print(f"复制失败：{ex}")
+                            logger.debug(f"复制失败：{ex}")
                             # 如果复制失败，显示手动复制提示
                             copy_tooltip = ft.SnackBar(
                                 ft.Text("⚠️ 自动复制失败，请手动复制路径", color=ft.Colors.WHITE),
