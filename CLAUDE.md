@@ -212,8 +212,11 @@ Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and mod
 - **[src/utils/bank_matcher.py](src/utils/bank_matcher.py)** - `find_correct_answer_ids(bank, question_id, *, scope_knowledge=None)` — unified "match by question ID + extract correct option IDs" for all pure-API answering paths (student/certification/cloud_exam). Browser-automation paths do NOT use this (they need page value/content).
 - **[src/extraction/bank_service.py](src/extraction/bank_service.py)** - `load_question_bank()` + `apply_bank_result()` — file import + course-ID validation + statistics preview; `course_id_key`/`course_name_key` absorbs student (`courseID`/`courseName`) vs certification (`eCourseID`/`lessonName`) field differences.
 - **`AnswerProgressDialog`** in [src/ui/components.py](src/ui/components.py) - Parameterized progress dialog (theme/log-panel/big-percent); unified `_create_answer_log_dialog` for both Views. `update_progress(current, total, message)` matches engine `progress_callback` signature.
+- **`run_background_task`** in [src/ui/components.py](src/ui/components.py) - Unified background task runner (`page.run_thread` + on_done/on_error/progress_dialog); replaces the Event-polling pattern. **Frequent callbacks (progress) must use `page.run_task` inside, NOT direct `page.update()`** (modal dialogs don't refresh from a worker thread — extraction_view learned this the hard way).
+- **`BrowserManager.reset_worker`** in [src/core/browser.py](src/core/browser.py) - Worker self-healing on hang (force-kill process tree → bump generation → clear state → drain queue); auto-triggered by `submit_task` 300s timeout. Python threads can't be killed, so this is the only recovery from a stuck Playwright call.
+- **`src/auth/student.py` is a façade** (165 lines) - 1130-line module split into 4 submodules: `_student_courses` (HTTP) / `_student_browser_health` (health check) / `_student_browser_ops` (page ops) / `_student_login` (login). 17 public symbols re-exported for backward compat. **Edit the relevant submodule, not student.py.**
 
-When adding question-bank matching / import / progress-dialog features, reuse these instead of writing new code.
+When adding question-bank matching / import / progress-dialog / background-task / browser-recovery features, reuse these instead of writing new code.
 
 ### API Client and Rate Limiting
 - **[src/core/api_client.py](src/core/api_client.py)** - Unified HTTP client
