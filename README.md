@@ -9,7 +9,7 @@
 [![Playwright](https://img.shields.io/badge/Playwright-1.57%2B-green.svg)](https://playwright.dev/python/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)](#预构建发布包)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Version](https://img.shields.io/badge/Version-v3.9.7-green.svg)](version.py)
+[![Version](https://img.shields.io/badge/Version-v3.9.9-green.svg)](version.py)
 
 一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
