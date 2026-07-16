@@ -25,7 +25,16 @@ from src.core.browser import (
 
 # 导入Token管理器
 from src.auth.token_manager import get_token_manager
-from src.core.headers import get_api_headers
+
+# 从子模块 re-export（façade 兼容，保持 src.auth.student.* 可导入）
+from ._student_browser_health import (
+    check_and_recover_browser,
+    cleanup_browser,
+    close_browser,
+    ensure_browser_alive,
+    is_browser_alive,
+)
+from ._student_courses import get_student_courses, get_uncompleted_chapters
 
 # 日志目录（原 src.core.constants，已内联）
 import os
@@ -614,111 +623,7 @@ def _navigate_to_course_impl(course_id: str) -> bool:
         return False
 
 
-def close_browser():
-    """
-    关闭学生端浏览器上下文
-    注意：这只关闭学生端上下文，不会关闭整个浏览器（可能还有其他模块在使用）
-    """
-    try:
-        manager = get_browser_manager()
-        manager.cleanup_type(BrowserType.STUDENT)
-        logger.info("学生端浏览器上下文已关闭")
-    except Exception as e:
-        logger.error(f"关闭浏览器时发生错误: {str(e)}")
 
-
-def get_uncompleted_chapters(access_token: str, course_id: str, delay_ms: int = 600, max_retries: int = 3) -> Optional[List[Dict]]:
-    """
-    使用access_token和课程ID获取未完成的知识点列表
-
-    Args:
-        access_token: 学生端的access_token
-        course_id: 课程ID
-        delay_ms: 请求延迟（毫秒），默认600毫秒（已弃用，请使用设置菜单配置）
-        max_retries: 最大重试次数，默认3次（已弃用，请使用设置菜单配置）
-
-    Returns:
-        Optional[List[Dict]]: 未完成的知识点列表，如果失败则返回None
-    """
-    # 使用API客户端发送请求
-    try:
-        from src.core.api_client import get_api_client
-
-        api_client = get_api_client()
-
-        # API端点
-        url = f"https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetUnCompleteChapterList?CourseID={course_id}"
-
-        # 请求头
-        headers = get_api_headers(
-            "chrome_138", access_token,
-            referer="https://ai.cqzuxia.com/",
-            extra_headers={"priority": "u=1, i"},
-        )
-
-        # 如果明确指定了max_retries且大于0，使用它（向后兼容）
-        actual_max_retries = max_retries if max_retries > 0 else None
-
-        logger.info(f"正在获取课程 {course_id} 的未完成知识点列表...")
-        logger.info(f"发送请求到: {url}")
-
-        # 发送GET请求
-        response = api_client.request("GET", url, headers=headers, max_retries=actual_max_retries)
-
-        if response and response.status_code == 200:
-            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
-
-            try:
-                data = response.json()
-
-                # 检查返回的数据结构
-                if isinstance(data, dict):
-                    # 如果返回的是字典，提取data字段
-                    if "data" in data and data.get("success"):
-                        chapters_data = data["data"]
-                    else:
-                        logger.error(f"API返回错误: {data}")
-                        return None
-                else:
-                    logger.error(f"未知的数据格式: {type(data)}")
-                    return None
-
-                # 解析嵌套的章节-知识点结构
-                all_knowledges = []
-                for chapter in chapters_data:
-                    chapter_id = chapter.get('id', 'N/A')
-                    chapter_title = chapter.get('title', 'N/A')
-                    chapter_content = chapter.get('titleContent', '')
-
-                    knowledge_list = chapter.get('knowledgeList', [])
-                    for knowledge in knowledge_list:
-                        knowledge_id = knowledge.get('id', 'N/A')
-                        knowledge_name = knowledge.get('knowledge', 'N/A')
-
-                        all_knowledges.append({
-                            'id': chapter_id,
-                            'title': chapter_title,
-                            'titleContent': chapter_content,
-                            'knowledge_id': knowledge_id,
-                            'knowledge': knowledge_name
-                        })
-
-                logger.info(f"✅ 成功获取 {len(all_knowledges)} 个未完成知识点")
-                return all_knowledges
-
-            except Exception as e:
-                logger.error(f"解析JSON响应失败: {str(e)}")
-                logger.error(f"响应内容: {response.text[:500] if response else 'N/A'}")
-                return None
-        else:
-            status_code = response.status_code if response else "N/A"
-            logger.error(f"❌ 请求失败，状态码: {status_code}")
-            logger.error(f"响应内容: {response.text[:500] if response else 'N/A'}")
-            return None
-
-    except Exception as e:
-        logger.error(f"❌ 获取未完成知识点列表异常: {str(e)}")
-        return None
 
 
 def get_course_progress_from_page() -> Optional[Dict]:
@@ -763,7 +668,7 @@ def _get_course_progress_from_page_impl() -> Optional[Dict]:
 
         # 等待页面加载完成 - 使用 networkidle 而不是等待特定元素
         try:
-            page.wait_for_load_state("networkidle", timeout=8000)
+            page.wait_for_load_state("domcontentloaded", timeout=8000)
         except Exception:
             # 如果等待 networkidle 失败，继续尝试解析
             logger.debug("等待 networkidle 超时，继续解析页面")
@@ -860,155 +765,8 @@ def _get_course_progress_from_page_impl() -> Optional[Dict]:
         return None
 
 
-def _get_student_courses_request(access_token: str) -> Optional[List[Dict]]:
-    """
-    获取学生端课程列表的实际请求逻辑（内部方法，用于重试）
-
-    Args:
-        access_token: 学生端的access_token
-
-    Returns:
-        Optional[List[Dict]]: 课程列表，如果失败则返回None
-    """
-    from src.core.api_client import get_api_client
-
-    # API端点
-    url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
-
-    # 请求头
-    headers = get_api_headers(
-        "chrome_138", access_token,
-        referer="https://ai.cqzuxia.com/",
-        extra_headers={"priority": "u=1, i"},
-    )
-
-    logger.info(f"发送请求到: {url}")
-    logger.info("使用已认证的学生端会话获取课程列表")
-
-    # 使用APIClient发送GET请求
-    api_client = get_api_client()
-    response = api_client.get(url, headers=headers)
-
-    if response is None:
-        return None
-
-    # 检查响应状态（APIClient已经处理了重试，这里只需要处理成功的响应）
-    if response.status_code == 200:
-        logger.info(f"✅ 请求成功，状态码: {response.status_code}")
-
-        try:
-            data = response.json()
-
-            # 打印完整的响应数据（用于调试）
-            logger.info(f"响应数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
-
-            # 检查返回的数据结构
-            if isinstance(data, list):
-                # 如果直接返回列表
-                courses = data
-            elif isinstance(data, dict):
-                # 如果返回的是字典，尝试提取课程列表
-                if "data" in data:
-                    courses = data["data"]
-                elif "success" in data and data["success"]:
-                    courses = data.get("data", [])
-                else:
-                    logger.error(f"API返回错误: {data}")
-                    return None
-            else:
-                logger.error(f"未知的数据格式: {type(data)}")
-                return None
-
-            return courses
-
-        except json.JSONDecodeError as e:
-            logger.error(f"解析JSON响应失败: {str(e)}")
-            logger.error(f"响应内容: {response.text[:500]}")
-            return None
-    else:
-        logger.error(f"❌ 请求失败，状态码: {response.status_code}")
-        logger.error(f"响应内容: {response.text[:500]}")
-        return None
 
 
-def get_student_courses(access_token: str, max_retries: Optional[int] = None, delay: int = 2) -> Optional[List[Dict]]:
-    """
-    使用access_token获取学生端课程列表（带重试）
-
-    Args:
-        access_token: 学生端的access_token
-        max_retries: 最大重试次数，如果不提供则从配置读取
-        delay: 重试延迟（秒），默认2秒（保留用于向后兼容，实际使用APIClient的指数退避）
-
-    Returns:
-        Optional[List[Dict]]: 课程列表，如果失败则返回None
-    """
-    from src.core.api_client import get_api_client
-
-    try:
-        logger.info("正在获取学生端课程列表...")
-
-        # API端点
-        url = "https://ai.cqzuxia.com/evaluation/api/StuEvaluateReport/GetStuLatestTermCourseReports?"
-
-        # 请求头
-        headers = get_api_headers(
-            "chrome_138", access_token,
-            referer="https://ai.cqzuxia.com/",
-            extra_headers={"priority": "u=1, i"},
-        )
-
-        logger.info(f"发送请求到: {url}")
-        logger.info("使用已认证的学生端会话获取课程列表")
-
-        # 使用APIClient发送GET请求（带重试）
-        api_client = get_api_client()
-        response = api_client.get(url, headers=headers, max_retries=max_retries)
-
-        if response is None:
-            return None
-
-        # 检查响应状态
-        if response.status_code == 200:
-            logger.info(f"✅ 请求成功，状态码: {response.status_code}")
-
-            try:
-                data = response.json()
-
-                # 打印完整的响应数据（用于调试）
-                logger.info(f"响应数据: {json.dumps(data, ensure_ascii=False, indent=2)}")
-
-                # 检查返回的数据结构
-                if isinstance(data, list):
-                    # 如果直接返回列表
-                    courses = data
-                elif isinstance(data, dict):
-                    # 如果返回的是字典，尝试提取课程列表
-                    if "data" in data:
-                        courses = data["data"]
-                    elif "success" in data and data["success"]:
-                        courses = data.get("data", [])
-                    else:
-                        logger.error(f"API返回错误: {data}")
-                        return None
-                else:
-                    logger.error(f"未知的数据格式: {type(data)}")
-                    return None
-
-                return courses
-
-            except json.JSONDecodeError as e:
-                logger.error(f"解析JSON响应失败: {str(e)}")
-                logger.error(f"响应内容: {response.text[:500]}")
-                return None
-        else:
-            logger.error(f"❌ 请求失败，状态码: {response.status_code}")
-            logger.error(f"响应内容: {response.text[:500]}")
-            return None
-
-    except Exception as e:
-        logger.error(f"❌ 获取课程列表异常: {str(e)}")
-        return None
 
 
 # ==================== Access Token 管理函数 ====================
@@ -1051,48 +809,10 @@ def clear_access_token():
 
 # ==================== 浏览器健康检查和恢复 ====================
 
-def is_browser_alive() -> bool:
-    """
-    检查浏览器实例是否仍然存活
-
-    Returns:
-        bool: 浏览器是否存活
-    """
-    manager = get_browser_manager()
-    return manager.is_browser_alive()
 
 
-def ensure_browser_alive() -> bool:
-    """
-    确保浏览器实例存活，如果浏览器挂掉则清理并准备重新登录
-
-    Returns:
-        bool: 浏览器是否可用
-    """
-    if is_browser_alive():
-        return True
-
-    # 浏览器已挂掉，清理旧实例
-    logger.warning("⚠️ 检测到浏览器已挂掉，清理旧实例...")
-    cleanup_browser()
-
-    logger.info("✅ 浏览器实例已清理，请重新登录")
-    return False
 
 
-def cleanup_browser():
-    """
-    强制清理学生端浏览器实例（包括挂掉的浏览器）
-    """
-    try:
-        manager = get_browser_manager()
-        manager.cleanup_type(BrowserType.STUDENT)
-    except Exception as e:
-        logger.error(f"清理浏览器时发生错误: {str(e)}")
-    finally:
-        # 清空 token 缓存（token 由 TokenManager 统一管理）
-        _token_manager.clear_student_token()
-        logger.info("✅ 学生端浏览器实例已强制清理")
 
 
 def restart_browser(username: str = None, password: str = None) -> Optional[str]:
@@ -1115,15 +835,3 @@ def restart_browser(username: str = None, password: str = None) -> Optional[str]
     return get_student_access_token(username, password, keep_browser=True)
 
 
-def check_and_recover_browser() -> bool:
-    """
-    检查浏览器状态并尝试恢复
-
-    Returns:
-        bool: 浏览器是否可用
-    """
-    if not is_browser_alive():
-        logger.warning("⚠️ 浏览器不可用，准备清理...")
-        cleanup_browser()
-        return False
-    return True
