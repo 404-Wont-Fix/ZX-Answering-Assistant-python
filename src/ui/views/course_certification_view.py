@@ -5,6 +5,9 @@ This module contains the UI components for the course certification page.
 """
 
 import flet as ft
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 from pathlib import Path
 from src.extraction.importer import QuestionBankImporter
@@ -486,21 +489,21 @@ class CourseCertificationView:
 
     def _on_start_answer_click(self, e):
         """处理开始答题按钮点击事件"""
-        print("DEBUG: 切换到登录界面")
+        logger.debug("DEBUG: 切换到登录界面")
         login_content = self._get_login_content()
         self.current_content.content = login_content
         self.page.update()
 
     def _on_back_from_login(self, e):
         """处理从登录界面返回的按钮点击事件"""
-        print("DEBUG: 从登录界面返回主界面")
+        logger.debug("DEBUG: 从登录界面返回主界面")
         main_content = self._get_main_content()
         self.current_content.content = main_content
         self.page.update()
 
     def _on_back_to_main(self, e):
         """处理返回主界面按钮点击事件"""
-        print("DEBUG: 返回主界面")
+        logger.debug("DEBUG: 返回主界面")
         main_content = self._get_main_content()
         self.current_content.content = main_content
         self.page.update()
@@ -510,7 +513,7 @@ class CourseCertificationView:
         username = self.username_field.value
         password = self.password_field.value
 
-        print(f"DEBUG: 登录账号={username}, 密码={'*' * len(password) if password else ''}")
+        logger.debug(f"DEBUG: 登录账号={username}, 密码={'*' * len(password) if password else ''}")
 
         # 验证输入
         if not username or not password:
@@ -526,7 +529,7 @@ class CourseCertificationView:
 
         # 保存教师凭据
         settings_manager = get_settings_manager()
-        print("💾 保存教师端凭据...")
+        logger.debug("💾 保存教师端凭据...")
         settings_manager.set_teacher_credentials(username, password)
 
         # 显示登录进度对话框
@@ -567,13 +570,13 @@ class CourseCertificationView:
             if result and result[0]:  # result = (access_token, browser, page, playwright)
                 access_token = result[0]
                 self.access_token = access_token
-                print("✅ 成功获取 access_token")
+                logger.info("✅ 成功获取 access_token")
 
                 # 获取课程列表
                 self.course_list = self._fetch_course_list(access_token)
 
                 if self.course_list:
-                    print(f"✅ 成功获取 {len(self.course_list)} 门课程")
+                    logger.info(f"✅ 成功获取 {len(self.course_list)} 门课程")
 
                     # 关闭进度对话框
                     self.page.pop_dialog()
@@ -583,7 +586,7 @@ class CourseCertificationView:
                     self.current_content.content = courses_content
                     self.page.update()
                 else:
-                    print("❌ 未获取到课程列表")
+                    logger.error("❌ 未获取到课程列表")
                     self.page.pop_dialog()
                     error_dialog = ft.AlertDialog(
                         title=ft.Text("获取课程失败"),
@@ -594,7 +597,7 @@ class CourseCertificationView:
                     )
                     self.page.show_dialog(error_dialog)
             else:
-                print("❌ 登录失败")
+                logger.error("❌ 登录失败")
                 self.page.pop_dialog()
                 error_dialog = ft.AlertDialog(
                     title=ft.Text("登录失败"),
@@ -606,7 +609,7 @@ class CourseCertificationView:
                 self.page.show_dialog(error_dialog)
 
         except Exception as e:
-            print(f"❌ 登录异常: {str(e)}")
+            logger.error(f"❌ 登录异常: {str(e)}")
             import traceback
             traceback.print_exc()
 
@@ -644,7 +647,7 @@ class CourseCertificationView:
             response = api_client.get(api_url, headers=headers)
 
             if response is None:
-                print("❌ 获取课程列表失败：未收到有效响应")
+                logger.error("❌ 获取课程列表失败：未收到有效响应")
                 return []
 
             if response.status_code == 200:
@@ -652,13 +655,13 @@ class CourseCertificationView:
                 if data.get('code') == 0 and 'data' in data:
                     return data['data']
         except Exception as e:
-            print(f"❌ 获取课程列表异常: {e}")
+            logger.error(f"❌ 获取课程列表异常: {e}")
 
         return []
 
     def _on_course_card_click(self, e, course: dict):
         """处理课程卡片点击事件"""
-        print(f"DEBUG: 点击课程卡片 - {course.get('lessonName')}")
+        logger.debug(f"DEBUG: 点击课程卡片 - {course.get('lessonName')}")
 
         # 如果已导入题库，验证题库课程ID是否与新选择的课程匹配
         if self.question_bank_data:
@@ -681,12 +684,12 @@ class CourseCertificationView:
                 new_course_id = course.get('eCourseID', '')
                 new_course_name = course.get('lessonName', '未知课程')
 
-                print(f"DEBUG: 题库课程ID = {bank_course_id}")
-                print(f"DEBUG: 新选择课程ID = {new_course_id}")
+                logger.debug(f"DEBUG: 题库课程ID = {bank_course_id}")
+                logger.debug(f"DEBUG: 新选择课程ID = {new_course_id}")
 
                 # 如果题库课程ID与新选择的课程ID不匹配
                 if bank_course_id and new_course_id and bank_course_id != new_course_id:
-                    print(f"❌ 题库课程与新选择的课程不匹配")
+                    logger.error(f"❌ 题库课程与新选择的课程不匹配")
 
                     # 暂存旧课程信息
                     old_course = self.selected_course
@@ -713,7 +716,7 @@ class CourseCertificationView:
 
     def _on_select_json_bank(self, e):
         """处理选择题库按钮点击事件"""
-        print("DEBUG: 选择题库文件")
+        logger.debug("DEBUG: 选择题库文件")
         pick_json_file(self.page, self._process_selected_json_file)
 
     def _process_selected_json_file(self, file_path: str):
@@ -732,14 +735,14 @@ class CourseCertificationView:
         self.page.pop_dialog()
 
         # 对话框关闭后再刷新界面，以启用"开始答题"按钮
-        print("DEBUG: 刷新界面以更新按钮状态")
+        logger.debug("DEBUG: 刷新界面以更新按钮状态")
         courses_content = self._get_course_list_content()
         self.current_content.content = courses_content
         self.page.update()
 
     def _on_clear_question_bank(self, e, new_course: dict):
         """清除题库并选择新课程"""
-        print("DEBUG: 清除题库并选择新课程")
+        logger.debug("DEBUG: 清除题库并选择新课程")
         self.page.pop_dialog()
 
         # 清除题库数据
@@ -771,7 +774,7 @@ class CourseCertificationView:
 
     def _on_cancel_course_selection(self, e, old_course: dict):
         """取消选择课程，保持之前的课程"""
-        print("DEBUG: 取消选择课程")
+        logger.debug("DEBUG: 取消选择课程")
         self.page.pop_dialog()
 
         # 恢复旧课程（如果没有旧课程，则清除选择）
@@ -784,7 +787,7 @@ class CourseCertificationView:
 
     def _on_start_api_answer(self, e):
         """处理开始API答题按钮点击事件"""
-        print("DEBUG: 开始API模式答题")
+        logger.debug("DEBUG: 开始API模式答题")
 
         if not self.question_bank_data:
             dialog = ft.AlertDialog(
@@ -833,7 +836,7 @@ class CourseCertificationView:
                 return ""
 
         except Exception as e:
-            print(f"⚠️ 获取题库课程ID失败: {e}")
+            logger.warning(f"⚠️ 获取题库课程ID失败: {e}")
 
         return ""
 

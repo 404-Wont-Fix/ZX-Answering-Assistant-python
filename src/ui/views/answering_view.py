@@ -5,6 +5,9 @@ This module contains the UI components for the answering page.
 """
 
 import flet as ft
+import logging
+
+logger = logging.getLogger(__name__)
 import json
 import sys
 from pathlib import Path
@@ -334,7 +337,7 @@ class AnsweringView:
 
     def _on_start_answer_click(self, e):
         """处理开始答题按钮点击事件 - 切换到登录界面"""
-        print("DEBUG: 切换到登录界面")  # 调试信息
+        logger.debug("DEBUG: 切换到登录界面")  # 调试信息
 
         # 使用动画切换到登录界面
         login_content = self._get_login_content()
@@ -351,24 +354,24 @@ class AnsweringView:
         - 内存中的课程数据
         - 题库数据
         """
-        print("🧹 正在清理用户状态...")
+        logger.debug("🧹 正在清理用户状态...")
 
         try:
             # 1. 清理 access_token
             if self.access_token:
-                print("  - 清理 access_token")
+                logger.debug("  - 清理 access_token")
                 clear_access_token()
                 self.access_token = None
 
             # 2. 清理浏览器上下文
-            print("  - 清理浏览器上下文")
+            logger.debug("  - 清理浏览器上下文")
             try:
                 cleanup_browser()
             except Exception as e:
-                print(f"  ⚠️ 清理浏览器失败: {e}")
+                logger.warning(f"  ⚠️ 清理浏览器失败: {e}")
 
             # 3. 清理内存中的状态
-            print("  - 清理内存状态")
+            logger.debug("  - 清理内存状态")
             self.username = ""
             self.course_list = []
             self.current_course = None
@@ -377,19 +380,19 @@ class AnsweringView:
 
             # 4. 清理题库数据
             if self.question_bank_data:
-                print("  - 清理题库数据")
+                logger.debug("  - 清理题库数据")
                 self.question_bank_data = None
 
-            print("✅ 用户状态清理完成")
+            logger.info("✅ 用户状态清理完成")
 
         except Exception as e:
-            print(f"❌ 清理用户状态时出错: {e}")
+            logger.error(f"❌ 清理用户状态时出错: {e}")
             import traceback
             traceback.print_exc()
 
     def _on_back_click(self, e):
         """处理返回按钮点击事件 - 返回主界面"""
-        print("DEBUG: 返回主界面")  # 调试信息
+        logger.debug("DEBUG: 返回主界面")  # 调试信息
 
         # 使用动画切换回主界面
         main_content = self._get_main_content()
@@ -401,7 +404,7 @@ class AnsweringView:
         username = self.username_field.value
         password = self.password_field.value
 
-        print(f"DEBUG: 登录账号={username}, 密码={'*' * len(password) if password else ''}")
+        logger.debug(f"DEBUG: 登录账号={username}, 密码={'*' * len(password) if password else ''}")
 
         # 验证输入
         if not username or not password:
@@ -442,14 +445,14 @@ class AnsweringView:
             if access_token:
                 self.access_token = access_token
                 self.username = username
-                print("✅ 成功获取 access_token")
+                logger.info("✅ 成功获取 access_token")
 
                 # 根据复选框状态保存凭据
                 if self.remember_password_checkbox.value:
-                    print("💾 保存学生端凭据...")
+                    logger.debug("💾 保存学生端凭据...")
                     self.settings_manager.set_student_credentials(username, password)
                 else:
-                    print("🗑️ 清除学生端凭据...")
+                    logger.debug("🗑️ 清除学生端凭据...")
                     self.settings_manager.clear_student_credentials()
 
                 # 更新进度对话框
@@ -469,24 +472,24 @@ class AnsweringView:
 
                     if courses and len(courses) > 0:
                         self.course_list = courses
-                        print(f"✅ 成功获取 {len(courses)} 门课程")
+                        logger.info(f"✅ 成功获取 {len(courses)} 门课程")
 
                         # 为每门课程获取未完成的知识点
                         for course in courses:
                             course_id = course.get('courseID')
                             if course_id:
                                 try:
-                                    print(f"正在获取课程 {course.get('courseName')} 的未完成知识点...")
+                                    logger.debug(f"正在获取课程 {course.get('courseName')} 的未完成知识点...")
                                     uncompleted = get_uncompleted_chapters(access_token, course_id)
                                     if uncompleted and len(uncompleted) > 0:
                                         course['uncompleted_knowledges'] = uncompleted
-                                        print(f"  ✅ {course.get('courseName')}: {len(uncompleted)} 个未完成知识点")
+                                        logger.info(f"  ✅ {course.get('courseName')}: {len(uncompleted)} 个未完成知识点")
                                     else:
                                         # 课程已完成或无未完成知识点
                                         course['uncompleted_knowledges'] = []
-                                        print(f"  ✅ {course.get('courseName')}: 已完成或无未完成知识点")
+                                        logger.info(f"  ✅ {course.get('courseName')}: 已完成或无未完成知识点")
                                 except Exception as e:
-                                    print(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {e}")
+                                    logger.error(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {e}")
                                     course['uncompleted_knowledges'] = []
 
                         # 关闭进度对话框
@@ -498,7 +501,7 @@ class AnsweringView:
                         self.page.update()
 
                     else:
-                        print("❌ 未获取到课程列表")
+                        logger.error("❌ 未获取到课程列表")
 
                         # 关闭进度对话框
                         self.page.pop_dialog()
@@ -516,7 +519,7 @@ class AnsweringView:
                         self.page.show_dialog(error_dialog)
 
                 except Exception as e:
-                    print(f"❌ 获取课程列表异常: {str(e)}")
+                    logger.error(f"❌ 获取课程列表异常: {str(e)}")
 
                     # 关闭进度对话框
                     self.page.pop_dialog()
@@ -534,7 +537,7 @@ class AnsweringView:
                     self.page.show_dialog(error_dialog)
 
             else:
-                print("❌ 登录失败，未能获取 access_token")
+                logger.error("❌ 登录失败，未能获取 access_token")
 
                 # 登录失败，更新UI
                 self.page.pop_dialog()
@@ -552,7 +555,7 @@ class AnsweringView:
                 self.page.show_dialog(error_dialog)
 
         except Exception as e:
-            print(f"❌ 登录过程中发生异常: {str(e)}")
+            logger.error(f"❌ 登录过程中发生异常: {str(e)}")
 
             # 发生异常，更新UI
             try:
@@ -584,7 +587,7 @@ class AnsweringView:
 
         for idx, course in enumerate(self.course_list):
             try:
-                print(f"正在渲染课程卡片 {idx + 1}/{len(self.course_list)}: {course.get('courseName', '未知')}")
+                logger.debug(f"正在渲染课程卡片 {idx + 1}/{len(self.course_list)}: {course.get('courseName', '未知')}")
 
                 # 计算未完成的知识点数量
                 uncompleted_count = course.get('kpCount', 0) - course.get('completeCount', 0)
@@ -671,10 +674,10 @@ class AnsweringView:
                 )
 
                 course_cards.append(card)
-                print(f"  ✅ 课程卡片渲染成功: {course.get('courseName')}")
+                logger.info(f"  ✅ 课程卡片渲染成功: {course.get('courseName')}")
 
             except Exception as e:
-                print(f"  ❌ 渲染课程卡片失败: {course.get('courseName')} - {str(e)}")
+                logger.error(f"  ❌ 渲染课程卡片失败: {course.get('courseName')} - {str(e)}")
                 import traceback
                 traceback.print_exc()
                 continue
@@ -744,7 +747,7 @@ class AnsweringView:
 
     def _on_back_from_courses(self, e):
         """处理从课程列表返回的按钮点击事件"""
-        print("DEBUG: 返回登录界面")  # 调试信息
+        logger.debug("DEBUG: 返回登录界面")  # 调试信息
 
         # 清理所有用户状态（返回登录界面时完全清理）
         self._cleanup_user_state()
@@ -934,13 +937,13 @@ class AnsweringView:
 
         try:
             # 导航到课程页面
-            print(f"正在导航到课程页面: {course_name}")
+            logger.debug(f"正在导航到课程页面: {course_name}")
             success = navigate_to_course(course_id)
 
             if not success:
                 # 检查浏览器是否挂掉
                 if not is_browser_alive():
-                    print("❌ 检测到浏览器已挂掉")
+                    logger.error("❌ 检测到浏览器已挂掉")
 
                     # 清理旧浏览器实例
                     cleanup_browser()
@@ -973,7 +976,7 @@ class AnsweringView:
                     self.page.show_dialog(relogin_dialog)
                     return
                 else:
-                    print("❌ 导航到课程页面失败（浏览器正常）")
+                    logger.error("❌ 导航到课程页面失败（浏览器正常）")
                     self._show_error_dialog("导航失败", "无法导航到课程页面，请查看控制台日志。")
                     return
 
@@ -982,28 +985,28 @@ class AnsweringView:
             new_token = get_access_token_from_browser()
             if new_token:
                 self.access_token = new_token
-            print("✅ 成功导航到课程页面")
+            logger.info("✅ 成功导航到课程页面")
 
             # 获取进度信息（从已加载的页面）
-            print("正在获取课程进度...")
+            logger.debug("正在获取课程进度...")
             progress = get_course_progress_from_page()
             if progress:
                 self.current_progress = progress
-                print(f"✅ 成功获取进度: {progress}")
+                logger.info(f"✅ 成功获取进度: {progress}")
 
                 # 获取未完成知识点列表
-                print("正在获取未完成知识点列表...")
+                logger.debug("正在获取未完成知识点列表...")
                 uncompleted = get_uncompleted_chapters(self.access_token, course_id)
                 self.current_uncompleted = uncompleted or []
-                print(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
+                logger.info(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
 
                 # 直接调用UI更新（Flet应该会自动处理线程切换）
                 self._refresh_course_detail_ui()
             else:
-                print("❌ 获取课程进度失败")
+                logger.error("❌ 获取课程进度失败")
                 self._show_error_dialog("获取进度失败", "无法获取课程进度信息，请查看控制台日志。")
         except Exception as ex:
-            print(f"❌ 导航异常: {str(ex)}")
+            logger.error(f"❌ 导航异常: {str(ex)}")
             import traceback
             traceback.print_exc()
             self._show_error_dialog("导航异常", f"导航时发生异常：{str(ex)}")
@@ -1013,7 +1016,7 @@ class AnsweringView:
         try:
             # 检查浏览器是否存活
             if not is_browser_alive():
-                print("❌ 检测到浏览器已挂掉")
+                logger.error("❌ 检测到浏览器已挂掉")
 
                 # 清理旧浏览器实例
                 cleanup_browser()
@@ -1045,27 +1048,27 @@ class AnsweringView:
                 return
 
             # 获取进度信息（从已加载的页面）
-            print("正在获取课程进度...")
+            logger.debug("正在获取课程进度...")
             progress = get_course_progress_from_page()
             if progress:
                 self.current_progress = progress
-                print(f"✅ 成功获取进度: {progress}")
+                logger.info(f"✅ 成功获取进度: {progress}")
 
                 # 获取未完成知识点列表
-                print("正在获取未完成知识点列表...")
+                logger.debug("正在获取未完成知识点列表...")
                 course_id = self.current_course.get('courseID')
                 uncompleted = get_uncompleted_chapters(self.access_token, course_id)
                 self.current_uncompleted = uncompleted or []
-                print(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
+                logger.info(f"✅ 成功获取 {len(self.current_uncompleted)} 个未完成知识点")
 
                 # 在主线程中更新UI
                 self.page.run_thread(self._refresh_course_detail_ui)
             else:
-                print("❌ 获取课程进度失败")
+                logger.error("❌ 获取课程进度失败")
                 # 在主线程中显示错误对话框
                 self.page.run_thread(lambda: self._show_error_dialog("获取进度失败", "无法获取课程进度信息，请查看控制台日志。"))
         except Exception as e:
-            print(f"❌ 更新进度信息异常: {str(e)}")
+            logger.error(f"❌ 更新进度信息异常: {str(e)}")
             import traceback
             traceback.print_exc()
             # 在主线程中显示错误对话框
@@ -1080,7 +1083,7 @@ class AnsweringView:
 
     def _on_extract_answers(self, _e, course_id: str):
         """处理提取答案按钮点击事件"""
-        print(f"DEBUG: 提取课程答案 - 课程ID: {course_id}")
+        logger.debug(f"DEBUG: 提取课程答案 - 课程ID: {course_id}")
 
         if self.main_app:
             # 切换到答案提取页面（导航索引 = 1）
@@ -1107,7 +1110,7 @@ class AnsweringView:
 
     def _on_use_json_bank(self, e):
         """处理使用JSON题库按钮点击事件"""
-        print("DEBUG: 使用JSON题库")
+        logger.debug("DEBUG: 使用JSON题库")
         pick_json_file(self.page, self._process_selected_json_file)
 
     def _process_selected_json_file(self, file_path: str):
@@ -1125,12 +1128,12 @@ class AnsweringView:
 
     def _on_start_compatibility_mode(self, e, course_id: str):
         """处理开始兼容模式按钮点击事件"""
-        print(f"DEBUG: 开始兼容模式答题 - 课程ID: {course_id}")
+        logger.debug(f"DEBUG: 开始兼容模式答题 - 课程ID: {course_id}")
         self._start_answering("compatibility", course_id)
 
     def _on_start_brute_mode(self, e, course_id: str):
         """处理开始暴力模式按钮点击事件"""
-        print(f"DEBUG: 开始暴力模式答题 - 课程ID: {course_id}")
+        logger.debug(f"DEBUG: 开始暴力模式答题 - 课程ID: {course_id}")
         self._start_answering("brute", course_id)
 
     def _create_answer_log_dialog(self, title: str) -> ft.AlertDialog:
@@ -1152,7 +1155,7 @@ class AnsweringView:
         保留 (message, current, total) 签名以兼容 ~15 个手动调用点与 _progress_update 包装器；
         保留 answer_progress dict 维护（_perform_progress_update 轮询依赖）。
         """
-        print(f"[进度更新] {message} - 当前: {current}, 总数: {total}")
+        logger.debug(f"[进度更新] {message} - 当前: {current}, 总数: {total}")
 
         if current is not None and total is not None and total > 0:
             self.answer_progress = {"current": current, "total": total}
@@ -1203,7 +1206,7 @@ class AnsweringView:
         """
         def _log(msg):
             """内部日志函数，只打印到控制台"""
-            print(msg.strip())
+            logger.info(msg.strip())
 
         try:
             mode_name = "兼容模式" if mode == "compatibility" else "暴力模式"
@@ -1441,7 +1444,7 @@ class AnsweringView:
 
     def _on_back_from_course_detail(self, e):
         """处理从课程详情返回的按钮点击事件"""
-        print("DEBUG: 返回课程列表")
+        logger.debug("DEBUG: 返回课程列表")
 
         # 立即切换回课程列表界面（快速返回，不刷新数据）
         courses_content = self._get_courses_content()
@@ -1450,11 +1453,11 @@ class AnsweringView:
 
         # 可选：在后台静默刷新课程数据（不阻塞UI，不显示进度）
         # 如果需要看到刷新进度，可以点击"刷新课程列表"按钮
-        print("💡 提示：如需刷新最新数据，请点击刷新按钮")
+        logger.debug("💡 提示：如需刷新最新数据，请点击刷新按钮")
 
     def _on_refresh_courses(self, e):
         """手动刷新课程列表（用户主动触发）"""
-        print("🔄 用户请求刷新课程列表")
+        logger.debug("🔄 用户请求刷新课程列表")
 
         # 显示刷新提示
         self.page.snack_bar = ft.SnackBar(
@@ -1506,14 +1509,14 @@ class AnsweringView:
                     return
 
                 self.course_list = courses
-                print(f"✅ 成功刷新 {len(courses)} 门课程")
+                logger.info(f"✅ 成功刷新 {len(courses)} 门课程")
 
                 # 为每门课程获取未完成的知识点
                 for idx, course in enumerate(courses, 1):
                     course_id = course.get('courseID')
                     if course_id:
                         try:
-                            print(f"[{idx}/{len(courses)}] 正在获取 {course.get('courseName')} 的未完成知识点...")
+                            logger.debug(f"[{idx}/{len(courses)}] 正在获取 {course.get('courseName')} 的未完成知识点...")
                             uncompleted = get_uncompleted_chapters(
                                 access_token,
                                 course_id,
@@ -1521,9 +1524,9 @@ class AnsweringView:
                                 max_retries=1
                             )
                             course['uncompleted_knowledges'] = uncompleted if uncompleted else []
-                            print(f"  ✅ {course.get('courseName')}: {len(uncompleted) if uncompleted else 0} 个未完成知识点")
+                            logger.info(f"  ✅ {course.get('courseName')}: {len(uncompleted) if uncompleted else 0} 个未完成知识点")
                         except Exception as ex:
-                            print(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {ex}")
+                            logger.error(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {ex}")
                             course['uncompleted_knowledges'] = []
 
                 # 更新UI
@@ -1546,7 +1549,7 @@ class AnsweringView:
                 self.page.run_task(async_update)
 
             except Exception as ex:
-                print(f"❌ 刷新课程列表失败: {ex}")
+                logger.error(f"❌ 刷新课程列表失败: {ex}")
                 import traceback
                 traceback.print_exc()
 
@@ -1570,7 +1573,7 @@ class AnsweringView:
 
     def _on_relogin_from_navigation(self, e):
         """处理从导航失败后重新登录的按钮点击事件"""
-        print("🔄 用户选择重新登录")
+        logger.debug("🔄 用户选择重新登录")
 
         # 关闭对话框
         self.page.pop_dialog()
@@ -1585,7 +1588,7 @@ class AnsweringView:
 
     def _on_relogin_from_progress(self, e):
         """处理从进度更新失败后重新登录的按钮点击事件"""
-        print("🔄 用户选择重新登录")
+        logger.debug("🔄 用户选择重新登录")
 
         # 关闭对话框
         self.page.pop_dialog()
@@ -1600,7 +1603,7 @@ class AnsweringView:
 
     def _on_course_card_click(self, e, course: dict):
         """处理课程卡片点击事件"""
-        print(f"DEBUG: 点击课程卡片 - {course.get('courseName')}")
+        logger.debug(f"DEBUG: 点击课程卡片 - {course.get('courseName')}")
 
         # 如果已导入题库，验证题库课程ID是否与新选择的课程匹配
         if self.question_bank_data:
@@ -1623,12 +1626,12 @@ class AnsweringView:
                 new_course_id = course.get('courseID', '')
                 new_course_name = course.get('courseName', '未知课程')
 
-                print(f"DEBUG: 题库课程ID = {bank_course_id}")
-                print(f"DEBUG: 新选择课程ID = {new_course_id}")
+                logger.debug(f"DEBUG: 题库课程ID = {bank_course_id}")
+                logger.debug(f"DEBUG: 新选择课程ID = {new_course_id}")
 
                 # 如果题库课程ID与新选择的课程ID不匹配
                 if bank_course_id and new_course_id and bank_course_id != new_course_id:
-                    print(f"❌ 题库课程与新选择的课程不匹配")
+                    logger.error(f"❌ 题库课程与新选择的课程不匹配")
 
                     # 暂存旧课程信息
                     old_course = self.current_course
@@ -1666,7 +1669,7 @@ class AnsweringView:
 
     def _on_clear_question_bank_student(self, e, new_course: dict):
         """清除题库并选择新课程（学生端）"""
-        print("DEBUG: 清除题库并选择新课程")
+        logger.debug("DEBUG: 清除题库并选择新课程")
         self.page.pop_dialog()
 
         # 清除题库数据
@@ -1705,7 +1708,7 @@ class AnsweringView:
 
     def _on_cancel_course_selection_student(self, e, old_course: dict):
         """取消选择课程，保持之前的课程（学生端）"""
-        print("DEBUG: 取消选择课程")
+        logger.debug("DEBUG: 取消选择课程")
         self.page.pop_dialog()
 
         # 如果有旧课程，返回课程列表；如果没有，保持当前状态
@@ -1718,7 +1721,7 @@ class AnsweringView:
                 self.current_content.content = course_list_content
                 self.page.update()
             except Exception as ex:
-                print(f"❌ 获取课程列表失败: {ex}")
+                logger.error(f"❌ 获取课程列表失败: {ex}")
                 self._show_error_dialog("错误", f"获取课程列表失败：{str(ex)}")
 
     def _create_progress_card(self, course_name: str) -> ft.Card:
@@ -1996,7 +1999,7 @@ class AnsweringView:
                 current_chapter = None
                 for item in uncompleted_list:
                     # 打印完整的数据项来调试
-                    print(f"DEBUG: 完整数据项 = {item}")
+                    logger.debug(f"DEBUG: 完整数据项 = {item}")
 
                     chapter_num = item.get('title', '')  # 例如："第2章"
                     chapter_name = item.get('titleContent', item.get('title', '未知章节'))  # 例如："数据通信基础"
@@ -2006,7 +2009,7 @@ class AnsweringView:
                     full_chapter_title = f"{chapter_num} {chapter_name}" if chapter_num and chapter_num != chapter_name else chapter_name
 
                     # 调试输出
-                    print(f"DEBUG: 章节='{full_chapter_title}', 知识点='{knowledge_name}'")
+                    logger.debug(f"DEBUG: 章节='{full_chapter_title}', 知识点='{knowledge_name}'")
 
                     # 如果章节改变，添加章节标题
                     if current_chapter != full_chapter_title:
