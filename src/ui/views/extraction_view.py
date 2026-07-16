@@ -844,14 +844,18 @@ class ExtractionView:
         self.page.show_dialog(progress_dialog)
 
         def progress_callback(message, current=None, total=None):
-            """更新进度（run_thread 线程，可直接 page.update）"""
+            """更新进度（通过 run_task marshal 到 UI 线程，保证 modal 进度对话框实时刷新）"""
             self.extract_logs.append(message)
-            self.extract_progress_text.value = message
-            if current is not None and total is not None and total > 0:
-                self.extract_progress_bar.visible = True
-                self.extract_progress_bar.value = current / total
-            self.extract_log_text.value = "\n".join(self.extract_logs[-5:])
-            self.page.update()
+
+            async def update_ui():
+                self.extract_progress_text.value = message
+                if current is not None and total is not None and total > 0:
+                    self.extract_progress_bar.visible = True
+                    self.extract_progress_bar.value = current / total
+                self.extract_log_text.value = "\n".join(self.extract_logs[-5:])
+                self.page.update()
+
+            self.page.run_task(update_ui)
 
         def work():
             result = self.extractor.extract_course_with_progress(
