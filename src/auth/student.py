@@ -285,7 +285,7 @@ def _get_student_access_token_impl(
             # 打开学生端登录页面
             login_url = "https://ai.cqzuxia.com/#/login"
             logger.info(f"正在访问登录页面: {login_url}")
-            page.goto(login_url)
+            page.goto(login_url, timeout=30000)
 
             # 等待页面加载完成
             logger.info("等待页面加载完成...")
@@ -541,10 +541,10 @@ def _get_access_token_from_browser_impl() -> Optional[str]:
         current_url = page.url
         if "ai.cqzuxia.com" in current_url:
             logger.info("正在刷新页面...")
-            page.reload(wait_until="domcontentloaded")
+            page.reload(wait_until="domcontentloaded", timeout=30000)
         else:
             logger.info("正在导航到登录页...")
-            page.goto("https://ai.cqzuxia.com/#/login", wait_until="domcontentloaded")
+            page.goto("https://ai.cqzuxia.com/#/login", wait_until="domcontentloaded", timeout=30000)
 
         # 等待获取token
         start_time = time.time()
@@ -606,11 +606,11 @@ def _navigate_to_course_impl(course_id: str) -> bool:
         evaluation_url = f"https://ai.cqzuxia.com/#/evaluation/knowledge-detail/{course_id}"
 
         logger.info(f"正在导航到课程页面: {evaluation_url}")
-        page.goto(evaluation_url, wait_until="domcontentloaded")
+        page.goto(evaluation_url, wait_until="domcontentloaded", timeout=30000)
 
         # 刷新页面以确保正确加载
         logger.info("正在刷新页面...")
-        page.reload(wait_until="domcontentloaded")
+        page.reload(wait_until="domcontentloaded", timeout=30000)
 
         logger.info("✅ 成功导航到答题页面")
         return True

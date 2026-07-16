@@ -112,7 +112,7 @@ def _get_access_token_impl() -> Optional[str]:
             login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
             logger.info(f"正在访问登录页面: {login_url}")
             print(f"正在访问登录页面: {login_url}")
-            page.goto(login_url)
+            page.goto(login_url, timeout=30000)
 
             # 等待页面加载完成
             logger.info("等待页面加载完成...")
