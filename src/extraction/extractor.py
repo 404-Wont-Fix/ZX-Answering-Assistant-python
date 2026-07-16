@@ -100,7 +100,7 @@ class Extractor:
 
             # 打开登录页面
             login_url = "https://admin.cqzuxia.com/#/login?redirect=%2F"
-            self.page.goto(login_url)
+            self.page.goto(login_url, timeout=30000)
 
             # 等待页面加载完成
             self.page.wait_for_selector("input[placeholder='请输入账户']", timeout=10000)

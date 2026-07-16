@@ -236,7 +236,7 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
             login_url = "https://zxsz.cqzuxia.com/#/login/index"
             logger.info(f"正在访问登录页面: {login_url}")
             print(f"正在打开登录页面: {login_url}")
-            page.goto(login_url)
+            page.goto(login_url, timeout=30000)
 
             logger.info("等待登录表单加载...")
             print("等待登录表单加载...")
@@ -662,14 +662,14 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
                                 continue
                             else:
                                 print(f"      [WARNING] 未检测到自动跳转，手动返回题目列表")
-                                page.goto(course_url)
+                                page.goto(course_url, timeout=30000)
                                 time.sleep(2)
                                 chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
                                 question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
                                 continue
                         else:
                             print(f"      [WARNING] 超时未检测到成功提示，手动返回题目列表")
-                            page.goto(course_url)
+                            page.goto(course_url, timeout=30000)
                             time.sleep(2)
                             chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
                             question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
@@ -678,7 +678,7 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
                     except Exception as e:
                         print(f"      [ERROR] 做题失败: {str(e)}")
                         total_failed += 1
-                        page.goto(course_url)
+                        page.goto(course_url, timeout=30000)
                         time.sleep(2)
                         chapter = page.query_selector_all(".el-sub-menu")[chapter_idx]
                         question_items_in_chapter = chapter.query_selector_all(".el-menu-item")
@@ -729,7 +729,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
         print(f"📖 正在打开课程页面...")
         print(f"🔗 URL: {course_url}")
 
-        page.goto(course_url)
+        page.goto(course_url, timeout=30000)
 
         # 外层循环：持续显示题目列表和菜单
         should_exit = False
