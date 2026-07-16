@@ -8,8 +8,6 @@ import flet as ft
 import logging
 
 logger = logging.getLogger(__name__)
-import threading
-import asyncio
 import os
 import sys
 import subprocess
@@ -22,6 +20,7 @@ from src.ui.components import (
     hero_panel,
     page_heading,
     primary_button,
+    run_background_task,
     secondary_button,
     section_label,
     status_chip,
@@ -65,18 +64,6 @@ class ExtractionView:
         self.class_list_view = None  # 班级列表
         self.course_list_view = None  # 课程列表
         self.progress_dialog = None  # 加载对话框
-
-        # 线程同步
-        self.login_event = threading.Event()
-        self.course_load_event = threading.Event()
-        self.extract_event = threading.Event()
-        self.login_success = False
-        self.login_error = None
-        self.course_load_success = False
-        self.course_load_error = None
-        self.extract_success = False
-        self.extract_error = None
-        self.extract_result = None
 
         # 提取进度相关
         self.extract_progress_text = None  # 进度文本
@@ -309,82 +296,46 @@ class ExtractionView:
         )
         self.page.show_dialog(self.progress_dialog)
 
-        # 重置状态
-        self.login_success = False
-        self.login_error = None
-        self.login_event.clear()
+        def work():
+            extractor = Extractor()
+            if not extractor.login(username, password):
+                raise RuntimeError("用户名或密码错误")
+            class_list = extractor.get_class_list()
+            if not class_list:
+                raise RuntimeError("获取班级列表失败")
+            return extractor, class_list
 
-        # 在后台线程中执行登录
-        def login_task():
-            try:
-                self.extractor = Extractor()
-                success = self.extractor.login(username, password)
-
-                if success:
-                    self.access_token = self.extractor.access_token
-
-                    # 根据复选框状态保存凭据
-                    if self.remember_password_checkbox.value:
-                        logger.debug("💾 保存教师端凭据...")
-                        self.settings_manager.set_teacher_credentials(username, password)
-                    else:
-                        logger.debug("🗑️ 清除教师端凭据...")
-                        self.settings_manager.clear_teacher_credentials()
-
-                    # 获取班级列表
-                    self.class_list = self.extractor.get_class_list()
-                    if self.class_list:
-                        # 提取年级列表
-                        self.grades = sorted(
-                            set(cls.get("grade", "") for cls in self.class_list),
-                            reverse=True
-                        )
-                        self.login_success = True
-                        self.login_error = None
-                    else:
-                        self.login_success = False
-                        self.login_error = "获取班级列表失败"
-                else:
-                    self.login_success = False
-                    self.login_error = "用户名或密码错误"
-            except Exception as ex:
-                self.login_success = False
-                self.login_error = str(ex)
-            finally:
-                # 标记完成
-                self.login_event.set()
-
-        # 启动后台线程
-        threading.Thread(target=login_task, daemon=True).start()
-
-        # 在主线程中等待并更新UI（使用定时器）
-        async def check_login():
-            while not self.login_event.is_set():
-                # 等待100ms后再次检查
-                await asyncio.sleep(0.1)
-
-            # 关闭加载对话框
-            self.progress_dialog.open = False
+        def on_done(result):
+            extractor, class_list = result
+            self.extractor = extractor
+            self.access_token = extractor.access_token
+            if self.remember_password_checkbox.value:
+                logger.debug("💾 保存教师端凭据...")
+                self.settings_manager.set_teacher_credentials(username, password)
+            else:
+                logger.debug("🗑️ 清除教师端凭据...")
+                self.settings_manager.clear_teacher_credentials()
+            self.class_list = class_list
+            self.grades = sorted(
+                set(cls.get("grade", "") for cls in class_list), reverse=True
+            )
+            self.current_content.content = self._get_class_selection_content()
             self.page.update()
 
-            if self.login_success and not self.login_error:
-                # 登录成功，切换界面
-                selection_content = self._get_class_selection_content()
-                self.current_content.content = selection_content
-                self.page.update()
-            else:
-                # 登录失败，显示错误
-                dialog = ft.AlertDialog(
-                    title=ft.Text("错误"),
-                    content=ft.Text(self.login_error or "未知错误"),
-                    actions=[
-                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(dialog)
+        def on_error(err):
+            dialog = ft.AlertDialog(
+                title=ft.Text("错误"),
+                content=ft.Text(str(err)),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
 
-        # 开始检查
-        self.page.run_task(check_login)
+        run_background_task(
+            self.page, work, on_done=on_done, on_error=on_error,
+            progress_dialog=self.progress_dialog,
+        )
 
     def _get_class_selection_content(self) -> ft.Column:
         """
@@ -679,7 +630,7 @@ class ExtractionView:
     def _on_class_click(self, class_info: Dict):
         """处理班级点击事件"""
         self.selected_class = class_info
-        logger.debug(f"DEBUG: 选择班级 {class_info.get('className')}")  # 调试信息
+        logger.debug(f"DEBUG: 选择班级 {class_info.get('className')}")
 
         # 显示加载对话框
         self.progress_dialog = ft.AlertDialog(
@@ -697,61 +648,32 @@ class ExtractionView:
         )
         self.page.show_dialog(self.progress_dialog)
 
-        # 重置状态
-        self.course_load_success = False
-        self.course_load_error = None
-        self.course_load_event.clear()
+        def work():
+            class_id = class_info.get("id")
+            course_list = self.extractor.get_course_list(class_id)
+            if not course_list:
+                raise RuntimeError("获取课程列表失败")
+            return course_list
 
-        # 在后台线程中获取课程列表
-        def load_courses_task():
-            try:
-                class_id = class_info.get("id")
-                self.course_list = self.extractor.get_course_list(class_id)
-
-                if self.course_list:
-                    self.course_load_success = True
-                    self.course_load_error = None
-                else:
-                    self.course_load_success = False
-                    self.course_load_error = "获取课程列表失败"
-            except Exception as ex:
-                self.course_load_success = False
-                self.course_load_error = str(ex)
-            finally:
-                # 标记完成
-                self.course_load_event.set()
-
-        # 启动后台线程
-        threading.Thread(target=load_courses_task, daemon=True).start()
-
-        # 在主线程中等待并更新UI（使用定时器）
-        async def check_courses():
-            while not self.course_load_event.is_set():
-                # 等待100ms后再次检查
-                await asyncio.sleep(0.1)
-
-            # 关闭加载对话框
-            self.progress_dialog.open = False
+        def on_done(course_list):
+            self.course_list = course_list
+            self.current_content.content = self._get_course_selection_content()
             self.page.update()
 
-            if self.course_load_success and not self.course_load_error:
-                # 成功，切换到课程界面
-                course_content = self._get_course_selection_content()
-                self.current_content.content = course_content
-                self.page.update()
-            else:
-                # 失败，显示错误
-                dialog = ft.AlertDialog(
-                    title=ft.Text("错误"),
-                    content=ft.Text(self.course_load_error or "未知错误"),
-                    actions=[
-                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(dialog)
+        def on_error(err):
+            dialog = ft.AlertDialog(
+                title=ft.Text("错误"),
+                content=ft.Text(str(err)),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(dialog)
 
-        # 开始检查
-        self.page.run_task(check_courses)
+        run_background_task(
+            self.page, work, on_done=on_done, on_error=on_error,
+            progress_dialog=self.progress_dialog,
+        )
 
     def _get_course_selection_content(self) -> ft.Column:
         """
@@ -921,234 +843,177 @@ class ExtractionView:
 
         self.page.show_dialog(progress_dialog)
 
-        # 重置状态
-        self.extract_success = False
-        self.extract_error = None
-        self.extract_result = None
-        self.extract_event.clear()
-
-        # 进度回调函数
         def progress_callback(message, current=None, total=None):
-            """更新进度"""
+            """更新进度（run_thread 线程，可直接 page.update）"""
             self.extract_logs.append(message)
-
-            # 更新日志显示（只显示最近5条）
-            recent_logs = self.extract_logs[-5:]
-            log_text = "\n".join(recent_logs)
-
-            # 在主线程中更新UI
-            async def update_ui():
-                self.extract_progress_text.value = message
-                if current is not None and total is not None and total > 0:
-                    self.extract_progress_bar.visible = True
-                    self.extract_progress_bar.value = current / total
-                self.extract_log_text.value = log_text
-                self.page.update()
-
-            self.page.run_task(update_ui)
-
-        # 在后台线程中执行提取
-        def extract_task():
-            try:
-                # 调用提取方法
-                result = self.extractor.extract_course_with_progress(
-                    class_id=class_id,
-                    course_id=course_id,
-                    course_name=course_name,
-                    class_info=self.selected_class,
-                    course_info=course,
-                    progress_callback=progress_callback
-                )
-
-                if result:
-                    self.extract_success = True
-                    self.extract_error = None
-                    self.extract_result = result
-                else:
-                    self.extract_success = False
-                    self.extract_error = "提取失败，请重试"
-            except Exception as ex:
-                self.extract_success = False
-                self.extract_error = str(ex)
-                import traceback
-                logger.debug(f"提取异常：{traceback.format_exc()}")
-            finally:
-                self.extract_event.set()
-
-        # 启动后台线程
-        threading.Thread(target=extract_task, daemon=True).start()
-
-        # 在主线程中等待并更新UI
-        async def check_extract():
-            while not self.extract_event.is_set():
-                await asyncio.sleep(0.1)
-
-            # 关闭进度对话框
-            progress_dialog.open = False
+            self.extract_progress_text.value = message
+            if current is not None and total is not None and total > 0:
+                self.extract_progress_bar.visible = True
+                self.extract_progress_bar.value = current / total
+            self.extract_log_text.value = "\n".join(self.extract_logs[-5:])
             self.page.update()
 
-            if self.extract_success and not self.extract_error:
-                # 提取成功，自动保存为JSON
-                result = self.extract_result
-                total_questions = sum(len(qs) for qs in result.get('questions', {}).values())
-                total_options = sum(len(opts) for opts in result.get('options', {}).values())
+        def work():
+            result = self.extractor.extract_course_with_progress(
+                class_id=class_id,
+                course_id=course_id,
+                course_name=course_name,
+                class_info=self.selected_class,
+                course_info=course,
+                progress_callback=progress_callback,
+            )
+            if not result:
+                raise RuntimeError("提取失败，请重试")
+            return result
 
-                # 导出为JSON文件
+        def on_done(result):
+            self._show_extract_result(result, course_name)
+
+        def on_error(err):
+            error_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                    ft.Text("提取失败", size=18, weight=ft.FontWeight.BOLD),
+                ], spacing=10),
+                content=ft.Text(str(err)),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+            self.page.show_dialog(error_dialog)
+
+        run_background_task(
+            self.page, work, on_done=on_done, on_error=on_error,
+            progress_dialog=progress_dialog,
+        )
+
+    def _show_extract_result(self, result, course_name: str):
+        """提取成功后：导出 JSON + 显示结果对话框（原 check_extract 成功分支）。"""
+        total_questions = sum(len(qs) for qs in result.get('questions', {}).values())
+        total_options = sum(len(opts) for opts in result.get('options', {}).values())
+
+        # 导出为 JSON
+        try:
+            exporter = DataExporter(output_dir="output")
+            file_path = exporter.export_data(result)
+            abs_file_path = os.path.abspath(file_path)
+            logger.info(f"✅ 数据已导出到：{abs_file_path}")
+            export_success = True
+            export_error = None
+        except Exception as e:
+            export_success = False
+            export_error = str(e)
+            abs_file_path = None
+            logger.error(f"❌ 导出失败：{export_error}")
+
+        if export_success:
+            from pathlib import Path
+            path_obj = Path(abs_file_path)
+            folder_path = str(path_obj.parent)
+            file_name = path_obj.name
+
+            def open_folder(e):
                 try:
-                    exporter = DataExporter(output_dir="output")
-                    file_path = exporter.export_data(result)
-                    # 转换为绝对路径
-                    abs_file_path = os.path.abspath(file_path)
-                    logger.info(f"✅ 数据已导出到：{abs_file_path}")
-                    export_success = True
-                    export_error = None
-                except Exception as e:
-                    export_success = False
-                    export_error = str(e)
-                    logger.error(f"❌ 导出失败：{export_error}")
+                    if os.name == 'nt':
+                        subprocess.Popen(['explorer', '/select,', abs_file_path])
+                    elif sys.platform == 'darwin':
+                        subprocess.Popen(['open', '-R', abs_file_path])
+                    else:
+                        subprocess.Popen(['xdg-open', folder_path])
+                except Exception as ex:
+                    logger.debug(f"打开文件夹失败：{ex}")
 
-                # 显示成功对话框
-                if export_success:
-                    # 创建文件路径显示
-                    from pathlib import Path
-                    path_obj = Path(abs_file_path)
-                    folder_path = str(path_obj.parent)
-                    file_name = path_obj.name
+            def copy_path(e):
+                try:
+                    self.page.set_clipboard(abs_file_path)
+                    copy_tooltip = ft.SnackBar(
+                        ft.Text("✅ 路径已复制到剪贴板", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.GREEN,
+                    )
+                    self.page.snack_bar = copy_tooltip
+                    copy_tooltip.open = True
+                    self.page.update()
+                except Exception as ex:
+                    logger.debug(f"复制失败：{ex}")
+                    copy_tooltip = ft.SnackBar(
+                        ft.Text("⚠️ 自动复制失败，请手动复制路径", color=ft.Colors.WHITE),
+                        bgcolor=ft.Colors.ORANGE,
+                        duration=3000,
+                    )
+                    self.page.snack_bar = copy_tooltip
+                    copy_tooltip.open = True
+                    self.page.update()
 
-                    # 打开文件夹的函数
-                    def open_folder(e):
-                        try:
-                            if os.name == 'nt':  # Windows
-                                subprocess.Popen(['explorer', '/select,', abs_file_path])
-                            elif sys.platform == 'darwin':  # macOS
-                                subprocess.Popen(['open', '-R', abs_file_path])
-                            else:  # Linux
-                                subprocess.Popen(['xdg-open', folder_path])
-                        except Exception as ex:
-                            logger.debug(f"打开文件夹失败：{ex}")
-
-                    # 复制路径的函数
-                    def copy_path(e):
-                        try:
-                            self.page.set_clipboard(abs_file_path)
-
-                            # 显示复制成功提示
-                            copy_tooltip = ft.SnackBar(
-                                ft.Text("✅ 路径已复制到剪贴板", color=ft.Colors.WHITE),
-                                bgcolor=ft.Colors.GREEN,
-                            )
-                            self.page.snack_bar = copy_tooltip
-                            copy_tooltip.open = True
-                            self.page.update()
-                        except Exception as ex:
-                            logger.debug(f"复制失败：{ex}")
-                            # 如果复制失败，显示手动复制提示
-                            copy_tooltip = ft.SnackBar(
-                                ft.Text("⚠️ 自动复制失败，请手动复制路径", color=ft.Colors.WHITE),
-                                bgcolor=ft.Colors.ORANGE,
-                                duration=3000,
-                            )
-                            self.page.snack_bar = copy_tooltip
-                            copy_tooltip.open = True
-                            self.page.update()
-
-                    success_dialog = ft.AlertDialog(
-                        modal=True,
-                        title=ft.Row([
-                            ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=28),
-                            ft.Text("提取并保存成功！", size=18, weight=ft.FontWeight.BOLD),
-                        ], spacing=10),
+            success_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.CHECK_CIRCLE, color=ft.Colors.GREEN, size=28),
+                    ft.Text("提取并保存成功！", size=18, weight=ft.FontWeight.BOLD),
+                ], spacing=10),
+                content=ft.Column([
+                    ft.Text(f"课程：{course_name}", size=14, weight=ft.FontWeight.BOLD),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    ft.Text("📊 提取统计：", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700),
+                    ft.Container(
                         content=ft.Column([
-                            ft.Text(f"课程：{course_name}", size=14, weight=ft.FontWeight.BOLD),
-                            ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                            ft.Text("📊 提取统计：", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700),
-                            ft.Container(
-                                content=ft.Column([
-                                    ft.Text(f"• 知识点：{len(result.get('knowledges', []))} 个", size=13),
-                                    ft.Text(f"• 题目：{total_questions} 道", size=13),
-                                    ft.Text(f"• 选项：{total_options} 个", size=13),
-                                ], spacing=3),
-                                padding=ft.Padding.only(left=10),
-                            ),
-                            ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
-                            ft.Text("💾 文件保存位置：", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700),
-                            ft.Container(
-                                content=ft.Column([
-                                    ft.Row([
-                                        ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER, size=20),
-                                        ft.Text(folder_path, size=11, color=ft.Colors.GREY_700, selectable=True),
-                                    ], spacing=5),
-                                    ft.Row([
-                                        ft.Icon(ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE, size=20),
-                                        ft.Text(file_name, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE, selectable=True),
-                                    ], spacing=5),
-                                ], spacing=8),
-                                padding=15,
-                                bgcolor=ft.Colors.BLUE_GREY_50,
-                                border=ft.Border.all(2, ft.Colors.BLUE_GREY_200),
-                                border_radius=8,
-                            ),
-                            ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
-                            ft.Text("💡 提示：点击按钮打开文件夹或复制路径", size=11, color=ft.Colors.GREY_600, italic=True),
-                        ], spacing=0, tight=True),
-                        actions=[
+                            ft.Text(f"• 知识点：{len(result.get('knowledges', []))} 个", size=13),
+                            ft.Text(f"• 题目：{total_questions} 道", size=13),
+                            ft.Text(f"• 选项：{total_options} 个", size=13),
+                        ], spacing=3),
+                        padding=ft.Padding.only(left=10),
+                    ),
+                    ft.Divider(height=15, color=ft.Colors.TRANSPARENT),
+                    ft.Text("💾 文件保存位置：", size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE_GREY_700),
+                    ft.Container(
+                        content=ft.Column([
                             ft.Row([
-                                ft.OutlinedButton(
-                                    "复制路径",
-                                    icon=ft.Icons.COPY,
-                                    on_click=copy_path,
-                                ),
-                                ft.ElevatedButton(
-                                    "打开文件夹",
-                                    icon=ft.Icons.FOLDER_OPEN,
-                                    bgcolor=ft.Colors.BLUE,
-                                    color=ft.Colors.WHITE,
-                                    on_click=open_folder,
-                                ),
-                                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                            ], spacing=10),
-                        ],
-                        actions_alignment=ft.MainAxisAlignment.END,
-                    )
-                else:
-                    # 导出失败但仍显示提取结果
-                    success_dialog = ft.AlertDialog(
-                        modal=True,
-                        title=ft.Row([
-                            ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
-                            ft.Text("提取成功但保存失败", size=18, weight=ft.FontWeight.BOLD),
-                        ], spacing=10),
-                        content=ft.Column([
-                            ft.Text(f"课程：{course_name}", size=14, weight=ft.FontWeight.BOLD),
-                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                            ft.Text(f"知识点数量：{len(result.get('knowledges', []))}", size=14),
-                            ft.Text(f"题目数量：{total_questions}", size=14),
-                            ft.Text(f"选项数量：{total_options}", size=14),
-                            ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                            ft.Text(f"⚠️ 保存失败：{export_error}", size=12, color=ft.Colors.RED),
-                        ], spacing=5),
-                        actions=[
-                            ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                        ],
-                    )
-                self.page.show_dialog(success_dialog)
-            else:
-                # 提取失败
-                error_dialog = ft.AlertDialog(
-                    modal=True,
-                    title=ft.Row([
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
-                        ft.Text("提取失败", size=18, weight=ft.FontWeight.BOLD),
-                    ], spacing=10),
-                    content=ft.Text(self.extract_error or "未知错误"),
-                    actions=[
+                                ft.Icon(ft.Icons.FOLDER, color=ft.Colors.AMBER, size=20),
+                                ft.Text(folder_path, size=11, color=ft.Colors.GREY_700, selectable=True),
+                            ], spacing=5),
+                            ft.Row([
+                                ft.Icon(ft.Icons.INSERT_DRIVE_FILE, color=ft.Colors.BLUE, size=20),
+                                ft.Text(file_name, size=13, weight=ft.FontWeight.BOLD, color=ft.Colors.BLUE, selectable=True),
+                            ], spacing=5),
+                        ], spacing=8),
+                        padding=15,
+                        bgcolor=ft.Colors.BLUE_GREY_50,
+                        border=ft.Border.all(2, ft.Colors.BLUE_GREY_200),
+                        border_radius=8,
+                    ),
+                    ft.Divider(height=5, color=ft.Colors.TRANSPARENT),
+                    ft.Text("💡 提示：点击按钮打开文件夹或复制路径", size=11, color=ft.Colors.GREY_600, italic=True),
+                ], spacing=0, tight=True),
+                actions=[
+                    ft.Row([
+                        ft.OutlinedButton("复制路径", icon=ft.Icons.COPY, on_click=copy_path),
+                        ft.ElevatedButton("打开文件夹", icon=ft.Icons.FOLDER_OPEN, bgcolor=ft.Colors.BLUE, color=ft.Colors.WHITE, on_click=open_folder),
                         ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(error_dialog)
-
-        # 开始检查
-        self.page.run_task(check_extract)
+                    ], spacing=10),
+                ],
+                actions_alignment=ft.MainAxisAlignment.END,
+            )
+        else:
+            success_dialog = ft.AlertDialog(
+                modal=True,
+                title=ft.Row([
+                    ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
+                    ft.Text("提取成功但保存失败", size=18, weight=ft.FontWeight.BOLD),
+                ], spacing=10),
+                content=ft.Column([
+                    ft.Text(f"课程：{course_name}", size=14, weight=ft.FontWeight.BOLD),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                    ft.Text(f"知识点数量：{len(result.get('knowledges', []))}", size=14),
+                    ft.Text(f"题目数量：{total_questions}", size=14),
+                    ft.Text(f"选项数量：{total_options}", size=14),
+                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
+                    ft.Text(f"⚠️ 保存失败：{export_error}", size=12, color=ft.Colors.RED),
+                ], spacing=5),
+                actions=[
+                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
+                ],
+            )
+        self.page.show_dialog(success_dialog)
 
     def _on_minimize_extract_dialog(self):
         """最小化提取对话框（后台运行）"""
