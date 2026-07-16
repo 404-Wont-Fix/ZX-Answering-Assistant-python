@@ -687,3 +687,37 @@ class AnswerProgressDialog:
                 print(f"⚠️ 日志UI更新失败: {e}")
 
         self._page.run_task(update_log)
+
+
+def run_background_task(
+    page: ft.Page,
+    work_fn: Callable,
+    *,
+    on_done: Optional[Callable] = None,
+    on_error: Optional[Callable] = None,
+    progress_dialog=None,
+) -> None:
+    """在 Flet 后台线程跑 work_fn，完成/异常后在同线程调 on_done/on_error。
+
+    用 page.run_thread（Flet 保证该线程可直接 page.update/show_dialog）。
+    替代 extraction_view 的 Event 轮询模式（裸 Thread + asyncio.sleep 轮询）。
+    work_fn 通过返回值（而非 self 属性）把结果传给 on_done；抛异常走 on_error。
+    progress_dialog 完成后自动关闭（open=False + page.update）。
+    """
+
+    def runner():
+        try:
+            result = work_fn()
+            if progress_dialog is not None:
+                progress_dialog.open = False
+                page.update()
+            if on_done is not None:
+                on_done(result)
+        except Exception as e:
+            if progress_dialog is not None:
+                progress_dialog.open = False
+                page.update()
+            if on_error is not None:
+                on_error(e)
+
+    page.run_thread(runner)
