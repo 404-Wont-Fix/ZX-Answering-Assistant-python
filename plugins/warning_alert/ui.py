@@ -9,6 +9,7 @@ import json
 import threading
 import time
 from pathlib import Path
+from src.ui.components import run_background_task
 
 
 # 默认警告配置（单一来源，__init__ 和 reset_settings 共用）
@@ -193,13 +194,8 @@ class WarningAlertPlugin:
                     print(f"[WarningAlert] 显示错误消息失败: {ui_ex}")
 
     def _run_background(self, target, *args, **kwargs):
-        """通过插件上下文运行后台任务，独立预览时回落到普通线程。"""
-        if self.context and hasattr(self.context, "run_task"):
-            return self.context.run_task(target, None, *args, **kwargs)
-
-        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
-        thread.start()
-        return thread
+        """在后台线程安全执行耗时任务（委托 run_background_task）。"""
+        run_background_task(self.page, lambda: target(*args, **kwargs))
 
     def _schedule_next_window(self):
         """安排下一次弹窗"""

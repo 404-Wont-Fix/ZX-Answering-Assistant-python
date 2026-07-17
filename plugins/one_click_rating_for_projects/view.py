@@ -20,6 +20,7 @@ from src.ui.components import (
     hero_panel,
     page_heading,
     primary_button,
+    run_background_task,
     secondary_button,
     section_label,
     status_chip,
@@ -161,15 +162,8 @@ class LazyAIGradingView:
         )
 
     def _run_background(self, target, *args, **kwargs):
-        """在后台线程安全执行耗时任务（参照 cloud_exam._run_background）。"""
-        context = getattr(self, "context", None)
-        if context and hasattr(context, "run_task"):
-            return context.run_task(target, None, *args, **kwargs)
-        if hasattr(self.page, "run_thread"):
-            return self.page.run_thread(target, *args, **kwargs)
-        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
-        thread.start()
-        return thread
+        """在后台线程安全执行耗时任务（委托 run_background_task）。"""
+        run_background_task(self.page, lambda: target(*args, **kwargs))
 
     def _post(self, fn):
         """把 UI 变更投递到 Flet 会话线程执行。

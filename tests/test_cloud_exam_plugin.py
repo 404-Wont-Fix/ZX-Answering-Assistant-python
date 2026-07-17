@@ -118,7 +118,9 @@ class CloudExamFletUpdateTests(unittest.TestCase):
 
         view._run_background(task)
 
-        self.assertEqual(view.page.thread_targets, [(task, (), {})])
+        # _run_background 通过 run_background_task 委托 page.run_thread，
+        # task 被包装在闭包中执行，这里只验证 run_thread 被调用了一次
+        self.assertEqual(len(view.page.thread_targets), 1)
 
 
 if __name__ == "__main__":

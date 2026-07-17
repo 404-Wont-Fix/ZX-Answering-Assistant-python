@@ -8,6 +8,7 @@ import flet as ft
 from pathlib import Path
 from src.core.config import get_settings_manager
 from src.core.browser import BrowserType
+from src.ui.components import run_background_task
 from src.auth.student import get_student_access_token
 
 from .workflow import CloudExamWorkflow
@@ -860,13 +861,8 @@ class CloudExamView:
             self.page.update()
 
     def _run_background(self, target, *args, **kwargs):
-        """通过 Flet Page 的线程执行器运行后台任务。"""
-        context = getattr(self, "context", None)
-        if context and hasattr(context, "run_task"):
-            return context.run_task(target, None, *args, **kwargs)
-
-        if hasattr(self.page, "run_thread"):
-            return self.page.run_thread(target, *args, **kwargs)
+        """在后台线程安全执行耗时任务（委托 run_background_task）。"""
+        run_background_task(self.page, lambda: target(*args, **kwargs))
 
         import threading
 
