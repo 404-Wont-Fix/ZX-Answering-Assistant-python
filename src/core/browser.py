@@ -73,6 +73,43 @@ class BrowserType(Enum):
     CLOUD_EXAM = "cloud_exam"                # 云考试
 
 
+# ---- 共享 BrowserContext 默认参数（消除 teacher/student/extractor/certification 4 处重复） ----
+DEFAULT_VIEWPORT = {"width": 1920, "height": 1080}
+DEFAULT_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36"
+)
+
+
+def create_browser_context(
+    manager: 'BrowserManager',
+    browser_type: BrowserType,
+    *,
+    viewport: dict = None,
+    user_agent: str = None,
+) -> tuple:
+    """创建浏览器上下文和页面的标准入口。
+
+    消除 4 个模块各自手写 viewport + user_agent + create_context + create_page 的样板。
+
+    Args:
+        manager: BrowserManager 单例
+        browser_type: 上下文类型
+        viewport: 视口大小（默认 DEFAULT_VIEWPORT）
+        user_agent: User-Agent（默认 DEFAULT_USER_AGENT）
+
+    Returns:
+        tuple: (context, page)
+    """
+    context = manager.create_context(
+        browser_type,
+        viewport=viewport or DEFAULT_VIEWPORT,
+        user_agent=user_agent or DEFAULT_USER_AGENT,
+    )
+    page = manager.create_page(browser_type)
+    return context, page
+
+
 class BrowserManager:
     """
     浏览器管理器（单例模式）
