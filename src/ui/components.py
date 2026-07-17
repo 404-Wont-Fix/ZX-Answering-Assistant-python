@@ -266,6 +266,109 @@ def show_info_dialog(
     page.show_dialog(dialog)
 
 
+def show_error_dialog(
+    page: ft.Page,
+    title: str,
+    message: str,
+) -> None:
+    """
+    显示错误提示弹窗（红色标题 + 错误图标 + 文本内容 + 确定按钮）。
+
+    替代代码中大量重复的错误 AlertDialog 样板（Pattern A with ERROR icon）。
+    """
+    dialog = ft.AlertDialog(
+        title=ft.Row(
+            [
+                ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
+                ft.Text(title, color=ft.Colors.RED, weight=ft.FontWeight.BOLD),
+            ],
+            spacing=10,
+        ),
+        content=ft.Text(message),
+        actions=[
+            ft.TextButton("确定", on_click=lambda _: page.pop_dialog()),
+        ],
+    )
+    page.show_dialog(dialog)
+
+
+def show_confirm_dialog(
+    page: ft.Page,
+    title: str,
+    message: str,
+    on_confirm: Callable,
+    on_cancel: Optional[Callable] = None,
+    confirm_text: str = "确定",
+    cancel_text: str = "取消",
+    icon=ft.Icons.QUESTION_MARK,
+    icon_color: str = ft.Colors.BLUE,
+) -> None:
+    """
+    显示确认弹窗（图标标题 + 文本内容 + 确定/取消两个按钮）。
+
+    Args:
+        page: Flet 页面对象
+        title: 弹窗标题
+        message: 弹窗内容文本
+        on_confirm: 点击确认时的回调
+        on_cancel: 点击取消时的回调（默认仅关闭弹窗）
+        confirm_text: 确认按钮文字（默认 "确定"）
+        cancel_text: 取消按钮文字（默认 "取消"）
+        icon: 标题图标（默认 QUESTION_MARK）
+        icon_color: 图标颜色（默认蓝色）
+    """
+    def handle_cancel(e):
+        page.pop_dialog()
+        if on_cancel:
+            on_cancel(e)
+
+    def handle_confirm(e):
+        page.pop_dialog()
+        on_confirm(e)
+
+    dialog = ft.AlertDialog(
+        title=ft.Row(
+            [
+                ft.Icon(icon, color=icon_color),
+                ft.Text(title, weight=ft.FontWeight.BOLD),
+            ],
+            spacing=10,
+        ),
+        content=ft.Text(message),
+        actions=[
+            ft.TextButton(confirm_text, on_click=handle_confirm),
+            ft.TextButton(cancel_text, on_click=handle_cancel),
+        ],
+    )
+    page.show_dialog(dialog)
+
+
+def show_snack(
+    page: ft.Page,
+    message: str,
+    *,
+    color: str = ft.Colors.GREEN,
+    duration: int = 3000,
+) -> None:
+    """
+    显示 SnackBar 提示（替代代码中大量重复的 snack_bar 构造 + open + update 样板）。
+
+    Args:
+        page: Flet 页面对象
+        message: 提示内容
+        color: 背景色（默认绿色）
+        duration: 显示时长毫秒（默认 3000）
+    """
+    snack = ft.SnackBar(
+        ft.Text(message, color=ft.Colors.WHITE),
+        bgcolor=color,
+        duration=duration,
+    )
+    page.snack_bar = snack
+    snack.open = True
+    page.update()
+
+
 def handle_stop_answering(
     view,
     log_fn=None,
