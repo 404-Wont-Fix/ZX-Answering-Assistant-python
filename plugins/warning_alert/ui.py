@@ -11,6 +11,37 @@ import time
 from pathlib import Path
 
 
+# 默认警告配置（单一来源，__init__ 和 reset_settings 共用）
+_DEFAULT_CONFIG = {
+    "title": "⚠️ 重要警告",
+    "content": "这是一条重要的警告信息！\n\n请注意仔细阅读相关内容。",
+    "window_size": "large",
+    "window_width": 700,
+    "window_height": 450,
+    "warning_level": "warning",
+    "bgcolor": "red",
+    "title_color": "red_800",
+    "show_icon": True,
+    "icon_type": "unicode",
+    "icon_size": 48,
+    "font_family": "Microsoft YaHei",
+    "title_size": 32,
+    "content_size": 16,
+    "button_text": "✓ 我知道了",
+    "button_style": "modern",
+    "enable_sound": False,
+    "auto_close": False,
+    "auto_close_seconds": 10,
+    "enable_animation": True,
+    "window_opacity": 1.0,
+    "always_on_top": True,
+    "enable_escape": True,
+    "theme_preset": "default",
+    "enable_loop": False,
+    "loop_interval": 60,
+}
+
+
 class WarningAlertPlugin:
     """警告提示器插件UI类"""
 
@@ -31,34 +62,7 @@ class WarningAlertPlugin:
         self.loop_lock = threading.Lock()
 
         # 默认警告配置（完整版）
-        self.default_config = {
-            "title": "⚠️ 重要警告",
-            "content": "这是一条重要的警告信息！\n\n请注意仔细阅读相关内容。",
-            "window_size": "large",
-            "window_width": 700,
-            "window_height": 450,
-            "warning_level": "warning",
-            "bgcolor": "red",
-            "title_color": "red_800",
-            "show_icon": True,
-            "icon_type": "unicode",
-            "icon_size": 48,
-            "font_family": "Microsoft YaHei",
-            "title_size": 32,
-            "content_size": 16,
-            "button_text": "✓ 我知道了",
-            "button_style": "modern",
-            "enable_sound": False,
-            "auto_close": False,
-            "auto_close_seconds": 10,
-            "enable_animation": True,
-            "window_opacity": 1.0,
-            "always_on_top": True,
-            "enable_escape": True,
-            "theme_preset": "default",
-            "enable_loop": False,
-            "loop_interval": 60,
-        }
+        self.default_config = dict(_DEFAULT_CONFIG)
 
         # 加载保存的配置
         self.load_config()
@@ -907,34 +911,7 @@ class WarningAlertPlugin:
             self.context.set_plugin_config("settings", {})
 
             # 重置为默认配置
-            self.default_config = {
-                "title": "⚠️ 重要警告",
-                "content": "这是一条重要的警告信息！\n\n请注意仔细阅读相关内容。",
-                "window_size": "large",
-                "window_width": 700,
-                "window_height": 450,
-                "warning_level": "warning",
-                "bgcolor": "red",
-                "title_color": "red_800",
-                "show_icon": True,
-                "icon_type": "unicode",
-                "icon_size": 48,
-                "font_family": "Microsoft YaHei",
-                "title_size": 32,
-                "content_size": 16,
-                "button_text": "✓ 我知道了",
-                "button_style": "modern",
-                "enable_sound": False,
-                "auto_close": False,
-                "auto_close_seconds": 10,
-                "enable_animation": True,
-                "window_opacity": 1.0,
-                "always_on_top": True,
-                "enable_escape": True,
-                "theme_preset": "default",
-                "enable_loop": False,
-                "loop_interval": 60,
-            }
+            self.default_config = dict(_DEFAULT_CONFIG)
 
             # 显示提示
             self.page.snack_bar = ft.SnackBar(
