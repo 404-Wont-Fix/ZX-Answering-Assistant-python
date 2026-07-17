@@ -6,7 +6,7 @@
 
 import flet as ft
 from typing import Optional
-from src.ui.components import page_heading, secondary_button, status_chip, surface_card
+from src.ui.components import page_heading, secondary_button, show_snack, status_chip, surface_card
 from src.ui.theme import Palette, Radius
 from src.ui.views.plugin_runtime import open_plugin_ui
 
@@ -584,23 +584,11 @@ class PluginCenterView:
             print(f"[PluginCenter] Opened plugin directory: {plugins_dir}")
 
             # 显示提示
-            self.page.snack_bar = ft.SnackBar(
-                ft.Text(f"已打开插件目录: {plugins_dir}"),
-                bgcolor=ft.Colors.GREEN,
-                duration=2000,
-            )
-            self.page.snack_bar.open = True
-            self.page.update()
+            show_snack(self.page, f"已打开插件目录: {plugins_dir}")
 
         except Exception as ex:
             print(f"[PluginCenter] Failed to open plugin directory: {ex}")
-            self.page.snack_bar = ft.SnackBar(
-                ft.Text(f"打开插件目录失败: {str(ex)}"),
-                bgcolor=ft.Colors.RED,
-                duration=3000,
-            )
-            self.page.snack_bar.open = True
-            self.page.update()
+            show_snack(self.page, f"打开插件目录失败: {str(ex)}", color=ft.Colors.RED)
 
     def _on_plugin_settings(self, plugin_id: str):
         """处理插件设置按钮点击"""
@@ -621,13 +609,7 @@ class PluginCenterView:
             return
 
         if not plugin_info.enabled:
-            self.page.snack_bar = ft.SnackBar(
-                ft.Text(f"请先启用插件: {plugin_info.name}"),
-                bgcolor=ft.Colors.ORANGE,
-                duration=2000,
-            )
-            self.page.snack_bar.open = True
-            self.page.update()
+            show_snack(self.page, f"请先启用插件: {plugin_info.name}", color=ft.Colors.ORANGE)
             return
 
         try:
@@ -657,26 +639,13 @@ class PluginCenterView:
 
                 print(f"[PluginCenter] Plugin UI opened: {plugin_id}")
             else:
-                self.page.snack_bar = ft.SnackBar(
-                    ft.Text(f"无法加载插件UI: {plugin_info.name}"),
-                    bgcolor=ft.Colors.RED,
-                    duration=2000,
-                )
-                self.page.snack_bar.open = True
-                self.page.update()
+                show_snack(self.page, f"无法加载插件UI: {plugin_info.name}", color=ft.Colors.RED)
 
         except Exception as e:
             print(f"[PluginCenter] Error opening plugin {plugin_id}: {e}")
             import traceback
             traceback.print_exc()
-
-            self.page.snack_bar = ft.SnackBar(
-                ft.Text(f"打开插件失败: {str(e)}"),
-                bgcolor=ft.Colors.RED,
-                duration=3000,
-            )
-            self.page.snack_bar.open = True
-            self.page.update()
+            show_snack(self.page, f"打开插件失败: {str(e)}", color=ft.Colors.RED)
 
     def _build_plugin_page(self, plugin_info, plugin_ui) -> ft.Control:
         """构建插件显示页面（带返回按钮）"""
@@ -853,17 +822,10 @@ class PluginCenterView:
                 self.main_app.content_area.controls[0].content = new_content
 
         # 显示操作反馈
-        self.page.snack_bar = ft.SnackBar(
-            ft.Text(
-                (
-                    f"插件 {'已启用' if new_state else '已禁用'}: {plugin_id}"
-                    if success
-                    else f"插件状态修改失败，请检查依赖: {plugin_id}"
-                ),
-                color=ft.Colors.WHITE if success and new_state else ft.Colors.BLACK,
-            ),
-            bgcolor=ft.Colors.GREEN if success and new_state else ft.Colors.ORANGE if not success else ft.Colors.GREY,
-            duration=2000,
-        )
-        self.page.snack_bar.open = True
-        self.page.update()
+        if success:
+            msg = f"插件 {'已启用' if new_state else '已禁用'}: {plugin_id}"
+            color = ft.Colors.GREEN if new_state else ft.Colors.GREY
+        else:
+            msg = f"插件状态修改失败，请检查依赖: {plugin_id}"
+            color = ft.Colors.ORANGE
+        show_snack(self.page, msg, color=color)
