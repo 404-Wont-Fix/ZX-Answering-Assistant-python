@@ -7,7 +7,6 @@ WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
 
 import flet as ft
 import threading
-import asyncio
 from typing import Optional
 
 from . import weban_adapter

@@ -8,8 +8,6 @@ import hashlib
 import json
 import logging
 import time
-import threading
-import requests
 from typing import Dict, List, Optional
 from urllib.parse import urlencode, quote
 from src.utils.bank_matcher import find_correct_answer_ids

@@ -982,7 +982,7 @@ class SettingsView:
         # 关闭对话框
         try:
             self.page.pop_dialog()
-        except:
+        except Exception:
             pass
 
         # 应用设置（关闭并重启浏览器）

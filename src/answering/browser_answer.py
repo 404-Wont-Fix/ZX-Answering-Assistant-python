@@ -864,7 +864,7 @@ class AutoAnswer(BaseAnswer):
                                     self.current_knowledge_index = knowledge_idx  # 记录知识点索引
                                     logger.info(f"📍 当前位置: {chapter_title} > {knowledge_name} (索引:{knowledge_idx})")
                                     return True
-                            except:
+                            except Exception:
                                 pass
 
                             # 方法2: 查找"第X次测评"
@@ -882,7 +882,7 @@ class AutoAnswer(BaseAnswer):
                                             self.current_knowledge_index = knowledge_idx  # 记录知识点索引
                                             logger.info(f"📍 当前位置: {chapter_title} > {knowledge_name} (索引:{knowledge_idx})")
                                             return True
-                                except:
+                                except Exception:
                                     pass
 
                             # 没有找到测评按钮，说明已完成或次数用尽
@@ -897,7 +897,7 @@ class AutoAnswer(BaseAnswer):
                                         logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
                                 else:
                                     logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
-                            except:
+                            except Exception:
                                 logger.debug(f"   ⏭️  {knowledge_name} - 已完成或不可作答")
 
                         except Exception as e:
@@ -937,7 +937,7 @@ class AutoAnswer(BaseAnswer):
             try:
                 start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=5000)
                 logger.info("✅ 找到'开始测评'按钮")
-            except:
+            except Exception:
                 logger.info("⚠️ 未找到'开始测评'按钮，尝试查找'第X次测评'按钮")
 
             # 方法2: 查找包含"测评"文本的按钮（可能是重做）
@@ -950,7 +950,7 @@ class AutoAnswer(BaseAnswer):
                             start_button = btn
                             logger.info(f"✅ 找到测评按钮: {text.strip()}")
                             break
-                except:
+                except Exception:
                     pass
 
             if not start_button:
@@ -988,7 +988,7 @@ class AutoAnswer(BaseAnswer):
             try:
                 start_button = self._get_page().wait_for_selector("button:has-text('开始测评')", timeout=2000)
                 logger.info("✅ 找到'开始测评'按钮")
-            except:
+            except Exception:
                 logger.info("⚠️ 未找到'开始测评'按钮，尝试查找'第X次测评'按钮")
 
             # 方法2: 查找包含"测评"文本的按钮（可能是重做）
@@ -1001,7 +1001,7 @@ class AutoAnswer(BaseAnswer):
                             start_button = btn
                             logger.info(f"✅ 找到测评按钮: {text.strip()}")
                             break
-                except:
+                except Exception:
                     pass
 
             if not start_button:
@@ -1035,7 +1035,7 @@ class AutoAnswer(BaseAnswer):
                 if dialog:
                     dialog_found = True
                     logger.info("✅ 检测到确认弹窗")
-            except:
+            except Exception:
                 logger.info("⚠️ 未检测到确认弹窗，可能已经进入答题界面")
                 return True
 
@@ -1049,7 +1049,7 @@ class AutoAnswer(BaseAnswer):
             try:
                 confirm_button = self._get_page().wait_for_selector(".el-message-box button.el-button--primary", timeout=2000)
                 logger.info("✅ 方法1: 找到确定按钮")
-            except:
+            except Exception:
                 logger.debug("⚠️ 方法1未找到")
 
             # 方法2: 查找包含"确定"文本的按钮
@@ -1062,7 +1062,7 @@ class AutoAnswer(BaseAnswer):
                             confirm_button = btn
                             logger.info("✅ 方法2: 找到确定按钮")
                             break
-                except:
+                except Exception:
                     logger.debug("⚠️ 方法2未找到")
 
             # 方法3: 使用CSS选择器查找第二个按钮（确定按钮通常在第二个位置）
@@ -1072,7 +1072,7 @@ class AutoAnswer(BaseAnswer):
                     if len(buttons) >= 2:
                         confirm_button = buttons[1]  # 第二个按钮通常是"确定"
                         logger.info("✅ 方法3: 找到确定按钮（第二个按钮）")
-                except:
+                except Exception:
                     logger.debug("⚠️ 方法3未找到")
 
             if not confirm_button:
@@ -1175,7 +1175,7 @@ class AutoAnswer(BaseAnswer):
                     next_button.click()
                     logger.info("✅ 已点击下一题按钮，结束知识点")
                     time.sleep(1)
-                except:
+                except Exception:
                     logger.warning("⚠️ 未找到下一题按钮")
 
                 # 等待检测成功提示
@@ -1194,7 +1194,7 @@ class AutoAnswer(BaseAnswer):
                             break
 
                         time.sleep(0.5)
-                    except:
+                    except Exception:
                         time.sleep(0.5)
 
                 if success_detected:
@@ -1210,7 +1210,7 @@ class AutoAnswer(BaseAnswer):
                         self._get_page().wait_for_selector(".question-type", state="hidden", timeout=3000)
                         logger.info("✅ 答题页面已消失，确认跳转成功")
                         return True
-                    except:
+                    except Exception:
                         logger.debug("⚠️ .question-type 元素仍然存在")
 
                     # 方法2：检测是否可以找到"开始测评"按钮（知识点列表的特征）
@@ -1219,7 +1219,7 @@ class AutoAnswer(BaseAnswer):
                         if start_button:
                             logger.info("✅ 检测到'开始测评'按钮，确认已回到知识点列表")
                             return True
-                    except:
+                    except Exception:
                         logger.debug("⚠️ 未找到'开始测评'按钮")
 
                     # 方法3：检测知识点菜单项是否存在
@@ -1228,7 +1228,7 @@ class AutoAnswer(BaseAnswer):
                         if len(menu_items) > 0:
                             logger.info(f"✅ 检测到 {len(menu_items)} 个知识点菜单项，已回到知识点列表")
                             return True
-                    except:
+                    except Exception:
                         pass
 
                     logger.warning("⚠️ 无法确定是否成功跳转，但继续执行")

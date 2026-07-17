@@ -222,7 +222,7 @@ When adding question-bank matching / import / progress-dialog / background-task 
 - **[src/core/api_client.py](src/core/api_client.py)** - Unified HTTP client
   - Singleton instance via `get_api_client()`
   - Smart retry with exponential backoff
-  - **Rate limiting**: `low` (50ms), `medium` (1s), `medium_high` (2s), `high` (3s)
+  - **Rate limiting**: `low` (1000ms), `medium` (2000ms), `medium_high` (3000ms), `high` (5000ms), `very_high` (10000ms)
 
 - **[src/core/config.py](src/core/config.py)** - CLI settings management
   - File: `cli_config.json` (auto-generated)

@@ -12,7 +12,7 @@ if sys.platform == 'win32':
         import codecs
         sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer)
         sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer)
-    except:
+    except Exception:
         # 如果失败，使用环境变量
         os.environ['PYTHONIOENCODING'] = 'utf-8'
 else:

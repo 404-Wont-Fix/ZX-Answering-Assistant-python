@@ -815,31 +815,6 @@ class CourseCertificationView:
         ecourse_id = self.selected_course.get('eCourseID', '')
         self._start_certification_answer(ecourse_id, self.question_bank_data)
 
-    def _get_question_bank_course_id(self) -> str:
-        """
-        从题库数据中获取课程ID
-
-        Returns:
-            str: 课程ID，如果无法获取则返回空字符串
-        """
-        try:
-            importer = QuestionBankImporter()
-            importer.data = self.question_bank_data
-            bank_type = importer.get_bank_type()
-
-            if bank_type == "single":
-                parsed = importer.parse_single_course()
-                if parsed and 'course' in parsed:
-                    return parsed['course'].get('courseID', '')
-            elif bank_type == "multiple":
-                # 多课程题库，无法确定具体的课程ID
-                return ""
-
-        except Exception as e:
-            logger.warning(f"⚠️ 获取题库课程ID失败: {e}")
-
-        return ""
-
     def _start_certification_answer(self, course_id: str, question_bank_data: dict):
         """开始课程认证答题"""
         self.is_answering = True

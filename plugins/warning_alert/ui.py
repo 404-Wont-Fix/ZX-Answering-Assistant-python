@@ -289,7 +289,7 @@ class WarningAlertPlugin:
             if opacity < 1.0:
                 try:
                     root.attributes('-alpha', opacity)
-                except:
+                except Exception:
                     pass
 
             # 设置背景颜色
@@ -432,7 +432,7 @@ class WarningAlertPlugin:
                         root.attributes('-alpha', alpha)
                         root.update()
                         time.sleep(0.02)
-                except:
+                except Exception:
                     pass
 
             # 运行窗口（阻塞当前线程）
@@ -454,7 +454,7 @@ class WarningAlertPlugin:
             b = int(b * (100 - percent) / 100)
 
             return f'#{r:02x}{g:02x}{b:02x}'
-        except:
+        except Exception:
             return hex_color
 
     def show_settings_dialog(self, e=None):

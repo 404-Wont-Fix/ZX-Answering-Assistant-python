@@ -171,7 +171,7 @@ def _get_access_token_impl() -> Optional[str]:
                 try:
                     page.close()
                     logger.info("页面已关闭")
-                except:
+                except Exception:
                     pass
 
         except Exception as e:

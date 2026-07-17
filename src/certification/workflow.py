@@ -40,30 +40,6 @@ _question_bank_data = None
 # ============================================================================
 
 
-def _ensure_context_and_page() -> tuple:
-    """
-    确保课程认证上下文和页面存在
-
-    Returns:
-        tuple: (context, page)
-    """
-    manager = get_browser_manager()
-    context, page = manager.get_context_and_page(BrowserType.COURSE_CERTIFICATION)
-
-    if context is None or page is None:
-        # 创建新的上下文
-        context = manager.create_context(
-            BrowserType.COURSE_CERTIFICATION,
-            viewport={'width': 1920, 'height': 1080},
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/144.0.0.0 Safari/537.36 Edg/144.0.0.0"
-        )
-        # 使用 manager.create_page() 而不是 context.new_page()
-        page = manager.create_page(BrowserType.COURSE_CERTIFICATION)
-        print("[OK] 已创建课程认证浏览器上下文和页面")
-
-    return context, page
-
-
 def import_question_bank(file_path: str) -> bool:
     """
     导入题库文件
@@ -628,7 +604,7 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
                                     success_detected = True
                                     break
                                 time.sleep(0.5)
-                            except:
+                            except Exception:
                                 time.sleep(0.5)
 
                         if success_detected:
@@ -640,7 +616,7 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
                                 page.wait_for_selector(".question-type", state="hidden", timeout=3000)
                                 print(f"      [OK] 已自动跳转到题目列表")
                                 auto_jumped = True
-                            except:
+                            except Exception:
                                 print(f"      [WARNING] 答题页面元素仍然存在")
 
                             if not auto_jumped:
@@ -649,7 +625,7 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
                                     if sb:
                                         print(f"      [OK] 检测到'开始测评'按钮，已自动跳转")
                                         auto_jumped = True
-                                except:
+                                except Exception:
                                     pass
 
                             if auto_jumped:
@@ -744,7 +720,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
             # 等待题目菜单元素出现
             try:
                 page.wait_for_selector(".el-menu.el-menu--vertical", timeout=10000)
-            except:
+            except Exception:
                 print("[WARNING] 未找到题目列表，页面可能加载失败")
                 print("\n[INFO] 浏览器将保持打开状态，你可以手动查看")
                 input("按回车键关闭浏览器...")
@@ -764,7 +740,7 @@ def navigate_to_course_page(ecourse_id: str, page, access_token: str):
 
                     if direct_span and has_pass_status:
                         question_items.append(item)
-                except:
+                except Exception:
                     continue
 
             if not question_items:
@@ -1366,7 +1342,7 @@ class CourseAutoAnswer(BaseAnswer):
             # 循环做题
             while True:
                 # 获取当前题目序号
-                current_num = self._get_current_question_number()
+                current_num = self.get_current_question_number()
 
                 if current_num == 0:
                     print("[WARNING] 无法获取当前题目序号，可能已完成")
@@ -1509,7 +1485,7 @@ class CourseAutoAnswer(BaseAnswer):
             # 循环做题
             while True:
                 # 获取当前题目序号
-                current_num = self._get_current_question_number()
+                current_num = self.get_current_question_number()
 
                 if current_num == 0:
                     print("[WARNING] 无法获取当前题目序号，可能已完成")

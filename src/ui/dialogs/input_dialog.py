@@ -271,7 +271,7 @@ class WeBanInputDialog:
                 if dialog:
                     dialog.open = False
                     self.page.update()
-            except:
+            except Exception:
                 pass
 
         return self.input_result if self.input_result is not None else ""
@@ -537,7 +537,7 @@ class WeBanInputDialog:
                 if dialog:
                     dialog.open = False
                     self.page.update()
-            except:
+            except Exception:
                 pass
 
         return self.input_result if self.input_result is not None else "否"
@@ -659,7 +659,7 @@ class WeBanInputDialog:
                 if dialog:
                     dialog.open = False
                     self.page.update()
-            except:
+            except Exception:
                 pass
 
         return self.input_result if self.input_result is not None else ""

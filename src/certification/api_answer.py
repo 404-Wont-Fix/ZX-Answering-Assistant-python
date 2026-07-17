@@ -4,7 +4,6 @@
 使用 API 直接进行答题，无需浏览器操作
 """
 
-import html
 import logging
 import re
 from typing import Dict, List, Optional

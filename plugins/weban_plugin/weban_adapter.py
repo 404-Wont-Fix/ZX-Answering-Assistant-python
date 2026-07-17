@@ -11,7 +11,6 @@ import importlib
 from pathlib import Path
 import json
 import threading
-import subprocess
 from typing import Optional, Callable, List, Dict, Any
 
 # 日志级别对应的 emoji 前缀

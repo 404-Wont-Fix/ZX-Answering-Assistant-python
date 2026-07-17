@@ -578,7 +578,7 @@ class Extractor:
         
         # 返回完整的数据结构
         return {
-            "class_info": selected_class,
+            "class_info": {"id": class_id, "className": class_name},
             "course_list": course_list,
             "chapters": chapter_list,
             "knowledges": knowledge_list,
@@ -699,10 +699,7 @@ class Extractor:
             else:
                 print(f"⚠️ 知识点 {knowledge.get('Knowledge', '')} 获取题目列表失败")
 
-        # 15. 筛选出选中课程的章节和知识点
-        selected_course_chapters = course_chapters.get(course_id, [])
-        selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
-        
+        # 15. 筛选出选中课程的知识点
         selected_course_knowledges = []
         for knowledge in knowledge_list:
             chapter_id = knowledge.get("ChapterID", "")
@@ -785,7 +782,7 @@ class Extractor:
         
         # 返回完整的数据结构
         return {
-            "class_info": selected_class,
+            "class_info": {"id": class_id, "className": class_name},
             "course_info": selected_course,
             "chapters": selected_course_chapters,
             "knowledges": selected_course_knowledges,

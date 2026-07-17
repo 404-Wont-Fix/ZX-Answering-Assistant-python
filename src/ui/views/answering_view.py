@@ -8,10 +8,6 @@ import flet as ft
 import logging
 
 logger = logging.getLogger(__name__)
-import json
-import sys
-from pathlib import Path
-from io import StringIO
 from src.auth.student import (
     get_student_access_token,
     get_student_courses,
@@ -572,7 +568,7 @@ class AnsweringView:
                     ],
                 )
                 self.page.show_dialog(error_dialog)
-            except:
+            except Exception:
                 pass
 
     def _get_courses_content(self) -> ft.Column:
@@ -924,11 +920,6 @@ class AnsweringView:
                 min(self.DETAIL_MAX_HEIGHT, available_height),
             )
         return self.DETAIL_MAX_HEIGHT
-
-    def _update_progress_info(self):
-        """更新课程进度信息卡片（已弃用，使用 _perform_course_navigation_and_load 代替）"""
-        # 在后台线程中执行进度获取
-        self.page.run_thread(self._perform_progress_update)
 
     def _perform_course_navigation_and_load(self):
         """在后台线程中执行课程导航和数据加载"""
@@ -1716,8 +1707,8 @@ class AnsweringView:
             # 恢复旧课程并显示课程列表
             from src.auth.student import get_student_courses
             try:
-                self.course_list = get_student_courses()
-                course_list_content = self._get_course_list_content()
+                self.course_list = get_student_courses(self.access_token)
+                course_list_content = self._get_courses_content()
                 self.current_content.content = course_list_content
                 self.page.update()
             except Exception as ex:

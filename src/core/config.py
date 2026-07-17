@@ -50,6 +50,11 @@ class APIRateLevel(Enum):
         return names[self]
 
 
+# ---------- 默认配置常量（单一来源，避免 _get_default_config / get_* / 迁移 三处漂移） ----------
+_DEFAULT_MAX_RETRIES: int = 5
+_DEFAULT_RATE_LEVEL: str = "very_high"
+
+
 class SettingsManager:
     """设置管理器"""
 
@@ -111,7 +116,7 @@ class SettingsManager:
                         print("ℹ️  检测到旧配置，已自动升级速率限制到 very_high 级别")
 
                     # 升级重试次数：如果少于5次，升级到5次
-                    if config["api_settings"].get("max_retries", 3) < 5:
+                    if config["api_settings"].get("max_retries", _DEFAULT_MAX_RETRIES) < 5:
                         config["api_settings"]["max_retries"] = 5
                         updated = True
                         print("ℹ️  检测到旧配置，已自动升级最大重试次数到 5 次")
@@ -177,8 +182,8 @@ class SettingsManager:
                 }
             },
             "api_settings": {
-                "max_retries": 5,
-                "rate_level": "very_high"
+                "max_retries": _DEFAULT_MAX_RETRIES,
+                "rate_level": _DEFAULT_RATE_LEVEL
             },
             "browser_settings": {
                 "headless": False,  # 默认显示浏览器窗口（无头模式关闭）
@@ -268,7 +273,7 @@ class SettingsManager:
         Returns:
             int: 最大重试次数
         """
-        return self.config.get("api_settings", {}).get("max_retries", 3)
+        return self.config.get("api_settings", {}).get("max_retries", _DEFAULT_MAX_RETRIES)
 
     def set_max_retries(self, max_retries: int) -> bool:
         """
@@ -298,7 +303,7 @@ class SettingsManager:
         Returns:
             APIRateLevel: 速率级别
         """
-        rate_level_name = self.config.get("api_settings", {}).get("rate_level", "medium")
+        rate_level_name = self.config.get("api_settings", {}).get("rate_level", _DEFAULT_RATE_LEVEL)
         return APIRateLevel.from_name(rate_level_name)
 
     def set_rate_level(self, rate_level: APIRateLevel) -> bool:

@@ -203,7 +203,7 @@ def _get_student_access_token_impl(
             if not keep_browser:
                 try:
                     page.close()
-                except:
+                except Exception:
                     pass
             return None
 
