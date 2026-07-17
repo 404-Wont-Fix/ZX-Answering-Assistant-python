@@ -973,7 +973,7 @@ class AnsweringView:
                     "⚠️ 检测到浏览器已断开连接\n\n"
                     "无法获取课程进度信息\n\n"
                     "请点击下方按钮重新登录",
-                    on_confirm=self._on_relogin_from_progress,
+                    on_confirm=self._on_relogin_from_navigation,
                     confirm_text="重新登录",
                     icon=ft.Icons.WARNING, icon_color=ft.Colors.ORANGE)
                 return
@@ -1438,21 +1438,6 @@ class AnsweringView:
 
     def _on_relogin_from_navigation(self, e):
         """处理从导航失败后重新登录的按钮点击事件"""
-        logger.debug("🔄 用户选择重新登录")
-
-        # 关闭对话框
-        self.page.pop_dialog()
-
-        # 清理所有用户状态
-        self._cleanup_user_state()
-
-        # 返回登录界面
-        login_content = self._get_login_content()
-        self.current_content.content = login_content
-        self.page.update()
-
-    def _on_relogin_from_progress(self, e):
-        """处理从进度更新失败后重新登录的按钮点击事件"""
         logger.debug("🔄 用户选择重新登录")
 
         # 关闭对话框
