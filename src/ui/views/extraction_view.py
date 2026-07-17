@@ -23,6 +23,7 @@ from src.ui.components import (
     run_background_task,
     secondary_button,
     section_label,
+    show_snack,
     status_chip,
     surface_card,
     workflow_step,
@@ -1025,13 +1026,7 @@ class ExtractionView:
             self.main_app.request_hide_to_tray()
             return
 
-        snack = ft.SnackBar(
-            content=ft.Text("提取任务仍在后台运行；当前窗口无法接入系统托盘。"),
-            bgcolor=ft.Colors.ORANGE,
-        )
-        self.page.snack_bar = snack
-        snack.open = True
-        self.page.update()
+        show_snack(self.page, "提取任务仍在后台运行；当前窗口无法接入系统托盘。", color=ft.Colors.ORANGE)
 
     def _on_back_to_login_click(self, e):
         """返回登录界面"""
