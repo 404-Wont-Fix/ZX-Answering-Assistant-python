@@ -33,6 +33,7 @@ from src.ui.components import (
     section_label,
     show_bank_load_result_dialog,
     show_info_dialog,
+    show_snack,
     status_chip,
     surface_card,
     workflow_step,
@@ -1451,13 +1452,7 @@ class AnsweringView:
         logger.debug("🔄 用户请求刷新课程列表")
 
         # 显示刷新提示
-        self.page.snack_bar = ft.SnackBar(
-            ft.Text("正在刷新课程数据...", color=ft.Colors.WHITE),
-            bgcolor=ft.Colors.BLUE,
-            duration=3000,
-        )
-        self.page.snack_bar.open = True
-        self.page.update()
+        show_snack(self.page, "正在刷新课程数据...", color=ft.Colors.BLUE)
 
         # 在后台线程中刷新
         def refresh_in_background():
@@ -1467,35 +1462,17 @@ class AnsweringView:
                 access_token = get_cached_access_token()
 
                 if not access_token:
-                    def show_error():
-                        self.page.snack_bar = ft.SnackBar(
-                            ft.Text("⚠️ 无法获取 access_token", color=ft.Colors.WHITE),
-                            bgcolor=ft.Colors.RED,
-                            duration=3000,
-                        )
-                        self.page.snack_bar.open = True
-                        self.page.update()
-
-                    async def async_error():
-                        show_error()
-                    self.page.run_task(async_error)
+                    async def async_no_token():
+                        show_snack(self.page, "⚠️ 无法获取 access_token", color=ft.Colors.RED)
+                    self.page.run_task(async_no_token)
                     return
 
                 # 获取最新的课程列表
                 courses = get_student_courses(access_token)
 
                 if not courses or len(courses) == 0:
-                    def show_no_courses():
-                        self.page.snack_bar = ft.SnackBar(
-                            ft.Text("⚠️ 未获取到课程列表", color=ft.Colors.WHITE),
-                            bgcolor=ft.Colors.ORANGE,
-                            duration=3000,
-                        )
-                        self.page.snack_bar.open = True
-                        self.page.update()
-
                     async def async_no_courses():
-                        show_no_courses()
+                        show_snack(self.page, "⚠️ 未获取到课程列表", color=ft.Colors.ORANGE)
                     self.page.run_task(async_no_courses)
                     return
 
@@ -1525,14 +1502,7 @@ class AnsweringView:
                     new_courses_content = self._get_courses_content()
                     self.current_content.content = new_courses_content
                     self.page.update()
-
-                    self.page.snack_bar = ft.SnackBar(
-                        ft.Text(f"✅ 已刷新 {len(courses)} 门课程数据", color=ft.Colors.WHITE),
-                        bgcolor=ft.Colors.GREEN,
-                        duration=2000,
-                    )
-                    self.page.snack_bar.open = True
-                    self.page.update()
+                    show_snack(self.page, f"✅ 已刷新 {len(courses)} 门课程数据", color=ft.Colors.GREEN, duration=2000)
 
                 async def async_update():
                     update_ui_success()
@@ -1544,17 +1514,8 @@ class AnsweringView:
                 import traceback
                 traceback.print_exc()
 
-                def show_error():
-                    self.page.snack_bar = ft.SnackBar(
-                        ft.Text(f"❌ 刷新失败: {str(ex)}", color=ft.Colors.WHITE),
-                        bgcolor=ft.Colors.RED,
-                        duration=3000,
-                    )
-                    self.page.snack_bar.open = True
-                    self.page.update()
-
                 async def async_error():
-                    show_error()
+                    show_snack(self.page, f"❌ 刷新失败: {str(ex)}", color=ft.Colors.RED)
 
                 self.page.run_task(async_error)
 
