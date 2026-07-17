@@ -8,7 +8,7 @@ WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
 import flet as ft
 import threading
 from typing import Optional
-from src.ui.components import run_background_task
+from src.ui.components import run_background_task, show_snack
 
 from . import weban_adapter
 
@@ -708,12 +708,7 @@ class WeBanView:
             bgcolor: 背景颜色
         """
         try:
-            self.page.snack_bar = ft.SnackBar(
-                content=ft.Text(message),
-                bgcolor=bgcolor,
-            )
-            self.page.snack_bar.open = True
-            self.page.update()
+            show_snack(self.page, message, color=bgcolor)
         except Exception as e:
             # 如果 SnackBar 失败，输出到控制台
             print(f"[SnackBar] {message}")
