@@ -179,6 +179,28 @@ class APIClient:
         """发送POST请求"""
         return self.request("POST", url, **kwargs)
 
+    def get_json(self, url: str, **kwargs) -> Optional[dict]:
+        """GET 请求 + 状态码检查 + JSON 解析，一步到位。
+
+        失败时返回 None（已记录日志）。替代调用方重复的
+        "if response and response.status_code == 200: response.json()" 样板。
+
+        Args:
+            url: 请求 URL
+            **kwargs: 传递给 get() 的参数（headers, params, max_retries 等）
+
+        Returns:
+            解析后的 JSON dict/list，失败返回 None
+        """
+        response = self.get(url, **kwargs)
+        if response is None:
+            return None
+        try:
+            return response.json()
+        except Exception as e:
+            logger.error(f"❌ JSON 解析失败: {url} — {e}")
+            return None
+
 
 # 创建全局API客户端实例
 _api_client: Optional[APIClient] = None
