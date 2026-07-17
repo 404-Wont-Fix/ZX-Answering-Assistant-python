@@ -6,7 +6,15 @@ This module contains the UI components for the settings page.
 
 import flet as ft
 from src.core.config import get_settings_manager, APIRateLevel
-from src.ui.components import create_animated_switcher, page_heading, primary_button, secondary_button
+from src.ui.components import (
+    create_animated_switcher,
+    page_heading,
+    primary_button,
+    rich_dialog,
+    secondary_button,
+    show_error_dialog,
+    show_info_dialog,
+)
 from src.ui.theme import Fonts, Palette, Radius
 
 
@@ -808,23 +816,12 @@ class SettingsView:
                 spacing=5,
                 tight=True,
             )
-
-            error_dialog = ft.AlertDialog(
+            self.page.show_dialog(rich_dialog(
+                title_icon=ft.Icons.ERROR, title_text="输入错误", title_color=ft.Colors.RED,
+                content_controls=[error_content],
+                actions=[ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog())],
                 modal=True,
-                title=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
-                        ft.Text("输入错误", color=ft.Colors.RED),
-                    ],
-                    spacing=10,
-                ),
-                content=error_content,
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-            self.page.show_dialog(error_dialog)
+            ))
             return
 
         # 保存设置
@@ -1075,21 +1072,8 @@ class SettingsView:
 
         except Exception as ex:
             # 显示错误对话框
-            error_dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
-                        ft.Text("操作失败", color=ft.Colors.RED),
-                    ],
-                    spacing=10,
-                ),
-                content=ft.Text(f"重启浏览器时出错：{str(ex)}"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(error_dialog)
+            show_error_dialog(self.page, "操作失败",
+                f"重启浏览器时出错：{str(ex)}", modal=True)
 
     def _on_student_fill_password_click(self, e):
         """处理填充密码按钮点击事件 - 将学生端账号后六位填充到密码框"""
@@ -1099,22 +1083,7 @@ class SettingsView:
             self.student_password_field.value = last_six
             self.page.update()
         else:
-            dialog = ft.AlertDialog(
-                modal=True,
-                title=ft.Row(
-                    [
-                        ft.Icon(ft.Icons.INFO_OUTLINE, color=ft.Colors.BLUE),
-                        ft.Text("提示"),
-                    ],
-                    spacing=10,
-                ),
-                content=ft.Text("账号长度不足6位，无法提取后六位"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-                actions_alignment=ft.MainAxisAlignment.END,
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "账号长度不足6位，无法提取后六位", modal=True)
 
     def _on_student_toggle_password_visibility(self, e):
         """处理学生端显示/隐藏密码按钮点击事件"""
