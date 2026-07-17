@@ -25,6 +25,8 @@ from src.ui.components import (
     secondary_button,
     section_label,
     show_bank_load_result_dialog,
+    show_error_dialog,
+    show_info_dialog,
     status_chip,
     surface_card,
     workflow_step,
@@ -517,14 +519,7 @@ class CourseCertificationView:
 
         # 验证输入
         if not username or not password:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("请输入账号和密码"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "请输入账号和密码")
             return
 
         # 保存教师凭据
@@ -588,25 +583,13 @@ class CourseCertificationView:
                 else:
                     logger.error("❌ 未获取到课程列表")
                     self.page.pop_dialog()
-                    error_dialog = ft.AlertDialog(
-                        title=ft.Text("获取课程失败"),
-                        content=ft.Text("❌ 未能获取到课程列表，请查看控制台日志了解详情。"),
-                        actions=[
-                            ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                        ],
-                    )
-                    self.page.show_dialog(error_dialog)
+                    show_error_dialog(self.page, "获取课程失败",
+                        "❌ 未能获取到课程列表，请查看控制台日志了解详情。")
             else:
                 logger.error("❌ 登录失败")
                 self.page.pop_dialog()
-                error_dialog = ft.AlertDialog(
-                    title=ft.Text("登录失败"),
-                    content=ft.Text("❌ 课程认证登录失败，请检查账号密码是否正确。"),
-                    actions=[
-                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(error_dialog)
+                show_error_dialog(self.page, "登录失败",
+                    "❌ 课程认证登录失败，请检查账号密码是否正确。")
 
         except Exception as e:
             logger.error(f"❌ 登录异常: {str(e)}")
@@ -614,14 +597,8 @@ class CourseCertificationView:
             traceback.print_exc()
 
             self.page.pop_dialog()
-            error_dialog = ft.AlertDialog(
-                title=ft.Text("登录异常"),
-                content=ft.Text(f"❌ 登录过程中发生异常：\n{str(e)}"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(error_dialog)
+            show_error_dialog(self.page, "登录异常",
+                f"❌ 登录过程中发生异常：\n{str(e)}")
 
     def _fetch_course_list(self, access_token: str) -> list:
         """
@@ -757,20 +734,7 @@ class CourseCertificationView:
         self.page.update()
 
         # 显示提示信息
-        dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
-                    ft.Text("题库已清除", color=ft.Colors.BLUE),
-                ],
-                spacing=10,
-            ),
-            content=ft.Text("✅ 题库已清除，请重新导入匹配的题库文件"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        show_info_dialog(self.page, "题库已清除", "✅ 题库已清除，请重新导入匹配的题库文件")
 
     def _on_cancel_course_selection(self, e, old_course: dict):
         """取消选择课程，保持之前的课程"""
@@ -790,25 +754,11 @@ class CourseCertificationView:
         logger.debug("DEBUG: 开始API模式答题")
 
         if not self.question_bank_data:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("请先加载题库文件"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "请先加载题库文件")
             return
 
         if not self.selected_course:
-            dialog = ft.AlertDialog(
-                title=ft.Text("提示"),
-                content=ft.Text("请先选择一门课程"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "提示", "请先选择一门课程")
             return
 
         # 注：题库课程ID验证已在导入时完成，此处直接开始答题
