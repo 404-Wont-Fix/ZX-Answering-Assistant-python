@@ -32,6 +32,8 @@ from src.ui.components import (
     secondary_button,
     section_label,
     show_bank_load_result_dialog,
+    show_confirm_dialog,
+    show_error_dialog,
     show_info_dialog,
     show_snack,
     status_chip,
@@ -502,54 +504,24 @@ class AnsweringView:
 
                         # 关闭进度对话框
                         self.page.pop_dialog()
-
-                        error_dialog = ft.AlertDialog(
-                            title=ft.Text("获取课程失败"),
-                            content=ft.Text(
-                                "❌ 未能获取到课程列表\n"
-                                "请查看控制台日志了解详情。"
-                            ),
-                            actions=[
-                                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                            ],
-                        )
-                        self.page.show_dialog(error_dialog)
+                        show_error_dialog(self.page, "获取课程失败",
+                            "❌ 未能获取到课程列表\n请查看控制台日志了解详情。")
 
                 except Exception as e:
                     logger.error(f"❌ 获取课程列表异常: {str(e)}")
 
                     # 关闭进度对话框
                     self.page.pop_dialog()
-
-                    error_dialog = ft.AlertDialog(
-                        title=ft.Text("获取课程异常"),
-                        content=ft.Text(
-                            f"❌ 获取课程列表时发生异常：\n{str(e)}\n\n"
-                            f"请查看控制台日志了解详情。"
-                        ),
-                        actions=[
-                            ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                        ],
-                    )
-                    self.page.show_dialog(error_dialog)
+                    show_error_dialog(self.page, "获取课程异常",
+                        f"❌ 获取课程列表时发生异常：\n{str(e)}\n\n请查看控制台日志了解详情。")
 
             else:
                 logger.error("❌ 登录失败，未能获取 access_token")
 
                 # 登录失败，更新UI
                 self.page.pop_dialog()
-
-                error_dialog = ft.AlertDialog(
-                    title=ft.Text("登录失败"),
-                    content=ft.Text(
-                        "❌ 学生端登录失败，请检查账号密码是否正确\n"
-                        "或查看控制台日志了解详情。"
-                    ),
-                    actions=[
-                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(error_dialog)
+                show_error_dialog(self.page, "登录失败",
+                    "❌ 学生端登录失败，请检查账号密码是否正确\n或查看控制台日志了解详情。")
 
         except Exception as e:
             logger.error(f"❌ 登录过程中发生异常: {str(e)}")
@@ -557,18 +529,8 @@ class AnsweringView:
             # 发生异常，更新UI
             try:
                 self.page.pop_dialog()
-
-                error_dialog = ft.AlertDialog(
-                    title=ft.Text("登录异常"),
-                    content=ft.Text(
-                        f"❌ 登录过程中发生异常：\n{str(e)}\n\n"
-                        f"请查看控制台日志了解详情。"
-                    ),
-                    actions=[
-                        ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(error_dialog)
+                show_error_dialog(self.page, "登录异常",
+                    f"❌ 登录过程中发生异常：\n{str(e)}\n\n请查看控制台日志了解详情。")
             except Exception:
                 pass
 
@@ -945,27 +907,15 @@ class AnsweringView:
                     self.page.pop_dialog()  # 关闭进度对话框
 
                     # 显示重新登录对话框
-                    relogin_dialog = ft.AlertDialog(
-                        title=ft.Row(
-                            [
-                                ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
-                                ft.Text("浏览器已断开", weight=ft.FontWeight.BOLD),
-                            ],
-                            spacing=10,
-                        ),
-                        content=ft.Text(
-                            "⚠️ 检测到浏览器已断开连接\n\n"
-                            "可能原因：\n"
-                            "• 浏览器进程意外退出\n"
-                            "• 网络连接中断\n\n"
-                            "请点击下方按钮重新登录"
-                        ),
-                        actions=[
-                            ft.TextButton("重新登录", on_click=self._on_relogin_from_navigation),
-                            ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
-                        ],
-                    )
-                    self.page.show_dialog(relogin_dialog)
+                    show_confirm_dialog(self.page, "浏览器已断开",
+                        "⚠️ 检测到浏览器已断开连接\n\n"
+                        "可能原因：\n"
+                        "• 浏览器进程意外退出\n"
+                        "• 网络连接中断\n\n"
+                        "请点击下方按钮重新登录",
+                        on_confirm=self._on_relogin_from_navigation,
+                        confirm_text="重新登录",
+                        icon=ft.Icons.WARNING, icon_color=ft.Colors.ORANGE)
                     return
                 else:
                     logger.error("❌ 导航到课程页面失败（浏览器正常）")
@@ -1018,25 +968,13 @@ class AnsweringView:
                 self.page.pop_dialog()  # 关闭进度对话框
 
                 # 显示重新登录对话框
-                relogin_dialog = ft.AlertDialog(
-                    title=ft.Row(
-                        [
-                            ft.Icon(ft.Icons.WARNING, color=ft.Colors.ORANGE),
-                            ft.Text("浏览器已断开", weight=ft.FontWeight.BOLD),
-                        ],
-                        spacing=10,
-                    ),
-                    content=ft.Text(
-                        "⚠️ 检测到浏览器已断开连接\n\n"
-                        "无法获取课程进度信息\n\n"
-                        "请点击下方按钮重新登录"
-                    ),
-                    actions=[
-                        ft.TextButton("重新登录", on_click=self._on_relogin_from_progress),
-                        ft.TextButton("取消", on_click=lambda _: self.page.pop_dialog()),
-                    ],
-                )
-                self.page.show_dialog(relogin_dialog)
+                show_confirm_dialog(self.page, "浏览器已断开",
+                    "⚠️ 检测到浏览器已断开连接\n\n"
+                    "无法获取课程进度信息\n\n"
+                    "请点击下方按钮重新登录",
+                    on_confirm=self._on_relogin_from_progress,
+                    confirm_text="重新登录",
+                    icon=ft.Icons.WARNING, icon_color=ft.Colors.ORANGE)
                 return
 
             # 获取进度信息（从已加载的页面）
@@ -1643,20 +1581,7 @@ class AnsweringView:
         self.page.run_thread(self._perform_course_navigation_and_load)
 
         # 显示提示信息
-        dialog = ft.AlertDialog(
-            title=ft.Row(
-                [
-                    ft.Icon(ft.Icons.INFO, color=ft.Colors.BLUE),
-                    ft.Text("题库已清除", color=ft.Colors.BLUE),
-                ],
-                spacing=10,
-            ),
-            content=ft.Text("✅ 题库已清除，请重新导入匹配的题库文件"),
-            actions=[
-                ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-            ],
-        )
-        self.page.show_dialog(dialog)
+        show_info_dialog(self.page, "题库已清除", "✅ 题库已清除，请重新导入匹配的题库文件")
 
     def _on_cancel_course_selection_student(self, e, old_course: dict):
         """取消选择课程，保持之前的课程（学生端）"""
