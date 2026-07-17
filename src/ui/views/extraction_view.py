@@ -23,6 +23,7 @@ from src.ui.components import (
     run_background_task,
     secondary_button,
     section_label,
+    show_info_dialog,
     show_snack,
     status_chip,
     surface_card,
@@ -271,14 +272,7 @@ class ExtractionView:
         password = self.password_field.value.strip()
 
         if not username or not password:
-            dialog = ft.AlertDialog(
-                title=ft.Text("错误"),
-                content=ft.Text("请输入用户名和密码"),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "错误", "请输入用户名和密码")
             return
 
         # 显示加载对话框
@@ -324,14 +318,7 @@ class ExtractionView:
             self.page.update()
 
         def on_error(err):
-            dialog = ft.AlertDialog(
-                title=ft.Text("错误"),
-                content=ft.Text(str(err)),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "错误", str(err))
 
         run_background_task(
             self.page, work, on_done=on_done, on_error=on_error,
@@ -662,14 +649,7 @@ class ExtractionView:
             self.page.update()
 
         def on_error(err):
-            dialog = ft.AlertDialog(
-                title=ft.Text("错误"),
-                content=ft.Text(str(err)),
-                actions=[
-                    ft.TextButton("确定", on_click=lambda _: self.page.pop_dialog()),
-                ],
-            )
-            self.page.show_dialog(dialog)
+            show_info_dialog(self.page, "错误", str(err))
 
         run_background_task(
             self.page, work, on_done=on_done, on_error=on_error,
