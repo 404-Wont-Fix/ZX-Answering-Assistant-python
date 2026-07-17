@@ -29,6 +29,7 @@ from src.ui.components import (
     page_heading,
     pick_json_file,
     primary_button,
+    run_background_task,
     secondary_button,
     section_label,
     show_bank_load_result_dialog,
@@ -1392,74 +1393,48 @@ class AnsweringView:
         # 显示刷新提示
         show_snack(self.page, "正在刷新课程数据...", color=ft.Colors.BLUE)
 
-        # 在后台线程中刷新
-        def refresh_in_background():
-            """后台刷新课程数据"""
-            try:
-                from src.auth.student import get_cached_access_token, get_student_courses
-                access_token = get_cached_access_token()
+        def work():
+            """后台：获取课程列表 + 每门课的未完成知识点"""
+            from src.auth.student import get_cached_access_token, get_student_courses
+            access_token = get_cached_access_token()
+            if not access_token:
+                raise RuntimeError("无法获取 access_token")
 
-                if not access_token:
-                    async def async_no_token():
-                        show_snack(self.page, "⚠️ 无法获取 access_token", color=ft.Colors.RED)
-                    self.page.run_task(async_no_token)
-                    return
+            courses = get_student_courses(access_token)
+            if not courses:
+                return None
 
-                # 获取最新的课程列表
-                courses = get_student_courses(access_token)
+            for idx, course in enumerate(courses, 1):
+                course_id = course.get('courseID')
+                if course_id:
+                    try:
+                        logger.debug(f"[{idx}/{len(courses)}] 正在获取 {course.get('courseName')} 的未完成知识点...")
+                        uncompleted = get_uncompleted_chapters(
+                            access_token, course_id, delay_ms=0, max_retries=1
+                        )
+                        course['uncompleted_knowledges'] = uncompleted if uncompleted else []
+                    except Exception as ex:
+                        logger.error(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {ex}")
+                        course['uncompleted_knowledges'] = []
+            return courses
 
-                if not courses or len(courses) == 0:
-                    async def async_no_courses():
-                        show_snack(self.page, "⚠️ 未获取到课程列表", color=ft.Colors.ORANGE)
-                    self.page.run_task(async_no_courses)
-                    return
+        def on_done(courses):
+            """UI 线程：更新课程列表"""
+            if not courses:
+                show_snack(self.page, "⚠️ 未获取到课程列表", color=ft.Colors.ORANGE)
+                return
+            self.course_list = courses
+            new_courses_content = self._get_courses_content()
+            self.current_content.content = new_courses_content
+            self.page.update()
+            show_snack(self.page, f"✅ 已刷新 {len(courses)} 门课程数据", color=ft.Colors.GREEN, duration=2000)
 
-                self.course_list = courses
-                logger.info(f"✅ 成功刷新 {len(courses)} 门课程")
+        def on_error(ex):
+            """UI 线程：显示错误"""
+            logger.error(f"❌ 刷新课程列表失败: {ex}")
+            show_snack(self.page, f"❌ 刷新失败: {str(ex)}", color=ft.Colors.RED)
 
-                # 为每门课程获取未完成的知识点
-                for idx, course in enumerate(courses, 1):
-                    course_id = course.get('courseID')
-                    if course_id:
-                        try:
-                            logger.debug(f"[{idx}/{len(courses)}] 正在获取 {course.get('courseName')} 的未完成知识点...")
-                            uncompleted = get_uncompleted_chapters(
-                                access_token,
-                                course_id,
-                                delay_ms=0,
-                                max_retries=1
-                            )
-                            course['uncompleted_knowledges'] = uncompleted if uncompleted else []
-                            logger.info(f"  ✅ {course.get('courseName')}: {len(uncompleted) if uncompleted else 0} 个未完成知识点")
-                        except Exception as ex:
-                            logger.error(f"  ❌ 获取课程 {course.get('courseName')} 未完成知识点失败: {ex}")
-                            course['uncompleted_knowledges'] = []
-
-                # 更新UI
-                def update_ui_success():
-                    new_courses_content = self._get_courses_content()
-                    self.current_content.content = new_courses_content
-                    self.page.update()
-                    show_snack(self.page, f"✅ 已刷新 {len(courses)} 门课程数据", color=ft.Colors.GREEN, duration=2000)
-
-                async def async_update():
-                    update_ui_success()
-
-                self.page.run_task(async_update)
-
-            except Exception as ex:
-                logger.error(f"❌ 刷新课程列表失败: {ex}")
-                import traceback
-                traceback.print_exc()
-
-                async def async_error():
-                    show_snack(self.page, f"❌ 刷新失败: {str(ex)}", color=ft.Colors.RED)
-
-                self.page.run_task(async_error)
-
-        # 使用后台线程执行刷新
-        import threading
-        threading.Thread(target=refresh_in_background, daemon=True).start()
+        run_background_task(self.page, work, on_done=on_done, on_error=on_error)
 
     def _on_relogin_from_navigation(self, e):
         """处理从导航失败后重新登录的按钮点击事件"""
