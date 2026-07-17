@@ -8,7 +8,7 @@ import flet as ft
 from pathlib import Path
 from src.core.config import get_settings_manager
 from src.core.browser import BrowserType
-from src.ui.components import run_background_task
+from src.ui.components import AnswerProgressDialog, run_background_task
 from src.auth.student import get_student_access_token
 
 from .workflow import CloudExamWorkflow
@@ -790,47 +790,42 @@ class CloudExamView:
         """确认注入答案"""
         self.page.pop_dialog()
 
-        # 创建日志对话框
-        log_dialog = self._create_log_dialog("答案注入")
-        self.page.show_dialog(log_dialog)
+        # 创建进度日志对话框（使用共享 AnswerProgressDialog）
+        dialog = AnswerProgressDialog(self.page, title="答案注入", show_log_panel=True)
+        self.page.show_dialog(dialog)
+
+        log = dialog.append_log  # 简化后续调用
 
         # 在后台线程中执行注入
         def inject_task():
-            try:
-                workflow = self.workflow or CloudExamWorkflow(log_callback=self._append_log)
-                self.workflow = workflow
+            workflow = self.workflow or CloudExamWorkflow(log_callback=log)
+            self.workflow = workflow
 
-                # 执行答案注入
-                result = workflow.inject_answers()
+            result = workflow.inject_answers()
 
-                # 显示结果
-                self._append_log("\n" + "=" * 50)
-                self._append_log("📊 最终统计")
-                self._append_log("=" * 50)
-                self._append_log(f"总计: {result['total']} 题")
-                self._append_log(f"成功: {result['success']} 题")
-                self._append_log(f"失败: {result['failed']} 题")
-                self._append_log(f"跳过: {result['skipped']} 题")
-                self._append_log("=" * 50)
+            log("\n" + "=" * 50)
+            log("📊 最终统计")
+            log("=" * 50)
+            log(f"总计: {result['total']} 题")
+            log(f"成功: {result['success']} 题")
+            log(f"失败: {result['failed']} 题")
+            log(f"跳过: {result['skipped']} 题")
+            log("=" * 50)
 
-                if result['success'] > 0:
-                    self._append_log("\n🎉 答案注入完成！", "success")
+            if result['success'] > 0:
+                log("\n🎉 答案注入完成！")
 
-                # 延迟关闭对话框
-                import time
-                time.sleep(2)
-                if log_dialog in self.page.dialogs:
-                    self.page.pop_dialog()
+            return result
 
-                # 刷新界面
-                self._refresh_function_panel()
+        def on_error(ex):
+            log(f"\n❌ 注入失败: {str(ex)}")
+            import traceback
+            log(f"详细错误: {traceback.format_exc()}")
 
-            except Exception as ex:
-                self._append_log(f"\n❌ 注入失败: {str(ex)}", "error")
-                import traceback
-                self._append_log(f"详细错误: {traceback.format_exc()}")
+        def on_done(result):
+            self._refresh_function_panel()
 
-        self._run_background(inject_task)
+        run_background_task(self.page, inject_task, on_done=on_done, on_error=on_error, progress_dialog=dialog)
 
     # ==================== 辅助方法 ====================
 
