@@ -245,6 +245,8 @@ def show_info_dialog(
     page: ft.Page,
     title: str,
     message: str,
+    *,
+    modal: bool = False,
 ) -> None:
     """
     显示简单的信息提示弹窗（标题 + 文本内容 + 确定按钮）。
@@ -255,8 +257,10 @@ def show_info_dialog(
         page: Flet 页面对象
         title: 弹窗标题（如 "提示"、"错误"）
         message: 弹窗内容文本
+        modal: 是否为模态弹窗（点击外部不关闭）
     """
     dialog = ft.AlertDialog(
+        modal=modal,
         title=ft.Text(title),
         content=ft.Text(message),
         actions=[
@@ -270,6 +274,8 @@ def show_error_dialog(
     page: ft.Page,
     title: str,
     message: str,
+    *,
+    modal: bool = False,
 ) -> None:
     """
     显示错误提示弹窗（红色标题 + 错误图标 + 文本内容 + 确定按钮）。
@@ -277,6 +283,7 @@ def show_error_dialog(
     替代代码中大量重复的错误 AlertDialog 样板（Pattern A with ERROR icon）。
     """
     dialog = ft.AlertDialog(
+        modal=modal,
         title=ft.Row(
             [
                 ft.Icon(ft.Icons.ERROR, color=ft.Colors.RED),
@@ -431,12 +438,14 @@ def rich_dialog(
     content_controls: list,
     actions: list,
     actions_alignment: ft.MainAxisAlignment = ft.MainAxisAlignment.END,
+    modal: bool = False,
 ) -> ft.AlertDialog:
     """构建富 AlertDialog（Row[Icon,Text] 标题 + Column 内容 + actions）。
 
     题库导入/课程选择中各类富对话框的共同骨架。
     """
     return ft.AlertDialog(
+        modal=modal,
         title=ft.Row(
             [
                 ft.Icon(title_icon, color=title_color),
