@@ -253,6 +253,103 @@ class Extractor:
             print("=" * 60)
             return None
 
+    # ---- 共享抽取算法 helper（消除 extract / extract_single_course / extract_course_answers /
+    #      extract_course_with_progress 四处的重复分组、筛选、抓取、打印逻辑） ----
+
+    @staticmethod
+    def _group_by(items: List[Dict], key_field: str) -> Dict[str, List[Dict]]:
+        """按指定字段分组（如 chapter.courseID / knowledge.ChapterID）。"""
+        groups: Dict[str, List[Dict]] = {}
+        for item in items:
+            groups.setdefault(item.get(key_field, ""), []).append(item)
+        return groups
+
+    @staticmethod
+    def _filter_knowledges_by_chapters(knowledge_list: List[Dict], chapter_ids: set) -> List[Dict]:
+        """筛选属于指定章节集合的知识点。"""
+        return [k for k in knowledge_list if k.get("ChapterID", "") in chapter_ids]
+
+    def _fetch_questions_and_options(self, class_id: str, knowledges: List[Dict],
+                                     *, verbose: bool = False) -> tuple:
+        """获取知识点题目和选项。
+
+        verbose=True 时打印详细进度，精确复刻原 extract/extract_single_course/
+        extract_course_answers 三处的输出格式。verbose=False 时静默。
+
+        Returns:
+            (knowledge_questions, question_options) 两个 dict
+        """
+        knowledge_questions = {}
+        question_options = {}
+        for knowledge in knowledges:
+            knowledge_id = knowledge.get("KnowledgeID", "")
+            knowledge_name = knowledge.get("Knowledge", "")
+            if verbose:
+                print(f"\n正在获取知识点 {knowledge_name} 的题目列表...")
+            question_list = self.get_question_list(class_id, knowledge_id)
+            if question_list:
+                knowledge_questions[knowledge_id] = question_list
+                for question in question_list:
+                    question_id = question.get("QuestionID", "")
+                    if verbose:
+                        print(f"正在获取题目 {question.get('QuestionTitle', '')} 的选项...")
+                    options_list = self.get_question_options(class_id, question_id)
+                    if options_list:
+                        question_options[question_id] = options_list
+                    elif verbose:
+                        print(f"⚠️ 题目 {question.get('QuestionTitle', '')} 获取选项失败")
+            elif verbose:
+                print(f"⚠️ 知识点 {knowledge_name} 获取题目列表失败")
+        return knowledge_questions, question_options
+
+    @staticmethod
+    def _print_chapter_detail(chapters: List[Dict], chapter_knowledges: Dict[str, List[Dict]],
+                              knowledge_questions: Dict[str, List[Dict]],
+                              question_options: Dict[str, List[Dict]], indent: str,
+                              *, newline_before_chapter: bool = False) -> None:
+        """打印章节→知识点→题目→选项子树（不含课程头部）。
+
+        精确复刻原 extract()/extract_single_course() 的打印格式。indent 为章节行前缀；
+        知识点行 = indent+"    "，题目行 = indent+"        "，选项行 = indent+"            "
+        （每级 +4 空格，匹配原 7/11/15 与 4/8/12 空格缩进）。
+        newline_before_chapter: True 时每个章节标题前加 \\n（匹配 extract_single_course；
+        extract() 为 False）。
+        """
+        k_indent = indent + "    "          # 知识点级
+        q_indent = indent + "        "      # 题目级
+        o_indent = indent + "            "  # 选项级
+        hdr_prefix = "\n" + indent if newline_before_chapter else indent
+
+        for j, chapter in enumerate(chapters, 1):
+            chapter_id = chapter.get("chapterID", "")
+            print(f"{hdr_prefix}[{j}] {chapter.get('chapterTitle', '')} - {chapter.get('chapterContent', '')} (ChapterID: {chapter_id})")
+            print(f"{k_indent}知识点: {chapter.get('knowledgeCount', 0)}, 完成: {chapter.get('completCount', 0)}, 通过: {chapter.get('passCount', 0)}")
+
+            if chapter_id in chapter_knowledges:
+                knowledges = chapter_knowledges[chapter_id]
+                print(f"{k_indent}知识点列表:")
+                for k, knowledge in enumerate(knowledges, 1):
+                    knowledge_id = knowledge.get("KnowledgeID", "")
+                    print(f"{k_indent}[{k}] {knowledge.get('Knowledge', '')} (KnowledgeID: {knowledge_id}, 顺序: {knowledge.get('OrderNumber', 0)}, 完成: {knowledge.get('completCount', 0)}, 通过: {knowledge.get('passCount', 0)})")
+                    if knowledge_id in knowledge_questions:
+                        questions = knowledge_questions[knowledge_id]
+                        print(f"{q_indent}题目列表:")
+                        for m, question in enumerate(questions, 1):
+                            question_id = question.get("QuestionID", "")
+                            print(f"{q_indent}[{m}] {question.get('QuestionTitle', '')} (QuestionID: {question_id}, 总数: {question.get('sumCount', 0)}, 通过: {question.get('PassCount', 0)})")
+                            if question_id in question_options:
+                                options = question_options[question_id]
+                                print(f"{o_indent}选项列表:")
+                                for n, option in enumerate(options, 1):
+                                    correct_mark = "✅" if option.get("isTrue", False) else "❌"
+                                    print(f"{o_indent}[{n}] {option.get('oppentionContent', '')} (选项ID: {option.get('id', '')}, 顺序: {option.get('oppentionOrder', 0)}) {correct_mark}")
+                            else:
+                                print(f"{o_indent}暂无选项信息")
+                    else:
+                        print(f"{q_indent}暂无题目信息")
+            else:
+                print(f"{k_indent}暂无知识点信息")
+
     def get_class_list(self) -> Optional[List[Dict]]:
         """从GetClassByTeacherID API获取班级列表"""
         if not self.access_token:
@@ -460,43 +557,14 @@ class Extractor:
         if not knowledge_list:
             return None
         
-        # 11. 按课程分组章节
-        course_chapters = {}
-        for chapter in chapter_list:
-            course_id = chapter.get("courseID", "")
-            if course_id not in course_chapters:
-                course_chapters[course_id] = []
-            course_chapters[course_id].append(chapter)
-        
-        # 12. 按章节分组知识点
-        chapter_knowledges = {}
-        for knowledge in knowledge_list:
-            chapter_id = knowledge.get("ChapterID", "")
-            if chapter_id not in chapter_knowledges:
-                chapter_knowledges[chapter_id] = []
-            chapter_knowledges[chapter_id].append(knowledge)
-        
-        # 13. 获取每个知识点的题目列表
-        knowledge_questions = {}
-        question_options = {}
-        for knowledge in knowledge_list:
-            knowledge_id = knowledge.get("KnowledgeID", "")
-            print(f"\n正在获取知识点 {knowledge.get('Knowledge', '')} 的题目列表...")
-            question_list = self.get_question_list(class_id, knowledge_id)
-            if question_list:
-                knowledge_questions[knowledge_id] = question_list
+        # 按课程分组章节 + 按章节分组知识点
+        course_chapters = self._group_by(chapter_list, "courseID")
+        chapter_knowledges = self._group_by(knowledge_list, "ChapterID")
 
-                # 获取每个题目的选项
-                for question in question_list:
-                    question_id = question.get("QuestionID", "")
-                    print(f"正在获取题目 {question.get('QuestionTitle', '')} 的选项...")
-                    options_list = self.get_question_options(class_id, question_id)
-                    if options_list:
-                        question_options[question_id] = options_list
-                    else:
-                        print(f"⚠️ 题目 {question.get('QuestionTitle', '')} 获取选项失败")
-            else:
-                print(f"⚠️ 知识点 {knowledge.get('Knowledge', '')} 获取题目列表失败")
+        # 获取全部知识点的题目和选项（verbose 输出精确匹配原格式）
+        knowledge_questions, question_options = self._fetch_questions_and_options(
+            class_id, knowledge_list, verbose=True
+        )
         
         # 14. 打印班级和课程信息
         print("\n" + "="*50)
@@ -511,66 +579,12 @@ class Extractor:
             course_name = course.get("courseName", "未知课程")
             print(f"\n{i}. {course_name} (courseID: {course_id})")
             print(f"   知识点总数: {course.get('knowledgeSum', 0)}, 已完成: {course.get('shulian', 0)}")
-            
+
             # 显示该课程的章节
             if course_id in course_chapters:
                 chapters = course_chapters[course_id]
                 print(f"   章节数量: {len(chapters)}")
-                for j, chapter in enumerate(chapters, 1):
-                    chapter_id = chapter.get("chapterID", "")
-                    chapter_title = chapter.get("chapterTitle", "")
-                    chapter_content = chapter.get("chapterContent", "")
-                    knowledge_count = chapter.get("knowledgeCount", 0)
-                    complet_count = chapter.get("completCount", 0)
-                    pass_count = chapter.get("passCount", 0)
-                    
-                    print(f"   [{j}] {chapter_title} - {chapter_content} (ChapterID: {chapter_id})")
-                    print(f"       知识点: {knowledge_count}, 完成: {complet_count}, 通过: {pass_count}")
-                    
-                    # 显示该章节的知识点
-                    if chapter_id in chapter_knowledges:
-                        knowledges = chapter_knowledges[chapter_id]
-                        print(f"       知识点列表:")
-                        for k, knowledge in enumerate(knowledges, 1):
-                            knowledge_id = knowledge.get("KnowledgeID", "")
-                            knowledge_name = knowledge.get("Knowledge", "")
-                            order_number = knowledge.get("OrderNumber", 0)
-                            k_complet_count = knowledge.get("completCount", 0)
-                            k_pass_count = knowledge.get("passCount", 0)
-                            
-                            print(f"       [{k}] {knowledge_name} (KnowledgeID: {knowledge_id}, 顺序: {order_number}, 完成: {k_complet_count}, 通过: {k_pass_count})")
-                            
-                            # 显示该知识点的题目
-                            if knowledge_id in knowledge_questions:
-                                questions = knowledge_questions[knowledge_id]
-                                print(f"           题目列表:")
-                                for m, question in enumerate(questions, 1):
-                                    question_id = question.get("QuestionID", "")
-                                    question_title = question.get("QuestionTitle", "")
-                                    sum_count = question.get("sumCount", 0)
-                                    pass_count = question.get("PassCount", 0)
-                                    
-                                    print(f"           [{m}] {question_title} (QuestionID: {question_id}, 总数: {sum_count}, 通过: {pass_count})")
-                                    
-                                    # 显示该题目的选项
-                                    if question_id in question_options:
-                                        options = question_options[question_id]
-                                        print(f"               选项列表:")
-                                        for n, option in enumerate(options, 1):
-                                            option_id = option.get("id", "")
-                                            option_content = option.get("oppentionContent", "")
-                                            is_true = option.get("isTrue", False)
-                                            option_order = option.get("oppentionOrder", 0)
-                                            
-                                            # 标记正确答案
-                                            correct_mark = "✅" if is_true else "❌"
-                                            print(f"               [{n}] {option_content} (选项ID: {option_id}, 顺序: {option_order}) {correct_mark}")
-                                    else:
-                                        print(f"               暂无选项信息")
-                            else:
-                                print(f"           暂无题目信息")
-                    else:
-                        print("       暂无知识点信息")
+                self._print_chapter_detail(chapters, chapter_knowledges, knowledge_questions, question_options, indent="   ")
             else:
                 print("   暂无章节信息")
         
@@ -649,62 +663,19 @@ class Extractor:
         if not knowledge_list:
             return None
         
-        # 12. 按课程分组章节
-        course_chapters = {}
-        for chapter in chapter_list:
-            chapter_course_id = chapter.get("courseID", "")
-            if chapter_course_id not in course_chapters:
-                course_chapters[chapter_course_id] = []
-            course_chapters[chapter_course_id].append(chapter)
-        
-        # 13. 按章节分组知识点
-        chapter_knowledges = {}
-        for knowledge in knowledge_list:
-            chapter_id = knowledge.get("ChapterID", "")
-            if chapter_id not in chapter_knowledges:
-                chapter_knowledges[chapter_id] = []
-            chapter_knowledges[chapter_id].append(knowledge)
-        
-        # 14. 只获取选中课程的题目列表
-        knowledge_questions = {}
-        question_options = {}
-        
-        # 筛选出选中课程的章节
+        # 按课程分组章节 + 按章节分组知识点
+        course_chapters = self._group_by(chapter_list, "courseID")
+        chapter_knowledges = self._group_by(knowledge_list, "ChapterID")
+
+        # 筛选选中课程的章节和知识点
         selected_course_chapters = course_chapters.get(course_id, [])
         selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
-        
-        # 只处理选中课程的知识点
-        for knowledge in knowledge_list:
-            knowledge_id = knowledge.get("KnowledgeID", "")
-            chapter_id = knowledge.get("ChapterID", "")
-            
-            # 只处理选中课程的章节下的知识点
-            if chapter_id not in selected_chapter_ids:
-                continue
-            
-            print(f"\n正在获取知识点 {knowledge.get('Knowledge', '')} 的题目列表...")
-            question_list = self.get_question_list(class_id, knowledge_id)
-            if question_list:
-                knowledge_questions[knowledge_id] = question_list
+        selected_course_knowledges = self._filter_knowledges_by_chapters(knowledge_list, selected_chapter_ids)
 
-                # 获取每个题目的选项
-                for question in question_list:
-                    question_id = question.get("QuestionID", "")
-                    print(f"正在获取题目 {question.get('QuestionTitle', '')} 的选项...")
-                    options_list = self.get_question_options(class_id, question_id)
-                    if options_list:
-                        question_options[question_id] = options_list
-                    else:
-                        print(f"⚠️ 题目 {question.get('QuestionTitle', '')} 获取选项失败")
-            else:
-                print(f"⚠️ 知识点 {knowledge.get('Knowledge', '')} 获取题目列表失败")
-
-        # 15. 筛选出选中课程的知识点
-        selected_course_knowledges = []
-        for knowledge in knowledge_list:
-            chapter_id = knowledge.get("ChapterID", "")
-            if chapter_id in selected_chapter_ids:
-                selected_course_knowledges.append(knowledge)
+        # 获取题目和选项（verbose 输出精确匹配原格式）
+        knowledge_questions, question_options = self._fetch_questions_and_options(
+            class_id, selected_course_knowledges, verbose=True
+        )
         
         # 16. 打印班级和课程信息
         print("\n" + "="*50)
@@ -720,61 +691,7 @@ class Extractor:
         if course_id in course_chapters:
             chapters = course_chapters[course_id]
             print(f"\n章节数量: {len(chapters)}")
-            for j, chapter in enumerate(chapters, 1):
-                chapter_id = chapter.get("chapterID", "")
-                chapter_title = chapter.get("chapterTitle", "")
-                chapter_content = chapter.get("chapterContent", "")
-                knowledge_count = chapter.get("knowledgeCount", 0)
-                complet_count = chapter.get("completCount", 0)
-                pass_count = chapter.get("passCount", 0)
-                
-                print(f"\n[{j}] {chapter_title} - {chapter_content} (ChapterID: {chapter_id})")
-                print(f"    知识点: {knowledge_count}, 完成: {complet_count}, 通过: {pass_count}")
-                
-                # 显示该章节的知识点
-                if chapter_id in chapter_knowledges:
-                    knowledges = chapter_knowledges[chapter_id]
-                    print(f"    知识点列表:")
-                    for k, knowledge in enumerate(knowledges, 1):
-                        knowledge_id = knowledge.get("KnowledgeID", "")
-                        knowledge_name = knowledge.get("Knowledge", "")
-                        order_number = knowledge.get("OrderNumber", 0)
-                        k_complet_count = knowledge.get("completCount", 0)
-                        k_pass_count = knowledge.get("passCount", 0)
-                        
-                        print(f"    [{k}] {knowledge_name} (KnowledgeID: {knowledge_id}, 顺序: {order_number}, 完成: {k_complet_count}, 通过: {k_pass_count})")
-                        
-                        # 显示该知识点的题目
-                        if knowledge_id in knowledge_questions:
-                            questions = knowledge_questions[knowledge_id]
-                            print(f"        题目列表:")
-                            for m, question in enumerate(questions, 1):
-                                question_id = question.get("QuestionID", "")
-                                question_title = question.get("QuestionTitle", "")
-                                sum_count = question.get("sumCount", 0)
-                                pass_count = question.get("PassCount", 0)
-                                
-                                print(f"        [{m}] {question_title} (QuestionID: {question_id}, 总数: {sum_count}, 通过: {pass_count})")
-                                
-                                # 显示该题目的选项
-                                if question_id in question_options:
-                                    options = question_options[question_id]
-                                    print(f"            选项列表:")
-                                    for n, option in enumerate(options, 1):
-                                        option_id = option.get("id", "")
-                                        option_content = option.get("oppentionContent", "")
-                                        is_true = option.get("isTrue", False)
-                                        option_order = option.get("oppentionOrder", 0)
-                                        
-                                        # 标记正确答案
-                                        correct_mark = "✅" if is_true else "❌"
-                                        print(f"            [{n}] {option_content} (选项ID: {option_id}, 顺序: {option_order}) {correct_mark}")
-                                else:
-                                    print(f"            暂无选项信息")
-                        else:
-                            print(f"        暂无题目信息")
-                else:
-                    print("    暂无知识点信息")
+            self._print_chapter_detail(chapters, chapter_knowledges, knowledge_questions, question_options, indent="", newline_before_chapter=True)
         else:
             print("暂无章节信息")
         
@@ -828,32 +745,14 @@ class Extractor:
                 log("❌ 获取知识点列表失败")
                 return None
 
-            # 按课程分组章节
-            course_chapters = {}
-            for chapter in chapter_list:
-                chapter_course_id = chapter.get("courseID", "")
-                if chapter_course_id not in course_chapters:
-                    course_chapters[chapter_course_id] = []
-                course_chapters[chapter_course_id].append(chapter)
+            # 按课程分组章节 + 按章节分组知识点
+            course_chapters = self._group_by(chapter_list, "courseID")
+            chapter_knowledges = self._group_by(knowledge_list, "ChapterID")
 
-            # 按章节分组知识点
-            chapter_knowledges = {}
-            for knowledge in knowledge_list:
-                chapter_id = knowledge.get("ChapterID", "")
-                if chapter_id not in chapter_knowledges:
-                    chapter_knowledges[chapter_id] = []
-                chapter_knowledges[chapter_id].append(knowledge)
-
-            # 筛选出选中课程的章节
+            # 筛选出选中课程的章节和知识点
             selected_course_chapters = course_chapters.get(course_id, [])
             selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
-
-            # 只处理选中课程的知识点
-            selected_course_knowledges = []
-            for knowledge in knowledge_list:
-                chapter_id = knowledge.get("ChapterID", "")
-                if chapter_id in selected_chapter_ids:
-                    selected_course_knowledges.append(knowledge)
+            selected_course_knowledges = self._filter_knowledges_by_chapters(knowledge_list, selected_chapter_ids)
 
             # 获取题目和选项
             knowledge_questions = {}
@@ -982,62 +881,16 @@ def extract_course_answers(course_id: str, username: str = None, password: str =
         if not knowledge_list:
             return None
         
-        # 10. 按课程分组章节
-        course_chapters = {}
-        for chapter in chapter_list:
-            chapter_course_id = chapter.get("courseID", "")
-            if chapter_course_id not in course_chapters:
-                course_chapters[chapter_course_id] = []
-            course_chapters[chapter_course_id].append(chapter)
-        
-        # 11. 按章节分组知识点
-        chapter_knowledges = {}
-        for knowledge in knowledge_list:
-            chapter_id = knowledge.get("ChapterID", "")
-            if chapter_id not in chapter_knowledges:
-                chapter_knowledges[chapter_id] = []
-            chapter_knowledges[chapter_id].append(knowledge)
-        
-        # 12. 只获取指定课程的题目列表
-        knowledge_questions = {}
-        question_options = {}
-        
-        # 筛选出指定课程的章节
+        # 按课程分组章节 + 筛选指定课程的章节和知识点
+        course_chapters = extractor._group_by(chapter_list, "courseID")
         selected_course_chapters = course_chapters.get(course_id, [])
         selected_chapter_ids = {chapter.get("chapterID", "") for chapter in selected_course_chapters}
-        
-        # 只处理指定课程的知识点
-        for knowledge in knowledge_list:
-            knowledge_id = knowledge.get("KnowledgeID", "")
-            chapter_id = knowledge.get("ChapterID", "")
-            
-            # 只处理指定课程的章节下的知识点
-            if chapter_id not in selected_chapter_ids:
-                continue
-            
-            print(f"\n正在获取知识点 {knowledge.get('Knowledge', '')} 的题目列表...")
-            question_list = extractor.get_question_list(class_id, knowledge_id)
-            if question_list:
-                knowledge_questions[knowledge_id] = question_list
+        selected_course_knowledges = extractor._filter_knowledges_by_chapters(knowledge_list, selected_chapter_ids)
 
-                # 获取每个题目的选项
-                for question in question_list:
-                    question_id = question.get("QuestionID", "")
-                    print(f"正在获取题目 {question.get('QuestionTitle', '')} 的选项...")
-                    options_list = extractor.get_question_options(class_id, question_id)
-                    if options_list:
-                        question_options[question_id] = options_list
-                    else:
-                        print(f"⚠️ 题目 {question.get('QuestionTitle', '')} 获取选项失败")
-            else:
-                print(f"⚠️ 知识点 {knowledge.get('Knowledge', '')} 获取题目列表失败")
-
-        # 13. 筛选出指定课程的章节和知识点
-        selected_course_knowledges = []
-        for knowledge in knowledge_list:
-            chapter_id = knowledge.get("ChapterID", "")
-            if chapter_id in selected_chapter_ids:
-                selected_course_knowledges.append(knowledge)
+        # 获取题目和选项（verbose 输出精确匹配原格式）
+        knowledge_questions, question_options = extractor._fetch_questions_and_options(
+            class_id, selected_course_knowledges, verbose=True
+        )
         
         # 14. 打印提取信息
         print("\n" + "="*50)
