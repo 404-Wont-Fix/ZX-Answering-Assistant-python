@@ -1,5 +1,23 @@
 # 更新日志
 
+## [v4.0.0] - 2026-07-18
+
+本版本继续推进核心模块的结构性拆分：将三个最大的非视图模块（BrowserManager / Extractor / 浏览器答题匹配器）按职责拆分，消除重复算法与上帝类。所有拆分均经字节级 golden diff 验证，行为零回归。
+
+### 架构重构（拆分上帝类 + 消除重复算法）
+
+- **BrowserManager 拆分**（`src/core/browser.py` 1187→622 行）：按职责拆为 `_browser_installer.py`（安装/检测/通道选择，无状态函数）+ `_worker_engine.py`（`WorkerEngine` 类，线程队列与自愈）+ `browser.py` façade（生命周期 + context/page 管理）。`WorkerEngine` 通过 `cleanup_callback` 桥接浏览器状态清理，锁顺序（worker_lock → state_lock）与 300s 超时自愈路径完全保留。24 个调用方的 `from src.core.browser import` 路径零改动。
+- **Extractor 去重**（`src/extraction/extractor.py` 1065→917 行）：4 个抽取流程（`extract` / `extract_single_course` / `extract_course_answers` / `extract_course_with_progress`）共享的分组/筛选/抓取/打印逻辑提取为 4 个 helper（`_group_by` / `_filter_knowledges_by_chapters` / `_fetch_questions_and_options` / `_print_chapter_detail`）。采用纯 helper 提取（非委托），stdout 字节级零变化，`extract_course_answers` 返回结构（`course_info.courseID` 等）保持兼容。
+- **浏览器答题匹配器拆分**（`src/answering/browser_answer.py` 1558→1087 行）：6 个浏览器无关的答案匹配方法提取为 `_answer_matcher.py` 的 `AnswerMatcherMixin`（`_find_answer_from_api` / `_find_answer_in_bank_by_question_id` / `_find_answer_in_bank` / `_text_contains` / `_match_question` / `_match_by_options`）。`AutoAnswer(BaseAnswer, AnswerMatcherMixin)` 混入，调用方零改动。附带去重：`_find_answer_in_bank` 中 15 行 option_score 重算循环简化为 1 行（`_match_by_options` 仅在全部匹配时返回 True，重算本就只能是 0/1.0）。
+
+### 代码质量
+
+- 每个拆分均建立 golden reference（原逻辑逐字复制 + 固定假数据驱动），重构后 diff 为空才合并：browser（10 项冒烟 + reset_worker 自愈路径）、extractor（EXTRACT/SINGLE 两变体树打印 + `extract_course_with_progress` E2E）、matcher（13 项覆盖两种 oppentionOrder 格式 / 模糊标题匹配 / 选项匹配 / 无匹配）。
+- 清理迁移后宿主的未用 import（`browser_answer.py` 的 `get_chapters` 移至 mixin 后移除）。
+- 86/87 测试通过（1 个 pre-existing failure 与本次无关）。
+
+---
+
 ## [v3.9.9] - 2026-07-14
 
 本版本是一次大规模架构重构与稳定性修复：拆分两个最大的上帝类（LazyAIGradingView / student.py）、统一多处重复的题库匹配与后台线程模式、修复 worker 卡死瘫痪与 SPA 导航超时等关键 bug。

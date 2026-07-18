@@ -55,11 +55,11 @@ def _get_version() -> str:
         return version
 
     # 如果失败，使用默认值
-    return "3.8.0"
+    return "4.0.0"
 
 # VERSION = _get_version()
 
-VERSION = "3.9.9"
+VERSION = "4.0.0"
 
 
 def _get_weban_version() -> str:
@@ -179,8 +179,8 @@ Git提交: {GIT_COMMIT}
 
 # 版本信息字典（用于 Windows 版本资源）
 VERSION_INFO = {
-    'file_version': (3, 9, 9, 0),
-    'product_version': (3, 9, 9, 0),
+    'file_version': (4, 0, 0, 0),
+    'product_version': (4, 0, 0, 0),
     'file_description': '智能答题助手 - 自动化答题系统',
     'copyright': 'Copyright (C) 2024-2026',
     'company_name': 'ZX Project',
