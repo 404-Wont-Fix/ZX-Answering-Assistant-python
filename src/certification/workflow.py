@@ -169,7 +169,7 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
         Optional[tuple]: (access_token, page) 如果成功
     """
     try:
-        logger.info(f"使用账户: {username}")
+        logger.info(f"使用账户: {username[:3]}****")
 
         # 使用浏览器管理器
         manager = get_browser_manager()
@@ -223,8 +223,7 @@ def _get_access_token_impl(keep_browser_open: bool, skip_prompt: bool, username:
             page.wait_for_selector("input[placeholder='登录账号']", timeout=10000)
             logger.info("登录表单加载完成")
 
-            logger.info(f"正在填写账户: {username}")
-            print(f"正在填写账户: {username}")
+            logger.info(f"正在填写账户: {username[:3]}****")
             page.fill("input[placeholder='登录账号']", username)
 
             logger.info("正在填写密码...")

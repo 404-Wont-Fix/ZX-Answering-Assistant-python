@@ -81,7 +81,7 @@ def _get_access_token_impl() -> Optional[str]:
             logger.error("用户名或密码不能为空")
             return None
 
-        logger.info(f"使用账户: {username}")
+        logger.info(f"使用账户: {username[:3]}****")
 
         # 使用浏览器管理器
         manager = get_browser_manager()

@@ -85,7 +85,7 @@ def _get_student_access_token_impl(
                         return None
 
         logger.info("正在启动浏览器进行学生端登录...")
-        logger.info(f"使用账户: {username}")
+        logger.info(f"使用账户: {username[:3]}****")
 
         access_token = None
 

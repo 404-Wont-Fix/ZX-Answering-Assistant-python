@@ -53,7 +53,8 @@ def force_kill_process_tree(timeout: float = 2.0) -> None:
     except (psutil.NoSuchProcess, psutil.AccessDenied) as e:
         logger.debug(f"获取子进程列表失败: {e}")
     except Exception as e:
-        logger.debug(f"强制终止子进程树失败: {e}")
+        # 未知失败（如 psutil 权限/平台差异）不应静默，否则 reset_worker 会误报"已重置"
+        logger.warning(f"强制终止子进程树失败: {e}")
 
 
 class WorkerEngine:
@@ -173,8 +174,15 @@ class WorkerEngine:
             except Exception as e:
                 logger.error(f"reset force_kill 失败: {e}")
             # 3. 等旧 worker 退出（卡死则超时；旧线程作为 daemon 泄漏，进程退出时回收）
+            zombie = False
             if old_thread is not None and old_thread.is_alive():
                 old_thread.join(timeout=5)
+                if old_thread.is_alive():
+                    zombie = True
+                    logger.error(
+                        "⚠️ 旧 worker 线程在 5s 内未退出，作为僵尸线程泄漏"
+                        "（Python 无法强杀线程；若线程阻塞在 time.sleep 将无法恢复，需重启进程）"
+                    )
             # 4. 清理 Playwright 状态（加锁）
             with self._state_lock:
                 self._cleanup_callback()
@@ -182,7 +190,10 @@ class WorkerEngine:
             self._drain_pending_tasks()
             # 6. worker_thread 置 None，下次 _ensure_worker_thread 起新 generation 的 worker
             self._worker_thread = None
-            logger.info("✅ worker 线程已重置，下次操作将自动重建")
+            if zombie:
+                logger.warning("worker 已重置，但存在僵尸线程，建议尽快重启应用")
+            else:
+                logger.info("✅ worker 线程已重置，下次操作将自动重建")
 
     def _ensure_worker_thread(self):
         """确保工作线程已启动"""
