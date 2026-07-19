@@ -206,6 +206,12 @@ def _get_student_access_token_impl(
                 except Exception:
                     pass
             return None
+        finally:
+            try:
+                page.remove_listener("request", handle_request)
+                page.remove_listener("response", handle_response)
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"Playwright登录异常：{str(e)}")

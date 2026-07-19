@@ -15,6 +15,7 @@ from src.utils.text import normalize_text
 from src.utils.logging import setup_callback_logging, cleanup_callback_logging
 from src.answering.base_answer import BaseAnswer
 from src.answering._answer_matcher import AnswerMatcherMixin
+from src.answering.browser_ops import wait_for_success_hint
 
 logger = logging.getLogger(__name__)
 
@@ -709,24 +710,11 @@ class AutoAnswer(BaseAnswer, AnswerMatcherMixin):
 
                 # 等待检测成功提示
                 logger.info("⏳ 等待考评成功提示（最多10秒）...")
-                start_time = time.time()
-                success_detected = False
-
-                while time.time() - start_time < 10:
-                    try:
-                        # 检查是否有成功提示
-                        success_element = self._get_page().query_selector(".eva-success")
-                        if success_element and not success_detected:
-                            logger.info("✅ 检测到成功提示：恭喜你,本次考评成功")
-                            logger.info("⏳ 等待5秒自动跳转到下一个知识点...")
-                            success_detected = True
-                            break
-
-                        time.sleep(0.5)
-                    except Exception:
-                        time.sleep(0.5)
+                success_detected = wait_for_success_hint(self._get_page(), timeout=10)
 
                 if success_detected:
+                    logger.info("✅ 检测到成功提示：恭喜你,本次考评成功")
+                    logger.info("⏳ 等待5秒自动跳转到下一个知识点...")
                     # 等待5秒倒计时+1秒缓冲
                     time.sleep(6)
 

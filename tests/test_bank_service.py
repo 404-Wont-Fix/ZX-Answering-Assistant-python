@@ -212,5 +212,75 @@ class ApplyBankResultTests(unittest.TestCase):
         self.assertEqual(view.question_bank_data, "old-bank")
 
 
+class RoundTripTests(unittest.TestCase):
+    """Regression: export_all_courses output must be importable as 'multiple'."""
+
+    def test_exported_multi_course_bank_imports_as_multiple(self):
+        """export_all_courses writes 'courses' (nested chapters), not 'course_list'.
+
+        The importer must recognise this format as 'multiple' and extract
+        per-course chapters correctly.
+        """
+        # Minimal structure matching DataExporter.export_all_courses output
+        exported = {
+            "class": {
+                "id": "cls-1",
+                "name": "高三1班",
+                "grade": "2026",
+                "schoolName": "测试学校",
+            },
+            "courses": [
+                {
+                    "courseID": "course-1",
+                    "courseName": "数学",
+                    "knowledgeSum": 1,
+                    "shulian": 0,
+                    "chapters": [
+                        {
+                            "chapterID": "ch-1",
+                            "chapterTitle": "第一章",
+                            "knowledges": [
+                                {
+                                    "KnowledgeID": "k-1",
+                                    "Knowledge": "知识点1",
+                                    "questions": [
+                                        {
+                                            "QuestionID": "q-1",
+                                            "QuestionTitle": "1+1=?",
+                                            "options": [
+                                                {"id": "o1", "isTrue": True, "oppentionContent": "2"},
+                                                {"id": "o2", "isTrue": False, "oppentionContent": "3"},
+                                            ],
+                                        }
+                                    ],
+                                }
+                            ],
+                        }
+                    ],
+                }
+            ],
+            "exportTime": "2026-07-19 12:00:00",
+        }
+        path = _write_temp_json(exported)
+        self.addCleanup(os.unlink, path)
+
+        result = load_question_bank(path, selected_course="course-1")
+        self.assertTrue(result.success, f"load failed: {result.error}")
+        self.assertIsNone(result.mismatch)
+        self.assertIsNotNone(result.data, "imported data should not be None")
+
+        # Verify the importer recognised the 'courses' format as 'multiple'
+        from src.extraction.importer import QuestionBankImporter
+        importer = QuestionBankImporter()
+        self.assertTrue(importer.import_from_file(path))
+        self.assertEqual(importer.get_bank_type(), "multiple")
+        parsed = importer.parse_multiple_courses()
+        self.assertIsNotNone(parsed, "parse_multiple_courses should succeed for 'courses' format")
+        self.assertEqual(len(parsed["courses"]), 1)
+        self.assertEqual(parsed["courses"][0]["courseID"], "course-1")
+        self.assertGreater(parsed["statistics"]["totalChapters"], 0)
+        self.assertGreater(parsed["statistics"]["totalQuestions"], 0)
+
+
 if __name__ == "__main__":
     unittest.main()

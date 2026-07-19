@@ -12,6 +12,7 @@ from playwright.sync_api import Browser, BrowserContext, Page
 
 from src.core.browser import get_browser_manager, BrowserType, run_in_thread_if_asyncio
 from ._student_browser_health import ensure_browser_alive, is_browser_alive
+from .token_manager import get_token_manager
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +58,11 @@ def _get_browser_page_impl() -> Optional[Tuple[Browser, Page]]:
 
 
 def get_access_token_from_browser() -> Optional[str]:
-    """从已登录的浏览器中提取 access_token（刷新页面监听 /connect/token）。"""
+    """从已登录的浏览器中提取 access_token（优先使用缓存，未命中再监听浏览器）。"""
+    # 快速路径：token_manager 中有未过期的缓存 token，直接返回（跳过10s+的浏览器提取）
+    cached = get_token_manager().get_student_token()
+    if cached:
+        return cached
     return run_in_thread_if_asyncio(_get_access_token_from_browser_impl)
 
 

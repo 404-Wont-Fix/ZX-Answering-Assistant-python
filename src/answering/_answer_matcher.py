@@ -58,28 +58,28 @@ class AnswerMatcherMixin:
                 logger.warning(f"⚠️ 当前题目索引 {current_index} 超出API返回的题目数量 {len(self.current_api_question_ids)}")
                 return None
 
-            # 如果是第一题，验证顺序是否正确
-            if current_index == 0 and not self.api_order_verified:
+            # 逐题验证：确认当前题目标题与API同位置的标题匹配
+            # 防止平台打乱题序后按错误位置索引导致提交错误答案
+            if self.current_api_question_titles and current_index < len(self.current_api_question_titles):
                 current_title = question.get('title', '')
-                api_first_title = self.current_api_question_titles[0] if self.current_api_question_titles else ''
+                api_title = self.current_api_question_titles[current_index]
 
-                logger.info(f"🔍 验证第一题顺序...")
-                logger.info(f"   网页第一题: {current_title[:60]}...")
-                logger.info(f"   API第一题: {api_first_title[:60]}...")
-
-                # 简单验证：标题是否包含相同的关键词
-                # 移除空格和标点后比较
                 current_clean = re.sub(r'[^\w一-龥]', '', current_title)
-                api_clean = re.sub(r'[^\w一-龥]', '', api_first_title)
+                api_clean = re.sub(r'[^\w一-龥]', '', api_title)
 
-                if current_clean == api_clean or (len(current_clean) > 10 and current_clean in api_clean) or (len(api_clean) > 10 and api_clean in current_clean):
-                    self.api_order_verified = True
-                    logger.info("✅ 第一题匹配成功，API顺序验证通过")
-                else:
-                    logger.warning("⚠️ 第一题不匹配，API顺序可能不正确，将使用题库匹配")
+                title_matches = (current_clean == api_clean
+                    or (len(current_clean) > 10 and current_clean in api_clean)
+                    or (len(api_clean) > 10 and api_clean in current_clean))
+
+                if not title_matches:
+                    logger.warning(f"⚠️ 第{current_index + 1}题标题不匹配(页面:{current_title[:40]}... / API:{api_title[:40]}...)，回退题库匹配")
                     return None
 
-            # 如果顺序已验证，或者直接信任（跳过验证）
+                logger.info(f"✅ 第{current_index + 1}题标题验证通过")
+                if not self.api_order_verified:
+                    self.api_order_verified = True
+                    logger.info("✅ API题目顺序已验证")
+
             api_question_id = self.current_api_question_ids[current_index]
             logger.info(f"✅ 当前是第{current_index + 1}题，API题目ID: {api_question_id[:8]}...")
 

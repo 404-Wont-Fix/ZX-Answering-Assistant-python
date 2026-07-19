@@ -55,8 +55,10 @@ class QuestionBankImporter:
         # 打印调试信息
         print(f"🔍 调试信息：数据结构的顶层键：{list(self.data.keys())}")
         
-        # 检查是否包含course_list字段（多课程）
-        if "course_list" in self.data:
+        # 检查是否包含多课程字段（支持两种格式）
+        # - "course_list": 外部手写格式，章节在顶层
+        # - "courses": export_all_courses 导出格式，章节嵌套在每门课程内
+        if "course_list" in self.data or "courses" in self.data:
             self.bank_type = "multiple"
         elif "class" in self.data:
             print(f"🔍 调试信息：class字段的内容：{list(self.data['class'].keys())}")
@@ -120,8 +122,18 @@ class QuestionBankImporter:
             return None
 
         class_info = self.data.get("class", {})
-        course_list = self.data.get("course_list", [])
-        chapters = self.data.get("chapters", [])
+
+        # 支持两种多课程格式：
+        # - "course_list" + 顶层 "chapters"（外部手写格式）
+        # - "courses"（export_all_courses 导出格式，章节嵌套在每门课程内）
+        if "course_list" in self.data:
+            course_list = self.data.get("course_list", [])
+            chapters = self.data.get("chapters", [])
+        else:
+            course_list = self.data.get("courses", [])
+            chapters = []
+            for course in course_list:
+                chapters.extend(course.get("chapters", []))
 
         return {
             "class": {

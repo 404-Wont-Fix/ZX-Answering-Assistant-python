@@ -71,35 +71,34 @@ class APIClientTests(unittest.TestCase):
 
     @patch("src.core.api_client.requests.request")
     def test_cache_is_scoped_to_authentication_context(self, request):
+        """APIClient does not cache responses; every call issues a fresh request."""
         first = make_response(200, {"account": "first"})
         second = make_response(200, {"account": "second"})
-        request.side_effect = [first, second]
+        third = make_response(200, {"account": "third"})
+        request.side_effect = [first, second, third]
 
         alpha_headers = {"Authorization": "Bearer alpha"}
         beta_headers = {"Authorization": "Bearer beta"}
         alpha_result = self.client.get(
             "https://example.test/profile",
             headers=alpha_headers,
-            use_cache=True,
             rate_limit=False,
         )
-        cached_alpha = self.client.get(
+        alpha_result2 = self.client.get(
             "https://example.test/profile",
             headers=alpha_headers,
-            use_cache=True,
             rate_limit=False,
         )
         beta_result = self.client.get(
             "https://example.test/profile",
             headers=beta_headers,
-            use_cache=True,
             rate_limit=False,
         )
 
         self.assertIs(alpha_result, first)
-        self.assertIs(cached_alpha, first)
-        self.assertIs(beta_result, second)
-        self.assertEqual(request.call_count, 2)
+        self.assertIs(alpha_result2, second)
+        self.assertIs(beta_result, third)
+        self.assertEqual(request.call_count, 3)
 
 
 class CourseAnswerTests(unittest.TestCase):

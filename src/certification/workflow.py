@@ -27,6 +27,7 @@ from src.core.browser import (
 from src.utils.text import normalize_text, get_chapters
 from src.core.headers import get_api_headers
 from src.answering.base_answer import BaseAnswer
+from src.answering.browser_ops import wait_for_success_hint
 
 # 配置日志
 logger = logging.getLogger(__name__)
@@ -593,21 +594,10 @@ def _auto_answer_items(page, course_url, question_bank, skip_completed=True):
 
                         # 等待自动跳转检测
                         print(f"      ⏳ 等待网站显示成功提示并自动跳转...")
-                        start_time = time.time()
-                        success_detected = False
-
-                        while time.time() - start_time < 10:
-                            try:
-                                success_element = page.query_selector(".eva-success")
-                                if success_element and not success_detected:
-                                    print(f"      [OK] 检测到成功提示，等待5秒自动跳转...")
-                                    success_detected = True
-                                    break
-                                time.sleep(0.5)
-                            except Exception:
-                                time.sleep(0.5)
+                        success_detected = wait_for_success_hint(page, timeout=10)
 
                         if success_detected:
+                            print(f"      [OK] 检测到成功提示，等待5秒自动跳转...")
                             time.sleep(6)
                             print(f"      [DEBUG] 检测是否自动跳转...")
 

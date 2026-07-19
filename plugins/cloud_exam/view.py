@@ -859,12 +859,6 @@ class CloudExamView:
         """在后台线程安全执行耗时任务（委托 run_background_task）。"""
         run_background_task(self.page, lambda: target(*args, **kwargs))
 
-        import threading
-
-        thread = threading.Thread(target=target, args=args, kwargs=kwargs, daemon=True)
-        thread.start()
-        return thread
-
     def _create_log_dialog(self, title: str) -> ft.AlertDialog:
         """创建日志对话框"""
         log_text = ft.Text(
