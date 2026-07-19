@@ -54,18 +54,21 @@ class BaseAnswer(ABC):
 
             print(f"   选择答案: {correct_values}")
 
-            # 逐个点击所有正确选项
+            # 逐个点击所有正确选项，跟踪是否全部匹配
+            matched_count = 0
             for correct_value in correct_values:
                 for option in question['options']:
                     if option['value'] == correct_value:
                         selector = f".el-checkbox:has(input[value='{correct_value}'])"
                         self._get_page().click(selector, timeout=10000)
                         time.sleep(0.3)
+                        matched_count += 1
                         break
                 else:
                     print(f"⚠️ 未找到value为 {correct_value} 的选项")
 
-            return True
+            # 若有正确值未匹配到选项，视为失败（避免漏选被计为成功）
+            return matched_count == len(correct_values)
 
         except Exception as e:
             print(f"❌ 选择多选答案失败: {str(e)}")

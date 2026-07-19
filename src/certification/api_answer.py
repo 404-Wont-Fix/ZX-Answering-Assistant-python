@@ -427,7 +427,9 @@ class APICourseAnswer:
             'skipped_knowledge': 0,
             'total_questions': 0,
             'matched_questions': 0,
-            'unmatched_questions': 0
+            'unmatched_questions': 0,
+            'correct_questions': 0,
+            'wrong_questions': 0
         }
 
         try:
@@ -556,12 +558,19 @@ class APICourseAnswer:
 
                         if submit_result:
                             failed_count = submit_result.get('faildCount', 0)
+                            question_count = submit_result.get('questionCount', len(submit_data))
+                            # 累加题目级正确率（避免 9/10 正确的知识点被整体计为失败而低估成绩）
+                            result['correct_questions'] += max(0, question_count - failed_count)
+                            result['wrong_questions'] += failed_count
 
                             if failed_count == 0:
                                 logger.info(f"状态：✅ 知识点全部正确！")
                                 result['success_knowledge'] += 1
+                            elif failed_count >= question_count:
+                                logger.warning(f"状态：⚠️  全部 {failed_count} 题错误")
+                                result['failed_knowledge'] += 1
                             else:
-                                logger.warning(f"状态：⚠️  有 {failed_count} 题错误")
+                                logger.warning(f"状态：⚠️  {failed_count}/{question_count} 题错误（部分正确）")
                                 result['failed_knowledge'] += 1
                         else:
                             logger.error(f"状态：❌ 提交失败")
@@ -575,7 +584,7 @@ class APICourseAnswer:
             logger.info("📊 做题统计")
             logger.info("=" * 60)
             logger.info(f"知识点: 成功 {result['success_knowledge']} | 失败 {result['failed_knowledge']} | 跳过 {result['skipped_knowledge']}")
-            logger.info(f"题目: 总数 {result['total_questions']} | 匹配 {result['matched_questions']} | 未匹配 {result['unmatched_questions']}")
+            logger.info(f"题目: 总数 {result['total_questions']} | 正确 {result['correct_questions']} | 错误 {result['wrong_questions']} | 匹配 {result['matched_questions']} | 未匹配 {result['unmatched_questions']}")
             logger.info("=" * 60)
 
             return result

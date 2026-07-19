@@ -32,8 +32,9 @@ from src.answering.browser_ops import wait_for_success_hint
 # 配置日志
 logger = logging.getLogger(__name__)
 
-# 题库缓存（模块级变量）
+# 题库缓存（模块级变量，受 _question_bank_lock 保护以支持并发导入/读取）
 _question_bank_data = None
+_question_bank_lock = threading.Lock()
 
 
 # ============================================================================
@@ -68,7 +69,8 @@ def import_question_bank(file_path: str) -> bool:
 
         # 保存到缓存
         global _question_bank_data
-        _question_bank_data = importer.data
+        with _question_bank_lock:
+            _question_bank_data = importer.data
 
         # 显示简化的题库统计信息
         print("\n" + "=" * 60)
@@ -133,7 +135,8 @@ def get_question_bank() -> Optional[Dict]:
     Returns:
         Optional[Dict]: 题库数据，如果未导入则返回None
     """
-    return _question_bank_data
+    with _question_bank_lock:
+        return _question_bank_data
 
 
 def close_browser():

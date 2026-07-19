@@ -11,7 +11,7 @@ from typing import Dict, Optional, Tuple
 from playwright.sync_api import Browser, BrowserContext, Page
 
 from src.core.browser import get_browser_manager, BrowserType, run_in_thread_if_asyncio
-from ._student_browser_health import ensure_browser_alive, is_browser_alive
+from ._student_browser_health import ensure_browser_alive, is_browser_alive, cleanup_browser
 from .token_manager import get_token_manager
 
 logger = logging.getLogger(__name__)
@@ -127,25 +127,31 @@ def _get_access_token_from_browser_impl() -> Optional[str]:
 
         page.on("response", handle_response)
 
-        current_url = page.url
-        if "ai.cqzuxia.com" in current_url:
-            logger.info("正在刷新页面...")
-            page.reload(wait_until="domcontentloaded", timeout=30000)
-        else:
-            logger.info("正在导航到登录页...")
-            page.goto("https://ai.cqzuxia.com/#/login", wait_until="domcontentloaded", timeout=30000)
+        try:
+            current_url = page.url
+            if "ai.cqzuxia.com" in current_url:
+                logger.info("正在刷新页面...")
+                page.reload(wait_until="domcontentloaded", timeout=30000)
+            else:
+                logger.info("正在导航到登录页...")
+                page.goto("https://ai.cqzuxia.com/#/login", wait_until="domcontentloaded", timeout=30000)
 
-        start_time = time.time()
-        while not access_token and (time.time() - start_time) < 10:
-            time.sleep(0.3)
+            start_time = time.time()
+            while not access_token and (time.time() - start_time) < 10:
+                time.sleep(0.3)
 
-        if access_token:
-            logger.info("✅ 成功从浏览器提取access_token")
-            return access_token
-        else:
-            logger.warning("⚠️ 浏览器中未找到有效的access_token")
-            logger.info("💡 提示：请确保已经在浏览器中登录学生端")
-            return None
+            if access_token:
+                logger.info("✅ 成功从浏览器提取access_token")
+                return access_token
+            else:
+                logger.warning("⚠️ 浏览器中未找到有效的access_token")
+                logger.info("💡 提示：请确保已经在浏览器中登录学生端")
+                return None
+        finally:
+            try:
+                page.remove_listener("response", handle_response)
+            except Exception:
+                pass
 
     except Exception as e:
         logger.error(f"❌ 从浏览器提取access_token失败: {str(e)}")
@@ -185,6 +191,7 @@ def _navigate_to_course_impl(course_id: str) -> bool:
         logger.error(f"❌ 导航到课程页面失败: {str(e)}")
         if not is_browser_alive():
             logger.warning("⚠️ 浏览器可能在操作过程中挂掉，已自动清理")
+            cleanup_browser()
         return False
 
 

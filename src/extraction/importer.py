@@ -39,7 +39,12 @@ class QuestionBankImporter:
         
         # 识别题库类型
         self._detect_bank_type()
-        
+
+        # 无法识别的题库结构不应被当作成功导入（避免下游消费 None/空统计）
+        if self.bank_type == "unknown":
+            print(f"❌ 无法识别的题库结构，bank_type={self.bank_type}")
+            return False
+
         return True
     
     def _detect_bank_type(self):
