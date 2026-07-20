@@ -20,10 +20,10 @@ scripts\setup_weban.ps1
 
 **Or manually:**
 ```bash
-WEBAN_REF=bcc626e133a33e3b94f8358c624cfdfa527759fb ./scripts/setup_weban.sh
+WEBAN_REF=78665365406465514f85137df1ebcbee8cb6c103 ./scripts/setup_weban.sh
 ```
 
-`WEBAN_REF` defaults to `bcc626e133a33e3b94f8358c624cfdfa527759fb`. Set it to another commit, tag, or branch only when you intentionally want to update the bundled WeBan code.
+`WEBAN_REF` defaults to `78665365406465514f85137df1ebcbee8cb6c103`. Set it to another commit, tag, or branch only when you intentionally want to update the bundled WeBan code.
 
 ### What it does
 

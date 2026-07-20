@@ -7,7 +7,7 @@ $ScriptDir = $PSScriptRoot
 $ProjectRoot = Split-Path -Path $ScriptDir -Parent
 $WebanTargetDir = Join-Path -Path $ProjectRoot -ChildPath "plugins\weban_plugin\modules\WeBan"
 $WebanRepository = if ($env:WEBAN_REPOSITORY) { $env:WEBAN_REPOSITORY } else { "https://github.com/hangone/WeBan.git" }
-$WebanRef = if ($env:WEBAN_REF) { $env:WEBAN_REF } else { "bcc626e133a33e3b94f8358c624cfdfa527759fb" }
+$WebanRef = if ($env:WEBAN_REF) { $env:WEBAN_REF } else { "78665365406465514f85137df1ebcbee8cb6c103" }
 
 Write-Host "🔧 Setting up WeBan module for weban_plugin..." -ForegroundColor Green
 Write-Host "📍 Target directory: $WebanTargetDir" -ForegroundColor Yellow

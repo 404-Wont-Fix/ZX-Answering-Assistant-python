@@ -7,14 +7,17 @@
 # 3. 安装插件时运行: python -m pip install -r requirements.txt
 # 4. 应用扫描插件时不会自动修改 Python 环境
 #
-# WeBan 插件依赖
+# WeBan 插件依赖（对齐 WeBan v3.8.x）
 # WeBan Plugin Dependencies
 
-# 浏览器自动化（WeBan v3.7.0+必需）
-DrissionPage>=4.1.0
+# 浏览器自动化（WeBan v3.8.x 使用 nodriver 替代 DrissionPage）
+nodriver>=0.50.0
 
-# 验证码识别
-ddddocr==1.6.1
+# 验证码识别（ONNX 模型推理，替代旧版 ddddocr）
+onnxruntime>=1.26.0
+
+# 图像处理（验证码图片预处理，onnxruntime + captcha 模型依赖）
+opencv-python-headless>=4.13.0
 
 # 日志处理
 loguru==0.7.3
@@ -22,7 +25,7 @@ loguru==0.7.3
 # 加密解密
 pycryptodome==3.23.0
 
-# 图像处理（用于验证码识别）
+# 图像处理
 Pillow>=10.0.0
 
 # HTTP 请求

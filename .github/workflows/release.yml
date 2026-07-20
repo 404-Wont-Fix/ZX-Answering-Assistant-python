@@ -20,7 +20,7 @@ env:
   PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"
   WEBAN_REPOSITORY: https://github.com/hangone/WeBan.git
-  WEBAN_REF: ${{ vars.WEBAN_REF || 'bcc626e133a33e3b94f8358c624cfdfa527759fb' }}
+  WEBAN_REF: ${{ vars.WEBAN_REF || '78665365406465514f85137df1ebcbee8cb6c103' }}
 
 jobs:
   metadata:

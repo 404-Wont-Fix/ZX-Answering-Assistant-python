@@ -8,7 +8,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 WEBAN_TARGET_DIR="$PROJECT_ROOT/plugins/weban_plugin/modules/WeBan"
 WEBAN_REPOSITORY="${WEBAN_REPOSITORY:-https://github.com/hangone/WeBan.git}"
-WEBAN_REF="${WEBAN_REF:-bcc626e133a33e3b94f8358c624cfdfa527759fb}"
+WEBAN_REF="${WEBAN_REF:-78665365406465514f85137df1ebcbee8cb6c103}"
 
 echo "🔧 Setting up WeBan module for weban_plugin..."
 echo "📍 Target directory: $WEBAN_TARGET_DIR"
