@@ -201,16 +201,17 @@ class BrowserManager:
             logger.debug(f"检查浏览器连接状态失败: {e}")
 
         logger.warning("检测到浏览器实例已断开，清理旧引用")
-        self._contexts.clear()
-        self._pages.clear()
-        self._browser = None
-        if self._playwright:
-            try:
-                self._playwright.stop()
-            except (PlaywrightError, RuntimeError) as e:
-                logger.debug(f"清理断开 Playwright 实例失败: {e}")
-            finally:
-                self._playwright = None
+        with self._state_lock:
+            self._contexts.clear()
+            self._pages.clear()
+            self._browser = None
+            if self._playwright:
+                try:
+                    self._playwright.stop()
+                except (PlaywrightError, RuntimeError) as e:
+                    logger.debug(f"清理断开 Playwright 实例失败: {e}")
+                finally:
+                    self._playwright = None
 
     @staticmethod
     def _is_page_usable(page: Optional[Page]) -> bool:
@@ -455,8 +456,9 @@ class BrowserManager:
             if browser_type in self._pages:
                 self._pages[browser_type] = None
                 del self._pages[browser_type]
-            self._contexts[browser_type] = None
-            del self._contexts[browser_type]
+            if browser_type in self._contexts:
+                self._contexts[browser_type] = None
+                del self._contexts[browser_type]
 
         logger.info(f"已关闭 {browser_type.value} 上下文")
 
