@@ -77,8 +77,7 @@ src/modules/WeBan/weban.log
 
 # WeBan 可选外部模块目录（默认不纳入主仓库）
 # 如果维护者正式添加 Git Submodule，请调整对应忽略规则
-plugins/weban_plugin/modules/WeBan/
-plugins/weban_plugin/WeBan/
+# WeBan 现为正式 Git Submodule（见 .gitmodules），克隆后执行 git submodule update --init 获取
 
 # Playwright 和 Flet 缓存
 playwright_browsers/

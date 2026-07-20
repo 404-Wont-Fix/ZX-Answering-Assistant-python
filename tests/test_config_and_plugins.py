@@ -7,7 +7,7 @@ from pathlib import Path
 from src.core.config import SettingsManager
 from src.core.plugin_context import PluginContext
 from src.core.plugin_manager import PluginInfo, PluginManager
-from src.ui.views.plugin_runtime import open_plugin_ui
+from src.core.plugin_runtime import open_plugin_ui
 
 
 class SettingsManagerTests(unittest.TestCase):

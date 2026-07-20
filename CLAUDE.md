@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ZX Answering Assistant (智能答题助手) is an automated quiz interaction system that uses browser automation (Playwright) to authenticate with web-based quiz platforms, extract question banks, and manage data import/export workflows. The system supports both teacher and student portals, with two interface modes: **GUI mode (Flet-based)** and **CLI mode**.
+ZX Answering Assistant (智能答题助手) is an automated quiz interaction system that uses browser automation (Playwright) to authenticate with web-based quiz platforms, extract question banks, and manage data import/export workflows. The system supports both teacher and student portals. **Interface mode: GUI only (Flet-based)** — the legacy CLI mode has been removed (see note below).
 
 **Key architectural note**: The project uses `BrowserManager` to run multiple isolated browser contexts (student, teacher, course certification) in a single Playwright browser instance.
 
@@ -27,15 +27,12 @@ python -m playwright install chromium
 
 ### Run Application
 
-**GUI Mode (default):**
+**GUI Mode (the only mode):**
 ```bash
 python main.py
 ```
 
-**CLI Mode:**
-```bash
-python main.py --cli
-```
+> **Note: CLI mode has been removed.** `main.py` no longer accepts `--cli` and there is no menu system. The only residual CLI entry is the standalone script `src/extract_answers.py` (run via `python -m src.extraction` style). The config file is still named `cli_config.json` for backward compatibility — do not be misled by the name.
 
 ## UI Architecture
 
@@ -141,11 +138,8 @@ Flet 0.8.0+ has **massive breaking changes** from earlier versions. Many commonl
 - **[course_certification_view.py](src/ui/views/course_certification_view.py)** - Course certification workflow
 - **[plugin_center_view.py](src/ui/views/plugin_center_view.py)** - Plugin catalog and plugin entry workspace
 
-### CLI Mode
-Traditional command-line interface via [main.py](main.py) with hierarchical menu system:
-- Main Menu: (1) Start answering, (2) Extract questions, (3) Settings, (4) Exit
-- Start Answering Submenu: (1) Batch answering, (2) Get student access_token, (3) Single course answering, (4) Question bank import, (5) Return
-- Extract Questions Submenu: (1) Get teacher access_token, (2) Extract all courses, (3) Extract single course, (4) Export results, (5) Return
+### CLI Mode (REMOVED)
+The traditional command-line interface (hierarchical menu via `python main.py --cli`) has been **removed**. `main.py` is now GUI-only. Do not attempt to revive the menu system or add `--cli` handling — all answering/extraction/settings flows are accessed through the Flet GUI.
 
 ## Architecture
 

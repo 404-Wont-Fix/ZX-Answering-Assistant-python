@@ -8,7 +8,7 @@ import flet as ft
 from typing import Optional
 from src.ui.components import page_heading, secondary_button, show_snack, status_chip, surface_card
 from src.ui.theme import Palette, Radius
-from src.ui.views.plugin_runtime import open_plugin_ui
+from src.core.plugin_runtime import open_plugin_ui
 
 
 class PluginCenterView:

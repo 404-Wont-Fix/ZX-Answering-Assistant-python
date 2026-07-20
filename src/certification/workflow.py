@@ -1378,7 +1378,11 @@ class CourseAutoAnswer(BaseAnswer):
                         option_content_normalized = self._normalize_text(option['content'])
                         answer_content_normalized = self._normalize_text(answer_content)
 
-                        if option_content_normalized == answer_content_normalized:
+                        # 严格匹配优先；失败则双向子串包含（题库 oppentionContent 常带 HTML 实体/<Limit> 标签，
+                        # 归一化后仍可能不完全相等，子串回退避免题库有答案却静默丢失）
+                        if (option_content_normalized == answer_content_normalized
+                            or (answer_content_normalized and answer_content_normalized in option_content_normalized)
+                            or (option_content_normalized and option_content_normalized in answer_content_normalized)):
                             correct_values.append(option['value'])
                             print(f"   匹配选项: {option['label']} - {option['content'][:30]}...")
                             break
