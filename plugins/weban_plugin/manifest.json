@@ -6,7 +6,7 @@
   "icon": "school",
   "author": "hangone",
   "entry_ui": "ui.create_view",
-  "entry_core": "core.WeBanPluginCore",
+  "entry_core": null,
   "min_app_version": "3.0.0",
   "dependencies": [],
   "enabled": true

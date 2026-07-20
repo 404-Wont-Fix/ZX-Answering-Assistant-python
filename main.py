@@ -59,6 +59,10 @@ def _setup_ssl():
 
 _setup_ssl()
 
+# 应用级日志初始化（必须在任何 src 模块导入前完成，替代原 student.py import 时的副作用 basicConfig）
+from src.utils.logging import setup_app_logging
+setup_app_logging()
+
 # 导入版本信息
 import version
 

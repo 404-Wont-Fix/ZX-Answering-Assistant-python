@@ -361,58 +361,13 @@ class PluginManager:
             return None
 
     def load_plugin_core(self, plugin_id: str, context: PluginContext):
+        """已废弃：插件核心入口（entry_core）已移除，插件统一为 UI-only 模型。
+
+        保留方法签名仅为向后兼容，始终返回 None。如有 headless/脚本化需求，
+        请直接 import 插件的具体 workflow/service 模块。
         """
-        加载插件核心功能
-
-        Args:
-            plugin_id: 插件ID
-            context: PluginContext 实例
-
-        Returns:
-            插件核心类实例，如果失败则返回 None
-        """
-        plugin_info = self._plugins.get(plugin_id)
-        if not plugin_info:
-            print(f"[PluginManager] Plugin not found: {plugin_id}")
-            return None
-
-        if not plugin_info.enabled:
-            print(f"[PluginManager] Plugin is disabled: {plugin_id}")
-            return None
-
-        if not self._can_load_plugin(plugin_info):
-            return None
-
-        if not plugin_info.entry_core:
-            print(f"[PluginManager] Plugin has no core entry point: {plugin_id}")
-            return None
-
-        try:
-            # 解析入口点
-            module_name, class_name = plugin_info.entry_core.split('.')
-
-            # 添加插件父目录到 Python 路径
-            plugin_path = plugin_info.path
-
-            # 导入插件模块
-            with self._temporary_import_path(plugin_path.parent):
-                module = importlib.import_module(f"{plugin_id}.{module_name}")
-
-            # 获取核心类
-            core_class = getattr(module, class_name)
-
-            # 创建实例（传递 context）
-            core_instance = core_class(context)
-            self._loaded_plugins.setdefault(plugin_id, {})["core"] = core_instance
-
-            print(f"[PluginManager] Plugin core loaded successfully: {plugin_id}")
-            return core_instance
-
-        except Exception as e:
-            print(f"[PluginManager] Failed to load plugin core {plugin_id}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
+        print(f"[PluginManager] load_plugin_core is deprecated (entry_core removed): {plugin_id}")
+        return None
 
     def enable_plugin(self, plugin_id: str) -> bool:
         """

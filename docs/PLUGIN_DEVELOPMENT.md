@@ -62,7 +62,7 @@
 | **PluginContext** | 插件上下文，提供依赖注入和服务访问 |
 | **manifest.json** | 插件元数据文件，定义插件的基本信息 |
 | **entry_ui** | UI 入口点，创建插件的用户界面 |
-| **entry_core** | 核心功能入口点，实现插件的业务逻辑 |
+| **entry_core** | ⚠️ 已废弃（始终为 null）。插件统一为 UI-only 模型；如需 headless 调用，直接 import 插件的 workflow/service 模块 |
 
 ---
 
@@ -92,7 +92,7 @@ plugins/
   "icon": "extension",
   "author": "开发者",
   "entry_ui": "ui.create_view",
-  "entry_core": "core.Workflow",
+  "entry_core": null,
   "min_app_version": "3.0.0",
   "dependencies": [],
   "enabled": true
@@ -204,7 +204,7 @@ plugins/
   "icon": "school",
   "author": "TianJiaJi",
   "entry_ui": "ui.create_view",
-  "entry_core": "core.Workflow",
+  "entry_core": null,
   "min_app_version": "3.0.0",
   "dependencies": [],
   "enabled": true
@@ -222,7 +222,7 @@ plugins/
 | `icon` | string | ❌ | Material Design 图标名称，默认 "extension" |
 | `author` | string | ❌ | 插件作者 |
 | `entry_ui` | string | ✅ | UI 入口点，格式：`模块名.函数名` |
-| `entry_core` | string | ❌ | 核心功能入口点，格式：`模块名.类名` |
+| `entry_core` | string | ❌ | ⚠️ 已废弃，始终为 null（保留字段仅为向后兼容，不再加载 core 入口） |
 | `min_app_version` | string | ❌ | 最低兼容的应用版本 |
 | `dependencies` | array | ❌ | 依赖的其他插件 ID 列表 |
 | `enabled` | boolean | ❌ | 默认是否启用，默认 true |
@@ -230,7 +230,7 @@ plugins/
 ### 扫描校验规则
 
 - 插件目录名必须与 `manifest.json` 中的 `id` 完全一致，例如 `plugins/my_plugin/manifest.json` 的 `id` 必须是 `my_plugin`。
-- `entry_ui` 和 `entry_core` 只能使用一层 `模块名.函数名` / `模块名.类名`，例如 `ui.create_view`、`core.Workflow`。
+- `entry_ui` 只能使用一层 `模块名.函数名`，例如 `ui.create_view`。（`entry_core` 已废弃，始终为 null。）
 - `min_app_version` 会在扫描时和当前应用版本比较；版本不兼容的插件不会进入插件中心。
 - `dependencies` 必须是插件 ID 数组；依赖插件不存在或未启用时，当前插件不能加载。
 
@@ -643,7 +643,7 @@ print(result)
   "icon": "school",
   "author": "TianJiaJi",
   "entry_ui": "ui.create_view",
-  "entry_core": "core.Workflow",
+  "entry_core": null,
   "enabled": true
 }
 ```
@@ -703,7 +703,7 @@ class Workflow:
 
 **原因**: 模块导入路径错误
 
-**解决方案**: 确保 `entry_ui` / `entry_core` 指向插件包内存在的模块和对象，例如：
+**解决方案**: 确保 `entry_ui` 指向插件包内存在的模块和对象（`entry_core` 已废弃，应为 null），例如：
 
 ```python
 from .core import Workflow

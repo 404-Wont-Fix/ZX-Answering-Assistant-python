@@ -47,65 +47,8 @@ from ._student_login import (
     restart_browser,
 )
 
-# 日志目录（原 src.core.constants，已内联）
-import os
-from pathlib import Path
-def get_log_dir() -> Path:
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-        return base / "ZX-Answering-Assistant" / "Logs"
-    if sys.platform == "darwin":
-        return Path.home() / "Library" / "Logs" / "ZX-Answering-Assistant"
-    base = Path(os.environ.get("XDG_STATE_HOME", Path.home() / ".local" / "state"))
-    return base / "ZX-Answering-Assistant" / "logs"
-
-STUDENT_LOGIN_LOG_FILE = "student_login.log"
-
-# 创建自定义的 StreamHandler 来处理 Unicode 编码
-class UTF8StreamHandler(logging.StreamHandler):
-    def emit(self, record):
-        try:
-            # 检查 stream 是否已被关闭或分离
-            if not hasattr(self, 'stream') or self.stream is None:
-                return
-
-            msg = self.format(record)
-            stream = self.stream
-
-            # 检查 stream 是否还有效（避免程序结束时的错误）
-            try:
-                # 尝试使用 UTF-8 编码，如果失败则使用 errors='replace'
-                if hasattr(stream, 'buffer') and not stream.buffer.closed:
-                    stream.buffer.write(msg.encode('utf-8') + b'\n')
-                elif hasattr(stream, 'closed') and not stream.closed:
-                    stream.write(msg + self.terminator)
-                else:
-                    # Stream 已关闭，静默忽略
-                    return
-                self.flush()
-            except (ValueError, OSError):
-                # Stream 已被分离或关闭，静默忽略
-                return
-
-        except Exception:
-            # 只有在严重错误时才调用 handleError（避免递归错误）
-            try:
-                self.handleError(record)
-            except Exception:
-                pass  # 静默忽略 handleError 中的错误
-
-# 配置日志记录；日志属于用户运行数据，不写入源码目录。
-log_dir = get_log_dir()
-log_dir.mkdir(parents=True, exist_ok=True)
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.FileHandler(log_dir / STUDENT_LOGIN_LOG_FILE, encoding='utf-8'),
-        UTF8StreamHandler(sys.stdout)
-    ]
-)
-
+# 日志初始化已迁移到 src.utils.logging.setup_app_logging()，由 main.py 启动期调用。
+# 此处仅保留模块 logger；不再在 import 时副作用配置全局日志。
 logger = logging.getLogger(__name__)
 
 # 获取Token管理器实例

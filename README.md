@@ -256,7 +256,7 @@ plugins/
   "icon": "extension",
   "author": "作者",
   "entry_ui": "ui.create_view",
-  "entry_core": "core.Workflow",
+  "entry_core": null,
   "min_app_version": "3.0.0",
   "dependencies": [],
   "enabled": true
