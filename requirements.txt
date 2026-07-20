@@ -5,15 +5,9 @@ certifi>=2024.0.0
 # Browser automation
 playwright>=1.57.0
 
-# GUI framework - 
+# GUI framework -
 flet==0.82.2
 flet-desktop==0.82.2
-
-# WeBan plugin dependencies
-pycryptodome>=3.19.0
-loguru>=0.7.0
-ddddocr>=1.5.0
-DrissionPage>=4.1.0
 
 # System tray
 pystray>=0.19.5

@@ -14,7 +14,7 @@
 nodriver>=0.50.0
 
 # 验证码识别（ONNX 模型推理，替代旧版 ddddocr）
-onnxruntime>=1.26.0
+onnxruntime>=1.22.0
 
 # 图像处理（验证码图片预处理，onnxruntime + captcha 模型依赖）
 opencv-python-headless>=4.13.0
