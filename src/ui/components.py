@@ -818,7 +818,7 @@ def run_background_task(
     """
 
     def runner():
-        def close_progress_dialog():
+        async def close_progress_dialog():
             """在 Flet 事件循环线程关闭模态弹窗（worker 线程直接 page.update 会让模态弹窗不刷新）。"""
             if progress_dialog is not None:
                 progress_dialog.open = False
