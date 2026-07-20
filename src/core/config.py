@@ -193,6 +193,9 @@ class SettingsManager:
             "gui_settings": {
                 "minimize_to_tray": False,
                 "close_to_tray": False
+            },
+            "plugins": {
+                "disabled_plugins": ["weban_plugin"]
             }
         }
 

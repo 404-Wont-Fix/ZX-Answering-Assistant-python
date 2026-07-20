@@ -808,6 +808,10 @@ class PluginCenterView:
 
         if not success:
             e.control.value = not new_state
+        else:
+            # 持久化启用/禁用状态到配置文件（下次启动保留用户选择）
+            if hasattr(self.main_app, 'settings_manager'):
+                self.main_app.settings_manager.set_plugin_enabled(plugin_id, new_state)
 
         # 清除缓存以强制重新构建
         self.cached_plugin_content.clear()

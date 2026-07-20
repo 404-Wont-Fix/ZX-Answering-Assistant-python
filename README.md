@@ -9,7 +9,7 @@
 [![Playwright](https://img.shields.io/badge/Playwright-1.57%2B-green.svg)](https://playwright.dev/python/)
 [![Platform](https://img.shields.io/badge/Platform-Windows%20%7C%20macOS-lightgrey.svg)](#预构建发布包)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
-[![Version](https://img.shields.io/badge/Version-v4.0.0-green.svg)](version.py)
+[![Version](https://img.shields.io/badge/Version-v4.0.1-green.svg)](version.py)
 
 一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
@@ -30,7 +30,7 @@ ZX Answering Assistant 是一个桌面端自动化工作台，面向在线学习
 | 能力 | 说明 |
 | --- | --- |
 | 工作台界面 | Flet 桌面应用，包含评估答题、答案提取、插件中心、系统设置和关于页面 |
-| 插件化扩展 | 自动扫描 `plugins/`，通过 `manifest.json` 和入口点动态加载插件 UI 与核心逻辑 |
+| 插件化扩展 | 自动扫描 `plugins/`，通过 `manifest.json` 的 `entry_ui` 动态加载插件 UI（`entry_core` 已废弃，插件统一为 UI-only 模型） |
 | 浏览器自动化 | `BrowserManager` 统一管理 Playwright，支持系统 Chrome、Edge、Playwright Chromium 和打包浏览器 |
 | API 请求治理 | `APIClient` 提供限速、重试和统一请求入口 |
 | 配置持久化 | `SettingsManager` 将账号、浏览器、限速、插件和托盘设置保存到用户配置目录 |
@@ -67,7 +67,7 @@ main.py
                                │
 ┌──────────────────────────────▼─────────────────────────────┐
 │ 插件层                                                      │
-│ plugins/*/manifest.json, ui.py, core.py                    │
+│ plugins/*/manifest.json, ui.py                                │
 │ PluginManager + PluginContext                              │
 └──────────────────────────────┬─────────────────────────────┘
                                │
@@ -120,8 +120,8 @@ main.py
 | `plugins/cloud_exam` | 云考试助手 | `ui.create_view`, `core.Workflow` | 云考试试卷获取、题库匹配和答案注入 |
 | `plugins/course_certification` | 课程认证助手 | `ui.create_view`, `core.Workflow` | 教师课程认证答题流程 |
 | `plugins/evaluation` | 评估出题助手 | `ui.create_view`, `core.Workflow` | 评估出题、试题生成和编辑入口 |
-| `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view`, `core.Workflow` | 产教融合项目一键评分、批语生成与成绩 Excel 导出 |
-| `plugins/weban_plugin` | 安全微伴 | `ui.create_view`, `core.WeBanPluginCore` | 安全微伴学习、考试和外部 WeBan 模块接入 |
+| `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view` | 产教融合项目一键评分、批语生成与成绩 Excel 导出 |
+| `plugins/weban_plugin` | 安全微伴 | `ui.create_view` | 安全微伴学习、考试和外部 WeBan 模块接入（默认禁用，需手动启用） |
 | `plugins/warning_alert` | 警告提示器 | `ui.create_view` | 自定义警告窗口和循环提醒 |
 
 ## 快速开始

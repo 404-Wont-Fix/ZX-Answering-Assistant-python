@@ -1,5 +1,71 @@
 # 更新日志
 
+## [v4.0.1] - 2026-07-20
+
+本版本修复 v4.0.0 深度审计中发现的多个静默正确性 bug、并发安全问题和工程裂缝，同时完成架构清理和 CI 门禁建设。所有改动经 92 项测试全绿验证。
+
+### 正确性修复
+
+- **多课程题库导出→导入回环断裂**（`src/extraction/importer.py`）：`export_all_courses` 写出 `courses`（章节嵌套在每门课程内），但 `_detect_bank_type` 只识别 `course_list` → 多课程题库被判定为 `unknown`，导入统计为 0 章节/0 题目。修复：importer 现同时识别 `"courses"` 键，`parse_multiple_courses` 从嵌套结构聚合章节。
+- **答题顺序仅凭第 1 题子串一次性验证**（`src/answering/_answer_matcher.py`）：原逻辑在 Q1 标题子串匹配（>10 字符）后即信任全部后续题目按位置索引——若平台打乱题序，Q2+ 提交错误题目答案且无告警。修复：改为逐题验证标题匹配，任何一题失配立即回退题库匹配。
+- **认证答题选项严格 `==` 匹配导致静默丢答案**（`src/certification/workflow.py`）：题库 `oppentionContent` 常带 HTML 实体/`<Limit>` 标签，归一化后仍可能不完全相等。修复：在严格匹配失败后回退双向子串包含匹配。
+- **云考试后台任务被执行两次**（`plugins/cloud_exam/view.py`）：`_run_background` 先调 `run_background_task` 又开 `threading.Thread`，同一 target 并发执行两次。修复：删除残留的裸线程块。
+- **登录监听器从不解绑**（`src/auth/_student_login.py`、`src/auth/_student_browser_ops.py`）：`page.on("request/response")` 注册后无 `remove_listener`，`keep_browser=True` 时每次登录累积监听器（渐进内存泄漏 + 重复触发）。修复：注册后包裹 `try/finally`，finally 中解绑。
+- **多选题漏选被计为成功**（`src/answering/base_answer.py`）：`_select_multiple_answers` 在部分 `correct_value` 无匹配选项时仍返回 `True`。修复：跟踪匹配计数，仅当全部匹配时返回 `True`。
+- **部分正确知识点被整体计为失败**（`src/certification/api_answer.py`）：9/10 正确的知识点被归为"知识点失败"，成绩指标被低估。修复：新增 `correct_questions`/`wrong_questions` 题目级统计，日志显示 `X/Y 题错误（部分正确）`。
+- **无法识别的题库文件被当作成功导入**（`src/extraction/importer.py`）：`bank_type="unknown"` 时 `import_from_file` 仍返回 `True`。修复：unknown 时返回 `False`。
+- **浏览器导航失败时日志说"已清理"但从未调用 `cleanup_browser`**（`src/auth/_student_browser_ops.py`）。修复：补 `cleanup_browser()` 调用。
+
+### 并发与线程安全
+
+- **题库全局变量无线程锁**（`src/certification/workflow.py`）：`_question_bank_data` 在 worker 线程写、GUI 线程读，无锁保护。修复：新增 `_question_bank_lock`。
+- **BrowserManager `close_context` 无条件 `del _contexts`**（`src/core/browser.py`）：并发 `reset_worker` 清除 `_contexts` 后 `close_context` 触发 `KeyError`。修复：加存在性检查。
+- **BrowserManager `_discard_dead_browser_if_needed` 无锁修改共享状态**（`src/core/browser.py`）：修改 `_browser/_contexts/_pages` 未加 `_state_lock`，与 `reset_worker` 的锁保护不一致。修复：包裹 `with self._state_lock`。
+- **Worker 重置日志误导**（`src/core/_worker_engine.py`）：`force_kill_process_tree` 失败仅记 debug（不可见），重置仍报"✅ 已重置"。修复：kill 失败升级 WARNING；join 后线程仍存活时报 ERROR（僵尸线程泄漏）。
+- **`run_background_task` 模态弹窗关闭用错函数类型**（`src/ui/components.py`）：`page.run_task` 要求协程函数（`async def`），传入普通 `def` 导致 `TypeError`。修复：改为 `async def`。
+
+### 安全与隐私
+
+- **用户名写入持久化日志文件**（`src/auth/_student_login.py`、`src/auth/teacher.py`、`src/certification/workflow.py`）：5 处 `logger.info(f"使用账户: {username}")` 完整记录用户名（属 PII，且该平台密码可从用户名推导）。修复：改为 `username[:3]****` 打码。
+
+### 性能
+
+- **课程导航时 token 提取等待 10.4 秒**（`src/auth/_student_browser_ops.py`）：`get_access_token_from_browser` 不检查 `token_manager` 缓存，直接走 localStorage + 页面刷新（10s 超时）。修复：优先检查缓存 token（未过期直接返回），典型场景从 10.4s 降至 <1ms。
+
+### CI 与基础设施
+
+- **发布工作流无测试门禁**（`.github/workflows/release.yml`）：新增 `test` job（ubuntu + pytest），`build` 依赖 `test` 成功；新增 `pull_request` 触发（仅跑测试不构建发布）。
+- **WeBan 未注册为 git submodule**：原 `.gitignore` 忽略 + 无 `.gitmodules` + 目录内裸 `.git` 三套机制并存，新克隆者 weban 功能静默失效。修复：正式 `git submodule add`（pin `bcc626e`，上游 main HEAD），同步对齐 CI/setup 脚本 ref。
+- **日志初始化 import 时副作用**（`src/auth/student.py`）：`logging.basicConfig` 在 student.py import 时执行（创建日志文件 + 配置全局 handler），测试也会触发。修复：迁移到 `src/utils/logging.py` 的 `setup_app_logging()`，由 `main.py` 启动期调用。
+
+### 改进
+
+- **插件默认启用状态可配置**（`cli_config.json` → `plugins.disabled_plugins`）：支持在配置文件中锁定插件的默认启用/禁用状态，覆盖 manifest 的 `enabled` 字段。首次安装 WeBan 插件默认禁用（需在插件中心手动启用），启用后状态持久化到配置文件，下次启动保留。配置项示例：`{"plugins": {"disabled_plugins": ["weban_plugin", "evaluation"]}}`。
+
+### 架构清理
+
+- **删除 5 个僵尸插件 `core.py`**（561 行）：`load_plugin_core` 零调用、`entry_core` 从未被运行时加载、`one_click_rating/core.py` 永返"功能开发中"。删除 core.py + manifest `entry_core` 置 null + `load_plugin_core` 废弃为 stub。插件统一为 UI-only 模型。
+- **`plugin_runtime.py` 错置于 `src/ui/views/`**（运行时基础设施不应在 UI 目录）。迁到 `src/core/plugin_runtime.py`。
+- **CLAUDE.md CLI 文档 stale**：main.py 已无 `--cli`，CLI 模式已移除。更新 CLAUDE.md 标注 CLI 已废弃。
+
+### 死代码清理
+
+- **删除 `src/ui/views/weban_view.py`**（801 行）：`import` 引用不存在的 `src.modules.weban_adapter`，零调用方，实际插件用 `plugins/weban_plugin/weban_view.py`。
+
+### 测试
+
+- 新增 `tests/test_answer_matcher.py`：4 个测试覆盖逐题验证回退行为（C2 回归）。
+- 新增 `test_bank_service.RoundTripTests`：验证多课程题库导出→导入往返（C1 回归）。
+- 修复 `test_api_client.py` 红测试：APIClient 缓存功能已移除，测试重写为验证无缓存行为。
+- 测试套件：87 tests（86 passed + 1 failed）→ **92 passed, 0 failed**。
+
+### 文档
+
+- 更新 `PLUGIN_DEVELOPMENT.md`、`README.md`：标注 `entry_core` 已废弃，插件统一为 UI-only。
+- 更新 `scripts/README.md`、`scripts/setup_weban.ps1`、`scripts/setup_weban.sh`：WeBan ref 对齐 `bcc626e`。
+
+---
+
 ## [v4.0.0] - 2026-07-18
 
 本版本继续推进核心模块的结构性拆分：将三个最大的非视图模块（BrowserManager / Extractor / 浏览器答题匹配器）按职责拆分，消除重复算法与上帝类。所有拆分均经字节级 golden diff 验证，行为零回归。

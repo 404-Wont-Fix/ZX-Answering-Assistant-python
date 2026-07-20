@@ -182,6 +182,11 @@ class MainApp:
 
         plugin_count = self.plugin_manager.scan_plugins(plugins_dir)
 
+        # 应用配置中的插件禁用列表（覆盖 manifest 的 enabled 默认值）
+        for plugin_id in self.settings_manager.get_disabled_plugins():
+            if plugin_id in self.plugin_manager._plugins:
+                self.plugin_manager._plugins[plugin_id].enabled = False
+
         if plugin_count > 0:
             print(f"[MainApp] Plugin system initialized, found {plugin_count} plugins")
         else:
@@ -849,7 +854,7 @@ def create_loading_view(page: ft.Page):
                 ),
 
                 ft.Text(
-                    version.VERSION if hasattr(version, 'VERSION') else "v4.0.0",
+                    version.VERSION if hasattr(version, 'VERSION') else "v4.0.1",
                     size=16,
                     color=Palette.TEXT_MUTED,
                     opacity=0.7,

@@ -197,6 +197,14 @@ browser_manager.stop_browser()
 
 Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and models under `plugins/cloud_exam/` instead of adding new `src/cloud_exam/` or `src/ui/views/cloud_exam_view.py` modules.
 
+### Plugin System
+
+Plugins are **UI-only** — each plugin's entry point is defined by `entry_ui` in `manifest.json` (format: `模块名.函数名`, e.g., `"ui.create_view"`). The `entry_core` field is **deprecated and always null**; `load_plugin_core` is a deprecated stub returning None. 5 legacy `core.py` files have been removed.
+
+**Default enabled state**: Controlled by `cli_config.json` → `plugins.disabled_plugins` (a list of plugin IDs). This overrides the manifest's `enabled` field on startup. Example: `{"plugins": {"disabled_plugins": ["weban_plugin"]}}`. WeBan is disabled by default (requires submodule setup). User toggles in the plugin center UI are persisted to this config.
+
+**WeBan submodule**: `plugins/weban_plugin/modules/WeBan/` is a git submodule (upstream: `hangone/WeBan`). New clones need `git submodule update --init`. The adapter (`weban_adapter.py`) gracefully degrades if WeBan is absent (`WEBAN_AVAILABLE=False`).
+
 ### Data Management
 - **[src/extraction/exporter.py](src/extraction/exporter.py)** - JSON export
 - **[src/extraction/importer.py](src/extraction/importer.py)** - Question bank import
@@ -209,6 +217,9 @@ Cloud exam is a plugin-owned feature. Keep its UI, workflow, API client, and mod
 - **`run_background_task`** in [src/ui/components.py](src/ui/components.py) - Unified background task runner (`page.run_thread` + on_done/on_error/progress_dialog); replaces the Event-polling pattern. **Frequent callbacks (progress) must use `page.run_task` inside, NOT direct `page.update()`** (modal dialogs don't refresh from a worker thread — extraction_view learned this the hard way).
 - **`BrowserManager.reset_worker`** in [src/core/browser.py](src/core/browser.py) - Worker self-healing on hang (force-kill process tree → bump generation → clear state → drain queue); auto-triggered by `submit_task` 300s timeout. Python threads can't be killed, so this is the only recovery from a stuck Playwright call.
 - **`src/auth/student.py` is a façade** (165 lines) - 1130-line module split into 4 submodules: `_student_courses` (HTTP) / `_student_browser_health` (health check) / `_student_browser_ops` (page ops) / `_student_login` (login). 17 public symbols re-exported for backward compat. **Edit the relevant submodule, not student.py.**
+- **`wait_for_success_hint`** in [src/answering/browser_ops.py](src/answering/browser_ops.py) - Shared `.eva-success` polling helper used by `browser_answer.py` and `certification/workflow.py`. Don't inline the polling loop — use this helper.
+- **`setup_app_logging`** in [src/utils/logging.py](src/utils/logging.py) - Application logging initialization (FileHandler + UTF-8 stdout handler), called once at startup in `main.py`. Do NOT add `logging.basicConfig` in other modules (side effect on import).
+- **`src/core/plugin_runtime.py`** - Plugin UI loading helper (`open_plugin_ui`), used by `plugin_center_view.py` and tests. Moved from `src/ui/views/` to `src/core/` — it's runtime infrastructure, not a view.
 
 When adding question-bank matching / import / progress-dialog / background-task / browser-recovery features, reuse these instead of writing new code.
 
@@ -218,7 +229,7 @@ When adding question-bank matching / import / progress-dialog / background-task 
   - Smart retry with exponential backoff
   - **Rate limiting**: `low` (1000ms), `medium` (2000ms), `medium_high` (3000ms), `high` (5000ms), `very_high` (10000ms)
 
-- **[src/core/config.py](src/core/config.py)** - CLI settings management
+- **[src/core/config.py](src/core/config.py)** - Settings management (cli_config.json)
   - File: `cli_config.json` (auto-generated)
   - Credentials storage and API rate limiting settings
   - Singleton instance via `get_settings_manager()`
@@ -494,10 +505,11 @@ src/
 ├── core/               # Core utilities and singletons
 │   ├── api_client.py   # Unified HTTP client with rate limiting
 │   ├── browser.py      # BrowserManager singleton
-│   ├── config.py       # CLI settings management
-│   └── plugin_manager.py # Plugin system management
-├── auth/               # Authentication modules
-│   ├── student.py      # Student portal login
+│   ├── config.py       # Settings management (cli_config.json)
+│   ├── plugin_manager.py # Plugin system management
+│   └── plugin_runtime.py # Plugin UI loading (open_plugin_ui)
+├── auth/               # Authentication modules (student.py is a façade → 4 submodules)
+│   ├── student.py      # Student portal login (façade, edit submodules not this file)
 │   ├── teacher.py      # Teacher portal login
 │   └── token_manager.py # Token caching
 ├── certification/      # Course certification workflow
@@ -510,11 +522,15 @@ src/
 │   └── bank_service.py # Shared question bank import service
 ├── answering/          # Auto-answering modules
 │   ├── browser_answer.py
-│   └── api_answer.py
+│   ├── api_answer.py
+│   ├── base_answer.py  # Shared base class (BaseAnswer)
+│   ├── _answer_matcher.py # Answer matching mixin (AnswerMatcherMixin)
+│   └── browser_ops.py  # Shared browser helpers (wait_for_success_hint)
 ├── ui/                 # GUI components (Flet)
 │   ├── main_gui.py
 │   └── views/
-├── modules/            # Extended modules
 ├── utils/              # General utilities (bank_matcher.py, text.py, logging.py, ...)
 └── extract_answers.py  # Standalone extraction script
 ```
+
+Note: `src/modules/` has been removed (WeBan is now under `plugins/weban_plugin/modules/WeBan/` as a git submodule). `plugin_runtime.py` was moved from `src/ui/views/` to `src/core/` (it's runtime infrastructure, not a view).
