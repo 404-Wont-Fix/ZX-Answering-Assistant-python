@@ -643,6 +643,6 @@ exclude = [
 
 ## 相关链接
 
-- [GitHub Releases](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases)
-- [问题追踪](https://github.com/TianJiaJi/ZX-Answering-Assistant-python/issues)
+- [GitHub Releases](https://github.com/404-Wont-Fix/ZX-Answering-Assistant-python/releases)
+- [问题追踪](https://github.com/404-Wont-Fix/ZX-Answering-Assistant-python/issues)
 - [项目说明](README.md)

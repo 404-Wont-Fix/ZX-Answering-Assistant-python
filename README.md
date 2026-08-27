@@ -152,7 +152,7 @@ xattr -dr com.apple.quarantine "ZX Answering Assistant.app"
 ### 从源码运行
 
 ```bash
-git clone https://github.com/TianJiaJi/ZX-Answering-Assistant-python.git
+git clone https://github.com/404-Wont-Fix/ZX-Answering-Assistant-python.git
 cd ZX-Answering-Assistant-python
 ```
 

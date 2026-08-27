@@ -202,7 +202,7 @@ plugins/
   "version": "1.0.0",
   "description": "自动化处理教师课程认证答题任务",
   "icon": "school",
-  "author": "TianJiaJi",
+  "author": "404-Wont-Fix",
   "entry_ui": "ui.create_view",
   "entry_core": null,
   "min_app_version": "3.0.0",
@@ -641,7 +641,7 @@ print(result)
   "version": "1.0.0",
   "description": "自动化处理教师课程认证答题任务",
   "icon": "school",
-  "author": "TianJiaJi",
+  "author": "404-Wont-Fix",
   "entry_ui": "ui.create_view",
   "entry_core": null,
   "enabled": true

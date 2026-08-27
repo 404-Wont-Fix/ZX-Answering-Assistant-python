@@ -5,7 +5,7 @@ description = "Intelligent Answering Assistant System"
 readme = "README.md"
 requires-python = ">=3.10"
 authors = [
-    {name = "TianJiaJi"}
+    {name = "404-Wont-Fix"}
 ]
 
 dependencies = [
@@ -30,11 +30,11 @@ project = "ZX-Answering-Assistant"
 # 产品名称（使用英文避免乱码）
 product = "ZX Answering Assistant"
 # 公司/组织名称
-org = "TianJiaJi"
+org = "404-Wont-Fix"
 # 描述（使用英文避免乱码）
 description = "Intelligent Answering Assistant System"
 # 版权信息
-copyright = "Copyright © 2026 TianJiaJi"
+copyright = "Copyright © 2026 404-Wont-Fix"
 
 # 启动画面配置
 [tool.flet.splash]

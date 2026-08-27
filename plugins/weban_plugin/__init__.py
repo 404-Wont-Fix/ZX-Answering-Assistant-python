@@ -7,6 +7,6 @@ WeBan Plugin - 安全微伴插件
 import logging
 
 __version__ = "1.1.0"
-__author__ = "TianJiaJi"
+__author__ = "404-Wont-Fix"
 
 logger = logging.getLogger(__name__)

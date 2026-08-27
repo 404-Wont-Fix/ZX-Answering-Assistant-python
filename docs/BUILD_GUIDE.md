@@ -102,7 +102,7 @@ project = "ZX-Answering-Assistant"
 # 产品名称
 product = "ZX Answering Assistant"
 # 组织名称
-org = "TianJiaJi"
+org = "404-Wont-Fix"
 
 # 启动画面配置
 [tool.flet.splash]
@@ -205,9 +205,9 @@ dependencies = [
 [tool.flet]
 project = "ZX-Answering-Assistant"
 product = "ZX Answering Assistant"
-org = "TianJiaJi"
+org = "404-Wont-Fix"
 description = "Intelligent Answering Assistant System"
-copyright = "Copyright © 2026 TianJiaJi"
+copyright = "Copyright © 2026 404-Wont-Fix"
 
 # 启动画面配置
 [tool.flet.splash]
@@ -243,9 +243,9 @@ assets = [
 |--------|------|--------|
 | `project` | 项目名称 | `ZX-Answering-Assistant` |
 | `product` | 产品名称（显示在窗口标题） | `ZX Answering Assistant` |
-| `org` | 组织名称 | `TianJiaJi` |
+| `org` | 组织名称 | `404-Wont-Fix` |
 | `description` | 应用描述 | `Intelligent Answering Assistant System` |
-| `copyright` | 版权信息 | `Copyright © 2026 TianJiaJi` |
+| `copyright` | 版权信息 | `Copyright © 2026 404-Wont-Fix` |
 | `splash.color` | 启动画面背景色 | `#0B6BFF` |
 | `include.assets` | 需要包含的资源文件 | `["main.py", "version.py"]` |
 

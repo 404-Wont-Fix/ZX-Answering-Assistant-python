@@ -152,21 +152,21 @@ class AboutView:
                             "GitHub 仓库",
                             ft.Icons.CODE,
                             lambda _: self._open_url(
-                                "https://github.com/TianJiaJi/ZX-Answering-Assistant-python"
+                                "https://github.com/404-Wont-Fix/ZX-Answering-Assistant-python"
                             ),
                         ),
                         primary_button(
                             "检查更新",
                             ft.Icons.UPDATE,
                             lambda _: self._open_url(
-                                "https://github.com/TianJiaJi/ZX-Answering-Assistant-python/releases"
+                                "https://github.com/404-Wont-Fix/ZX-Answering-Assistant-python/releases"
                             ),
                         ),
                     ],
                     spacing=12,
                 ),
                 ft.Text(
-                    "Copyright (c) 2026 TianJiaJi  |  Licensed under Apache 2.0",
+                    "Copyright (c) 2026 404-Wont-Fix  |  Licensed under Apache 2.0",
                     size=12,
                     color=Palette.TEXT_MUTED,
                 ),
