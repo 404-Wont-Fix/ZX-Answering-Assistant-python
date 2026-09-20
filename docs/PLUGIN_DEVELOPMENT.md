@@ -226,6 +226,63 @@ plugins/
 | `min_app_version` | string | ❌ | 最低兼容的应用版本 |
 | `dependencies` | array | ❌ | 依赖的其他插件 ID 列表 |
 | `enabled` | boolean | ❌ | 默认是否启用，默认 true |
+| `settings_schema` | array | ❌ | 声明插件可配置项；填写后插件中心卡片上的设置齿轮会自动打开通用设置弹窗（见下） |
+
+### 插件设置（`settings_schema`）
+
+在 `manifest.json` 里声明 `settings_schema` 即可获得**零代码的设置界面**：
+插件中心「插件管理」卡片上的齿轮会读取该字段并弹出通用设置弹窗，保存后
+写入 `cli_config.json` 的 `plugins.plugin_specific_configs.<plugin_id>`。
+
+```json
+{
+  "id": "my_plugin",
+  "settings_schema": [
+    {"key": "api_key",  "label": "API Key", "type": "password", "default": "", "required": true},
+    {"key": "base_url", "label": "Base URL", "type": "text", "default": "https://api.example.com/v1"},
+    {"key": "retries",  "label": "重试次数", "type": "number", "default": 2},
+    {"key": "verbose",  "label": "详细日志", "type": "switch", "default": false},
+    {"key": "mode",     "label": "模式", "type": "select", "default": "fast",
+     "options": [{"key": "fast", "text": "快速"}, {"key": "accurate", "text": "精确"}]}
+  ]
+}
+```
+
+字段类型与渲染控件：
+
+| `type` | 控件 | 读回值的归一化 |
+|--------|------|----------------|
+| `text`（默认） | `ft.TextField` | `str`（None → `""`） |
+| `password` | `ft.TextField(password=True, can_reveal_password=True)` | `str` |
+| `number` | `ft.TextField(keyboard_type=NUMBER)` | `int`（转换失败回落 `default`/0） |
+| `switch` | `ft.Switch` | `bool` |
+| `select` | `ft.Dropdown`（选项来自 `options`） | 选中项的 `key`（`str`） |
+
+在插件代码里读取配置（不要直接读文件，走注入的 SettingsManager）：
+
+```python
+from src.core.plugin_settings import setting_value
+
+# 方式一：PluginContext（推荐，UI 入口拿得到）
+api_key = context.get_plugin_config("api_key")
+
+# 方式二：按 schema 做类型归一化
+schema_field = {"key": "retries", "type": "number", "default": 2}
+retries = setting_value(schema_field, context.get_plugin_config("retries"))
+```
+
+也可以在自己的界面里主动弹出同一个设置弹窗：
+
+```python
+from src.ui.components import build_plugin_settings_dialog
+
+dialog = build_plugin_settings_dialog(
+    page, plugin_id, plugin_name, schema, settings_manager
+)
+page.show_dialog(dialog)
+```
+
+未声明 `settings_schema`（或声明为空数组）的插件，点齿轮会提示「该插件没有可配置项」。
 
 ### 扫描校验规则
 

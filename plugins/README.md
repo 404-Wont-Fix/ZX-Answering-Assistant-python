@@ -8,7 +8,7 @@
 |------|------|
 | `cloud_exam` | 云考试助手 - 云考试答题、题库匹配 |
 | `course_certification` | 课程认证助手 - 教师课程认证答题 |
-| `evaluation` | 评估出题助手 - 评估出题功能 |
+| `evaluation` | 评估出题助手 - AI 生成课程评估题（单选/多选/判断）并按平台模板导出 Word/Excel |
 | `warning_alert` | 警告提示器 - 自定义提醒窗口 |
 | `weban_plugin` | 安全微伴 - 微伴相关功能 |
 

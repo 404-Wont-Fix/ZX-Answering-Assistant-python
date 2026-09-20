@@ -2,12 +2,49 @@
   "id": "evaluation",
   "name": "评估出题助手",
   "version": "1.0.0",
-  "description": "自动化处理评估出题任务，支持试题生成和编辑",
+  "description": "教师录入课程/章节/知识点后，调用 AI 生成评估题（单选/多选/判断），并按平台标准模板导出 Word/Excel",
   "icon": "quiz",
   "author": "404-Wont-Fix",
   "entry_ui": "ui.create_view",
   "entry_core": null,
   "min_app_version": "2.9.0",
   "dependencies": [],
-  "enabled": true
+  "enabled": true,
+  "settings_schema": [
+    {
+      "key": "api_key",
+      "label": "AI API Key",
+      "type": "password",
+      "default": "",
+      "required": true
+    },
+    {
+      "key": "base_url",
+      "label": "AI Base URL（OpenAI 兼容）",
+      "type": "text",
+      "default": "https://api.deepseek.com/v1",
+      "required": true
+    },
+    {
+      "key": "model",
+      "label": "AI 模型",
+      "type": "text",
+      "default": "deepseek-chat",
+      "required": true
+    },
+    {
+      "key": "exa_mcp_url",
+      "label": "Exa MCP 地址（联网检索，可留空关闭）",
+      "type": "text",
+      "default": "https://mcp.exa.ai/mcp",
+      "required": false
+    },
+    {
+      "key": "exa_api_key",
+      "label": "Exa API Key（选填，仅免额度不足时需要）",
+      "type": "password",
+      "default": "",
+      "required": false
+    }
+  ]
 }

@@ -1,9 +1,5 @@
-# 评估插件依赖配置
+# 评估出题插件依赖配置
 # Evaluation Plugin Dependencies
 
-# 此插件目前不需要额外的依赖
-# This plugin currently requires no additional dependencies
-
-# 如果需要添加依赖，请按照以下格式:
-# To add dependencies, use the following format:
-# package_name>=version
+# Word 模板导出（Excel 导出复用主程序已有的 openpyxl）
+python-docx>=1.1.0

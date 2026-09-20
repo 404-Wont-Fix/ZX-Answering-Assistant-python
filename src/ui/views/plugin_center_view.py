@@ -4,9 +4,18 @@
 此模块提供插件中心的 UI，显示可用插件并允许启用/禁用
 """
 
+import json
+
 import flet as ft
 from typing import Optional
-from src.ui.components import page_heading, secondary_button, show_snack, status_chip, surface_card
+from src.ui.components import (
+    build_plugin_settings_dialog,
+    page_heading,
+    secondary_button,
+    show_snack,
+    status_chip,
+    surface_card,
+)
 from src.ui.theme import Palette, Radius
 from src.core.plugin_runtime import open_plugin_ui
 
@@ -591,9 +600,45 @@ class PluginCenterView:
             show_snack(self.page, f"打开插件目录失败: {str(ex)}", color=ft.Colors.RED)
 
     def _on_plugin_settings(self, plugin_id: str):
-        """处理插件设置按钮点击"""
-        print(f"打开插件设置: {plugin_id}")
-        # TODO: 实现插件设置对话框
+        """打开由插件 manifest 声明驱动的通用设置弹窗。"""
+        plugin_info = None
+        if self.main_app and hasattr(self.main_app, "plugin_manager"):
+            plugin_info = self.main_app.plugin_manager.get_plugin_info(plugin_id)
+
+        schema: list = []
+        if plugin_info:
+            manifest_path = plugin_info.path / "manifest.json"
+            try:
+                schema = json.loads(manifest_path.read_text(encoding="utf-8")).get(
+                    "settings_schema", []
+                )
+            except (OSError, json.JSONDecodeError) as exc:
+                print(f"[PluginCenter] Failed to read settings_schema for {plugin_id}: {exc}")
+                schema = []
+
+        if not schema:
+            show_snack(self.page, "该插件没有可配置项", color=ft.Colors.GREY_700)
+            return
+
+        plugin_name = plugin_info.name if plugin_info else plugin_id
+        settings_manager = getattr(self.main_app, "settings_manager", None)
+        if settings_manager is None:
+            print("[PluginCenter] settings_manager not available")
+            show_snack(self.page, "设置服务不可用", color=ft.Colors.RED)
+            return
+
+        self.current_dialog = build_plugin_settings_dialog(
+            self.page,
+            plugin_id,
+            plugin_name,
+            schema,
+            settings_manager,
+            on_saved=lambda values, pid=plugin_id: print(
+                f"[PluginCenter] Settings saved for {pid}: "
+                f"{', '.join(sorted(values))}"
+            ),
+        )
+        self.page.show_dialog(self.current_dialog)
 
     def _on_plugin_open(self, plugin_id: str):
         """处理插件卡片点击 - 打开插件UI"""

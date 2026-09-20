@@ -15,3 +15,6 @@ Pillow>=10.0.0
 
 # Excel export
 openpyxl>=3.1.0
+
+# Word export 
+python-docx>=1.1.0

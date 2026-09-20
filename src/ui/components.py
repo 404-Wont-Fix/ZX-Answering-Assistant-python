@@ -4,6 +4,7 @@ from typing import Callable, Optional
 
 import flet as ft
 
+from src.core.plugin_settings import setting_value, validate_settings
 from src.ui.theme import Fonts, Palette, Radius
 
 
@@ -348,6 +349,147 @@ def show_confirm_dialog(
         ],
     )
     page.show_dialog(dialog)
+
+
+def build_plugin_settings_dialog(
+    page: ft.Page,
+    plugin_id: str,
+    plugin_name: str,
+    schema: list[dict],
+    settings_manager,
+    on_saved: Optional[Callable[[dict], None]] = None,
+) -> ft.AlertDialog:
+    """
+    构建 manifest 驱动的通用插件设置弹窗。
+
+    字段类型（schema[\"type\"]）：
+
+    - ``switch``   → ``ft.Switch``
+    - ``select``   → ``ft.Dropdown``（选项来自 schema[\"options\"]）
+    - ``password`` → ``ft.TextField(password=True, can_reveal_password=True)``
+    - ``number``   → ``ft.TextField(keyboard_type=NUMBER)``
+    - 其余（含 ``text``）→ ``ft.TextField``
+
+    初始值取自 ``settings_manager.get_plugin_config(plugin_id, key)``，
+    经 :func:`src.core.plugin_settings.setting_value` 归一化；保存前用
+    :func:`src.core.plugin_settings.validate_settings` 校验必填，校验不通过则
+    提示错误并保留弹窗。
+
+    Args:
+        page: Flet 页面对象
+        plugin_id: 插件 ID（配置持久化的命名空间）
+        plugin_name: 插件显示名（用于弹窗标题）
+        schema: manifest.json 的 ``settings_schema`` 列表
+        settings_manager: SettingsManager 实例
+        on_saved: 保存成功后的回调，接收 {key: value}
+
+    Returns:
+        ft.AlertDialog: 已构建但尚未 show 的弹窗
+    """
+    fields = [field for field in (schema or []) if field.get("key")]
+    controls: dict[str, ft.Control] = {}
+    rows: list[ft.Control] = []
+
+    for field in fields:
+        key = field["key"]
+        label = field.get("label", key)
+        kind = field.get("type", "text")
+        current = setting_value(
+            field, settings_manager.get_plugin_config(plugin_id, key)
+        )
+
+        if kind == "switch":
+            control: ft.Control = ft.Switch(value=bool(current))
+        elif kind == "select":
+            control = ft.Dropdown(
+                value=str(current) or None,
+                options=[
+                    ft.DropdownOption(
+                        key=str(option.get("key")),
+                        text=str(option.get("text", option.get("key"))),
+                    )
+                    for option in (field.get("options") or [])
+                ],
+                width=420,
+            )
+        elif kind == "password":
+            control = ft.TextField(
+                value=str(current),
+                password=True,
+                can_reveal_password=True,
+                width=420,
+            )
+        elif kind == "number":
+            control = ft.TextField(
+                value=str(current),
+                keyboard_type=ft.KeyboardType.NUMBER,
+                width=420,
+            )
+        else:
+            control = ft.TextField(value=str(current), width=420)
+
+        controls[key] = control
+        caption = label if not field.get("required") else f"{label} *"
+        rows.append(
+            ft.Column(
+                [
+                    ft.Text(caption, size=13, weight=ft.FontWeight.W_600),
+                    control,
+                ],
+                spacing=5,
+                tight=True,
+            )
+        )
+
+    def _collect() -> dict:
+        return {
+            field["key"]: setting_value(field, controls[field["key"]].value)
+            for field in fields
+        }
+
+    def _handle_cancel(_):
+        page.pop_dialog()
+
+    def _handle_save(_):
+        values = _collect()
+        errors = validate_settings(fields, values)
+        if errors:
+            show_snack(page, "；".join(errors), color=Palette.DANGER)
+            return
+
+        for key, value in values.items():
+            settings_manager.set_plugin_config(plugin_id, key, value)
+
+        page.pop_dialog()
+        show_snack(page, f"{plugin_name} 设置已保存", color=Palette.ACCENT)
+        if on_saved is not None:
+            on_saved(values)
+
+    return ft.AlertDialog(
+        modal=True,
+        title=ft.Row(
+            [
+                ft.Icon(ft.Icons.SETTINGS, color=Palette.PRIMARY),
+                ft.Text(f"{plugin_name} 设置", weight=ft.FontWeight.BOLD),
+            ],
+            spacing=10,
+        ),
+        content=ft.Column(rows, spacing=14, tight=True, scroll=ft.ScrollMode.AUTO),
+        actions=[
+            ft.TextButton("取消", on_click=_handle_cancel),
+            ft.FilledButton(
+                "保存",
+                on_click=_handle_save,
+                style=ft.ButtonStyle(
+                    bgcolor=Palette.PRIMARY,
+                    color=Palette.SURFACE,
+                    shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                    text_style=Fonts.text(size=14, weight=ft.FontWeight.W_600),
+                ),
+            ),
+        ],
+        actions_alignment=ft.MainAxisAlignment.END,
+    )
 
 
 def show_snack(

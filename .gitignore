@@ -47,6 +47,9 @@ config/*.env
 *.csv
 data/
 
+# 插件内置模板必须纳入版本管理（否则新克隆缺模板导致导出失败）
+!plugins/evaluation/templates/*.xlsx
+
 # 操作系统
 .DS_Store
 Thumbs.db
@@ -75,6 +78,9 @@ weban_config.json
 src/modules/WeBan/config.json
 src/modules/WeBan/weban.log
 
+# 评估出题插件的用户模板覆盖（运行时生成，不应提交）
+plugins/evaluation/template_overrides/
+
 # WeBan 可选外部模块目录（默认不纳入主仓库）
 # 如果维护者正式添加 Git Submodule，请调整对应忽略规则
 # WeBan 现为正式 Git Submodule（见 .gitmodules），克隆后执行 git submodule update --init 获取
@@ -100,3 +106,4 @@ file_version_info.txt
 # 构建配置（可选，如果不想提交自定义配置）
 # build_config.yaml
 .venv/*
+.pi/*

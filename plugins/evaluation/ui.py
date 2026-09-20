@@ -6,7 +6,7 @@
 
 import flet as ft
 
-from src.ui.views.evaluation_view import EvaluationView
+from .view import EvaluationView
 
 
 def create_view(page, context):
@@ -20,8 +20,7 @@ def create_view(page, context):
     Returns:
         ft.Control: 评估出题的根控件
     """
-    # 创建评估出题视图（适配插件系统）
-    view = EvaluationView(page)
+    view = EvaluationView(page, main_app=None, context=context)
     if hasattr(context, "register_resource"):
         context.register_resource(view)
     return view.get_content()

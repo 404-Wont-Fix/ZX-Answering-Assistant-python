@@ -68,3 +68,21 @@ This ensures that:
 - WeBan is checked out to a reproducible commit by default
 - Subsequent builds use the cached version
 - Build times are significantly reduced
+
+## 评估出题助手：真实 AI 端到端验证
+
+`e2e_evaluation_real_ai.py` 用教师配置好的真实 AI 跑通评估出题助手的完整链路
+（读取配置 → 连通性 → 出题 → 校验 → 逐题审核 → 导出 zip → 按平台格式回读核对）。
+
+```bash
+python scripts/e2e_evaluation_real_ai.py 2 5   # 2 个知识点 × 5 题
+```
+
+前置条件：
+
+1. 已在「插件中心 → 评估出题助手 → 设置齿轮」中填好 `AI API Key`
+   （配置存于 `%APPDATA%/ZX-Answering-Assistant/cli_config.json`）。
+2. 导出 Word 需要 `python-docx`：
+   `python -m pip install -r plugins/evaluation/requirements.txt`
+
+脚本只读取配置、**不打印密钥**；产物写入 `output/evaluation/`。

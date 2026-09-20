@@ -220,8 +220,9 @@ Plugins are **UI-only** — each plugin's entry point is defined by `entry_ui` i
 - **`wait_for_success_hint`** in [src/answering/browser_ops.py](src/answering/browser_ops.py) - Shared `.eva-success` polling helper used by `browser_answer.py` and `certification/workflow.py`. Don't inline the polling loop — use this helper.
 - **`setup_app_logging`** in [src/utils/logging.py](src/utils/logging.py) - Application logging initialization (FileHandler + UTF-8 stdout handler), called once at startup in `main.py`. Do NOT add `logging.basicConfig` in other modules (side effect on import).
 - **`src/core/plugin_runtime.py`** - Plugin UI loading helper (`open_plugin_ui`), used by `plugin_center_view.py` and tests. Moved from `src/ui/views/` to `src/core/` — it's runtime infrastructure, not a view.
+- **`build_plugin_settings_dialog`** in [src/ui/components.py](src/ui/components.py) + **`src/core/plugin_settings.py`** - Generic, manifest-driven plugin settings dialog. Any plugin that declares `settings_schema` in its `manifest.json` gets a working settings gear in the plugin center for free (no per-plugin UI code). Field types: `text` / `password` / `number` / `switch` / `select`; values persist to `cli_config.json` → `plugins.plugin_specific_configs.<plugin_id>` via `SettingsManager`. Use `setting_value(schema_field, stored)` for type coercion and `validate_settings(schema, values)` for required-field checks — do NOT write yet another plugin settings dialog (see `docs/PLUGIN_DEVELOPMENT.md` → 插件设置).
 
-When adding question-bank matching / import / progress-dialog / background-task / browser-recovery features, reuse these instead of writing new code.
+When adding question-bank matching / import / progress-dialog / background-task / browser-recovery / plugin-settings features, reuse these instead of writing new code.
 
 ### API Client and Rate Limiting
 - **[src/core/api_client.py](src/core/api_client.py)** - Unified HTTP client
