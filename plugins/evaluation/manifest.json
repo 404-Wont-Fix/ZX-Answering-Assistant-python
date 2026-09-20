@@ -1,7 +1,7 @@
 {
   "id": "evaluation",
   "name": "评估出题助手",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "教师录入课程/章节/知识点后，调用 AI 生成评估题（单选/多选/判断），并按平台标准模板导出 Word/Excel",
   "icon": "quiz",
   "author": "404-Wont-Fix",

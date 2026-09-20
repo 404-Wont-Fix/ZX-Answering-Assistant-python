@@ -854,7 +854,7 @@ def create_loading_view(page: ft.Page):
                 ),
 
                 ft.Text(
-                    version.VERSION if hasattr(version, 'VERSION') else "v4.0.1",
+                    version.VERSION if hasattr(version, 'VERSION') else "v4.1.0",
                     size=16,
                     color=Palette.TEXT_MUTED,
                     opacity=0.7,
