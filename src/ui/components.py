@@ -1,6 +1,7 @@
 """Reusable presentation components for modernized application views."""
 
 from typing import Callable, Optional
+import threading
 
 import flet as ft
 
@@ -128,12 +129,20 @@ def primary_button(label: str, icon, on_click: Callable, *, width: Optional[int]
     )
 
 
-def secondary_button(label: str, icon, on_click: Callable, *, width: Optional[int] = None) -> ft.OutlinedButton:
+def secondary_button(
+    label: str,
+    icon,
+    on_click: Callable,
+    *,
+    width: Optional[int] = None,
+    disabled: bool = False,
+) -> ft.OutlinedButton:
     """Create a low-emphasis action paired with primary buttons."""
     return ft.OutlinedButton(
         label,
         icon=icon,
         width=width,
+        disabled=disabled,
         on_click=on_click,
         style=ft.ButtonStyle(
             color=Palette.TEXT,
@@ -960,20 +969,24 @@ def run_background_task(
     """
 
     def runner():
-        async def close_progress_dialog():
-            """在 Flet 事件循环线程关闭模态弹窗（worker 线程直接 page.update 会让模态弹窗不刷新）。"""
-            if progress_dialog is not None:
-                progress_dialog.open = False
+        callback_done = threading.Event()
+
+        async def finish(callback, value=None):
+            """Close the optional dialog and invoke callbacks on Flet's UI loop."""
+            try:
+                if progress_dialog is not None:
+                    progress_dialog.open = False
+                if callback is not None:
+                    callback(value) if value is not None else callback()
                 page.update()
+            finally:
+                callback_done.set()
 
         try:
             result = work_fn()
-            page.run_task(close_progress_dialog)
-            if on_done is not None:
-                on_done(result)
+            page.run_task(finish, on_done, result)
         except Exception as e:
-            page.run_task(close_progress_dialog)
-            if on_error is not None:
-                on_error(e)
+            page.run_task(finish, on_error, e)
+        callback_done.wait()
 
     page.run_thread(runner)

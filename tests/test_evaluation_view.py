@@ -833,6 +833,37 @@ class StepSixTests(WizardBaseTests):
         self.view._toggle_preview(point)
         self.assertNotIn(point.name, self.view.review_expanded)
 
+    def test_expanded_point_supports_bulk_review_and_renders_options(self):
+        self._draft_with_questions()
+        point = self.view.draft.all_points[0]
+        point.questions[0].options = ["选项甲", "选项乙"]
+        point.questions[0].answer = "B"
+        self.view._toggle_preview(point)
+
+        self.view._set_point_reviewed(point, True)
+        self.assertTrue(all(question.reviewed for question in point.questions))
+        options = self.view._question_options(point.questions[0])
+        labels = [
+            control.value
+            for control in _iter_controls(options)
+            if isinstance(control, ft.Text)
+        ]
+        self.assertTrue(any("A. 选项甲" in label for label in labels))
+        self.assertTrue(any("B. 选项乙" in label and "正确答案" in label for label in labels))
+
+        self.view._set_point_reviewed(point, False)
+        self.assertTrue(all(not question.reviewed for question in point.questions))
+
+    def test_step_two_uses_text_batch_input_without_excel_import(self):
+        self.fill_through_step_two()
+        self.view._go(2)
+        labels = [
+            control.value
+            for control in _iter_controls(self.view._body)
+            if isinstance(control, ft.Text)
+        ]
+        self.assertFalse(any("Excel" in (label or "") for label in labels))
+
     def test_clarification_records_dialog(self):
         self.view.draft.clarification_records.append(
             {

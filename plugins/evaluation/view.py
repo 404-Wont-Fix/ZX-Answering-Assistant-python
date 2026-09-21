@@ -54,7 +54,6 @@ from .clarification import (
 )
 from .exporter import EvaluationExporter
 from .generator import GenerationController
-from .importers import import_knowledge_points_xlsx
 from .models import (
     DEFAULT_DIFFICULTY_RATIO,
     DEFAULT_QUESTION_COUNT,
@@ -172,6 +171,8 @@ class EvaluationView:
         self.progress: Optional[AnswerProgressDialog] = None
 
         self.busy = False
+        self.ai_test_busy = False
+        self.suggestion_busy: set[tuple[int, int]] = set()
         self.message = ""
         self.logs: list[str] = []
 
@@ -546,7 +547,12 @@ class EvaluationView:
                     ft.Row(
                         [
                             secondary_button("AI 设置", ft.Icons.SETTINGS, self._open_settings),
-                            secondary_button("测试连接", ft.Icons.WIFI_TETHERING, self._test_ai_connection),
+                            secondary_button(
+                                "测试中…" if self.ai_test_busy else "测试连接",
+                                ft.Icons.HOURGLASS_TOP if self.ai_test_busy else ft.Icons.WIFI_TETHERING,
+                                self._test_ai_connection,
+                                disabled=self.ai_test_busy,
+                            ),
                         ],
                         spacing=10,
                     ),
@@ -659,7 +665,7 @@ class EvaluationView:
                     ft.Row(
                         [
                             ft.Text(
-                                "支持拖拽排序；知识点可手动录入或 Excel 导入",
+                                "支持拖拽排序；知识点可手动录入或批量粘贴",
                                 size=12,
                                 color=Palette.TEXT_MUTED,
                                 expand=True,
@@ -730,7 +736,7 @@ class EvaluationView:
             )
 
         import_text_field = ft.TextField(
-            hint_text="粘贴知识点名称，每行一个，或用「Excel 导入」",
+            hint_text="粘贴知识点名称，每行一个",
             multiline=True,
             min_lines=2,
             max_lines=3,
@@ -788,11 +794,6 @@ class EvaluationView:
                         [
                             import_text_field,
                             ft.TextButton("批量添加", icon=ft.Icons.PLAYLIST_ADD, on_click=add_pasted),
-                            ft.TextButton(
-                                "Excel 导入",
-                                icon=ft.Icons.TABLE_VIEW,
-                                on_click=lambda e: self._import_points(),
-                            ),
                         ],
                         spacing=8,
                     )
@@ -865,19 +866,24 @@ class EvaluationView:
                             KNOWLEDGE_TYPES,
                             lambda e: self._set_global_detail("knowledge_type", e.control.value),
                         ),
-                        ft.TextField(
-                            label="考点清单（逗号分隔）",
-                            value=",".join(self.global_details["tags"]),
-                            width=320,
-                            on_change=lambda e: self._set_global_detail(
+                        ft.Container(
+                            content=ft.TextField(
+                                label="考点清单（逗号分隔）",
+                                value=",".join(self.global_details["tags"]),
+                                on_change=lambda e: self._set_global_detail(
                                 "tags",
                                 [part.strip() for part in (e.control.value or "").replace("，", ",").split(",") if part.strip()],
+                                ),
+                                width=320,
                             ),
                         ),
-                        primary_button(
-                            "应用到全部未填写知识点",
-                            ft.Icons.DOWNLOAD_DONE,
-                            self._apply_global_details,
+                        ft.Container(
+                            content=primary_button(
+                                "应用到全部未填写知识点",
+                                ft.Icons.DOWNLOAD_DONE,
+                                self._apply_global_details,
+                            ),
+                            alignment=ft.Alignment(1, 0),
                         ),
                     ],
                     spacing=12,
@@ -910,6 +916,9 @@ class EvaluationView:
             [ft.Text("、".join(point.inferred_tags) or "（生成前生成）", size=12)],
             spacing=4,
         )
+
+        suggestion_key = (point.chapter_order, point.order)
+        suggesting = suggestion_key in self.suggestion_busy
 
         controls: list[ft.Control] = [
             ft.Row(
@@ -944,9 +953,10 @@ class EvaluationView:
                         width=150,
                     ),
                     secondary_button(
-                        "AI 建议考点",
-                        ft.Icons.AUTO_AWESOME,
+                        "建议中…" if suggesting else "AI 建议考点",
+                        ft.Icons.HOURGLASS_TOP if suggesting else ft.Icons.AUTO_AWESOME,
                         lambda e, p=point: self._suggest_tags(p),
+                        disabled=suggesting,
                     ),
                 ],
                 spacing=12,
@@ -1063,10 +1073,13 @@ class EvaluationView:
                             )
                             for name in DIFFICULTIES
                         ],
-                        primary_button(
-                            "应用到全部知识点",
-                            ft.Icons.DOWNLOAD_DONE,
-                            self._apply_global_defaults,
+                        ft.Container(
+                            content=primary_button(
+                                "应用到全部知识点",
+                                ft.Icons.DOWNLOAD_DONE,
+                                self._apply_global_defaults,
+                            ),
+                            alignment=ft.Alignment(1, 0),
                         ),
                     ],
                     spacing=10,
@@ -1652,10 +1665,30 @@ class EvaluationView:
                 ]
             )
 
+        expanded = point.name in self.review_expanded and bool(point.questions)
+        if expanded:
+            header_cells.extend(
+                [
+                    ft.TextButton(
+                        "批量确认",
+                        icon=ft.Icons.DONE_ALL,
+                        on_click=lambda e, p=point: self._set_point_reviewed(p, True),
+                    ),
+                    ft.TextButton(
+                        "取消全部确认",
+                        icon=ft.Icons.REMOVE_DONE,
+                        on_click=lambda e, p=point: self._set_point_reviewed(p, False),
+                    ),
+                ]
+            )
+
         controls: list[ft.Control] = [ft.Row(header_cells, spacing=8)]
 
-        if point.name in self.review_expanded and point.questions:
-            controls.extend(self._question_row(point, index, question) for index, question in enumerate(point.questions))
+        if expanded:
+            controls.extend(
+                self._question_row(point, index, question)
+                for index, question in enumerate(point.questions)
+            )
 
         return ft.Container(
             content=ft.Column(controls, spacing=6),
@@ -1731,6 +1764,7 @@ class EvaluationView:
                         # 给 Dropdown/TextField 的浮动标签留出空间，避免与上一行边框重叠
                         margin=ft.Margin.only(top=12),
                     ),
+                    self._question_options(question),
                 ],
                 spacing=4,
             ),
@@ -2107,37 +2141,6 @@ class EvaluationView:
         field.on_submit = submit
         self.page.show_dialog(dialog)
 
-    # ================================================================ 文件选择
-    def _pick_file(self, *, extensions: list[str], title: str, on_picked: Callable[[str], None]) -> None:
-        async def run():
-            picker = ft.FilePicker()
-            files = await picker.pick_files(
-                allowed_extensions=extensions, dialog_title=title
-            )
-            if files:
-                on_picked(files[0].path)
-
-        self.page.run_task(run)
-
-    def _import_points(self) -> None:
-        def picked(path: str) -> None:
-            try:
-                names = import_knowledge_points_xlsx(path)
-            except Exception as exc:  # noqa: BLE001
-                show_error_dialog(self.page, "知识点导入失败", str(exc))
-                return
-            if not names:
-                show_snack(self.page, "未在文件中找到知识点", color=Palette.WARNING)
-                return
-            self._add_points(names)
-            show_snack(self.page, f"已导入 {len(names)} 个知识点")
-
-        self._pick_file(
-            extensions=["xlsx"],
-            title="选择知识点 Excel",
-            on_picked=picked,
-        )
-
     # ================================================================ AI 辅助
     def _settings_schema(self) -> list[dict]:
         import json
@@ -2243,8 +2246,10 @@ class EvaluationView:
             return False
 
     def _test_ai_connection(self, e=None) -> None:
-        if not self._require_ai_config():
+        if self.ai_test_busy or not self._require_ai_config():
             return
+        self.ai_test_busy = True
+        self._render()
         show_snack(self.page, "正在测试 AI 连接…", color=Palette.PRIMARY)
 
         def work():
@@ -2252,16 +2257,24 @@ class EvaluationView:
             return client.test_connection()
 
         def done(_result):
+            self.ai_test_busy = False
+            self._render()
             show_snack(self.page, "AI 连接测试成功", color=Palette.ACCENT)
 
         def failed(err):
+            self.ai_test_busy = False
+            self._render()
             show_error_dialog(self.page, "AI 连接测试失败", str(err))
 
         run_background_task(self.page, work, on_done=done, on_error=failed)
 
     def _suggest_tags(self, point: KnowledgePoint) -> None:
-        if not self._require_ai_config():
+        key = (point.chapter_order, point.order)
+        if key in self.suggestion_busy or not self._require_ai_config():
             return
+        self.suggestion_busy.add(key)
+        self._render()
+        show_snack(self.page, f"正在为「{point.name}」建议考点…", color=Palette.PRIMARY)
 
         def work():
             client, _ = self._build_clients()
@@ -2274,11 +2287,17 @@ class EvaluationView:
             return parse_tag_suggestion(payload)
 
         def done(tags):
-            self.suggested_tags[(point.chapter_order, point.order)] = tags
+            self.suggestion_busy.discard(key)
+            self.suggested_tags[key] = tags
             self._render()
-            show_snack(self.page, f"已建议 {len(tags)} 个考点")
+            show_snack(self.page, f"已建议 {len(tags)} 个考点", color=Palette.ACCENT)
 
-        run_background_task(self.page, work, on_done=done, on_error=lambda err: show_error_dialog(self.page, "AI 建议失败", str(err)))
+        def failed(err):
+            self.suggestion_busy.discard(key)
+            self._render()
+            show_error_dialog(self.page, "AI 建议失败", str(err))
+
+        run_background_task(self.page, work, on_done=done, on_error=failed)
 
     # ================================================================ Step3 操作
     def _add_tag(self, point: KnowledgePoint, raw: str, field: Optional[ft.TextField]) -> None:
@@ -2343,21 +2362,17 @@ class EvaluationView:
         self.logs.append(f"[{stamp}] {message}")
         if len(self.logs) > 400:
             del self.logs[:200]
-        if self.progress is not None and self.progress._log_text is not None:
-            try:
-                current = self.progress._log_text.value or ""
-                new_text = current + message + "\n"
-                if len(new_text) > 2000:
-                    new_text = "...(日志已截断)\n" + new_text[-2000:]
-                self.progress._log_text.value = new_text
-            except Exception:
-                pass
+        if self.progress is not None:
+            self.progress.append_log(f"[{stamp}] {message}")
 
     def _on_clarification_record(self, record: dict) -> None:
         self.draft.clarification_records.append(record)
         self._save()
 
     def _start_generation(self, e) -> None:
+        if self.busy:
+            show_snack(self.page, "正在生成中，请稍候", color=Palette.WARNING)
+            return
         if not self.draft.all_points:
             show_snack(self.page, "请先创建知识点", color=Palette.WARNING)
             return
@@ -2382,6 +2397,7 @@ class EvaluationView:
             sensitivity=self.draft.sensitivity,
             on_record=self._on_clarification_record,
         )
+        self.busy = True
         self.draft.generation_status = "running"
         self.run = GenerationRun(
             f"run-{int(time.time())}",
@@ -2407,18 +2423,16 @@ class EvaluationView:
         def progress_callback(current: int, total_count: int, message: str = "") -> None:
             if self.progress is None:
                 return
-            try:
-                if total_count > 0:
-                    value = min(current / total_count, 1.0)
-                    self.progress._progress_bar.value = value
-                    self.progress._percent_text.value = f"{int(value * 100)}%"
-                    self.progress._count_text.value = f"{current}/{total_count}"
-                self.page.update()
-            except Exception:
-                pass
+            self.progress.update_progress(current, total_count, message)
+            if message:
+                self.progress.append_log(message)
 
         def on_point_start(point: KnowledgePoint) -> None:
-            progress_callback(0, total, f"正在生成：{point.name}")
+            progress_callback(
+                self.controller.progress[0] if self.controller else 0,
+                total,
+                f"正在生成：{point.name}",
+            )
 
         def on_point_done(point: KnowledgePoint, questions) -> None:
             index = self.controller.progress[0] if self.controller else 0
@@ -2435,11 +2449,7 @@ class EvaluationView:
 
         def _close_progress():
             if self.progress is not None:
-                try:
-                    self.progress.dialog.open = False
-                    self.page.update()
-                except Exception:
-                    pass
+                self.progress.dialog.open = False
 
         def _restore_missing():
             """本轮没有产出的知识点，回填上一轮产物（避免重生成失败丢题）。"""
@@ -2767,6 +2777,40 @@ class EvaluationView:
         else:
             self.review_expanded.add(point.name)
         self._render()
+
+    def _question_options(self, question: Question) -> ft.Control:
+        """显示题目选项，并突出显示 AI 给出的正确答案。"""
+        answer_letters = set(question.answer_letters)
+        if not question.options:
+            return ft.Text("暂无选项数据", size=11, color=Palette.WARNING)
+
+        items = []
+        for index, option in enumerate(question.options):
+            letter = chr(ord("A") + index)
+            correct = letter in answer_letters
+            items.append(
+                ft.Text(
+                    f"{letter}. {option}{'  ✓ 正确答案' if correct else ''}",
+                    size=12,
+                    color=Palette.ACCENT if correct else Palette.TEXT,
+                    weight=ft.FontWeight.W_600 if correct else ft.FontWeight.W_400,
+                )
+            )
+        return ft.Container(
+            content=ft.Column(items, spacing=3),
+            padding=ft.Padding.symmetric(horizontal=10, vertical=8),
+            bgcolor=Palette.SURFACE,
+            border=ft.Border.all(1, Palette.BORDER),
+            border_radius=Radius.SMALL,
+        )
+
+    def _set_point_reviewed(self, point: KnowledgePoint, reviewed: bool) -> None:
+        for question in point.questions:
+            mark_reviewed(question, reviewed)
+        self._save_now()
+        self._render()
+        action = "确认" if reviewed else "取消确认"
+        show_snack(self.page, f"已{action}「{point.name}」的 {len(point.questions)} 道题")
 
     def _toggle_reviewed(self, question: Question, value: bool) -> None:
         mark_reviewed(question, value)
