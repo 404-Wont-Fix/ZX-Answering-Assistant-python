@@ -13,7 +13,7 @@
 
 一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
 
-[快速开始](#快速开始) · [当前架构](#当前架构) · [插件系统](#插件系统) · [配置说明](#配置说明) · [构建发布](#构建发布) · [常见问题](#常见问题)
+[快速开始](#快速开始) · [实现原理手记](docs/IMPLEMENTATION_NOTES.md) · [架构设计](docs/ARCHITECTURE.md) · [插件系统](#插件系统) · [配置说明](#配置说明) · [常见问题](#常见问题) · [免责声明](#disclaimer)
 
 </div>
 
@@ -21,9 +21,31 @@
 
 ## 项目定位
 
-ZX Answering Assistant 是一个桌面端自动化工作台，面向在线学习、课程认证、题库提取和扩展插件场景。当前版本以 GUI 模式为主，主界面由 Flet 驱动，自动化能力由 Playwright、HTTP API 客户端和插件工作流共同提供。
+说白了，这个项目想做的事情很朴素：把登录、选课、导入题库、处理评估这些来回点鼠标的操作，收进一个桌面工作台。页面交互交给 Playwright，适合直接请求的流程交给 HTTP 客户端，扩展功能则放进插件。
+
+我本身编程基础有限，最开始也是从浏览器自动化一点点做起。准确性和稳定性不太理想，才开始看请求、读网页 JS。第一次只认识 SHA256，没弄懂 HMAC-SHA256 和硬编码 key 的关系，算不对就暂时放弃，继续用浏览器自动化。后来不甘心又重新研究，查清算法，再打断点找到签名前的原始值，终于算出了与抓包完全一致的签名。把这些结果整理给 AI 后，才完成 API 模式的开发。又经过多个版本的大更新和架构调整，项目慢慢长成了现在的样子——并不是一开始就设计好了这一切。
+
+当前版本为 **v4.1.0，主程序仅提供 Flet GUI**。运行 `python main.py` 即可打开窗口，不再提供 `--cli` 菜单；配置文件还叫 `cli_config.json`，只是沿用了旧名字。
+
+它不是“凭空知道答案”的工具：学生评估 API 模式依赖已导入题库，按题目 ID 匹配正确选项，缺失的题目会跳过。签名解决的是请求如何组织，不会变出答案，也不会赋予账号额外权限。
+
+想看源码背后的折腾过程，可以读 [《从点按钮到读 JS：学生评估 API 实现手记》](docs/IMPLEMENTATION_NOTES.md)；想改代码，先看 [当前架构与设计取舍](docs/ARCHITECTURE.md)。
 
 请在授权范围内使用本项目，并遵守目标平台、学校或组织的相关规则。
+
+<a id="disclaimer"></a>
+
+## ⚠️ 免责声明
+
+**本项目仅供技术学习、研究与交流用途。**
+
+- 本项目与足下教育（以及其他任何相关平台、组织）**没有任何关联**，亦未获得其任何形式的授权、支持或认可；
+- 使用者应遵守所在地区法律法规及目标平台的服务条款，因下载、部署、使用或滥用本项目所产生的一切后果，**均由使用者自行承担**，与本项目作者无关；
+- 对于使用本项目可能导致的账号封禁、数据丢失、成绩异常、学业或法律纠纷等任何问题，**本作者概不负责**；
+- 本项目按“现状”提供，不提供任何明示或默示的保证；
+- 如本项目侵犯了任何组织或个人的合法权益，请提交 Issue，我们将及时处理。
+
+继续使用本项目即视为已阅读并同意本声明。
 
 ## 核心能力
 
@@ -59,28 +81,18 @@ main.py
 ### 分层结构
 
 ```text
-┌────────────────────────────────────────────────────────────┐
-│ GUI 工作台层                                                │
-│ src/main_gui.py, src/ui/theme.py, src/ui/components.py      │
-│ src/ui/views/*                                             │
-└──────────────────────────────┬─────────────────────────────┘
-                               │
-┌──────────────────────────────▼─────────────────────────────┐
-│ 插件层                                                      │
-│ plugins/*/manifest.json, ui.py                                │
-│ PluginManager + PluginContext                              │
-└──────────────────────────────┬─────────────────────────────┘
-                               │
-┌──────────────────────────────▼─────────────────────────────┐
-│ 核心服务层                                                  │
-│ SettingsManager, APIClient, BrowserManager, Tray              │
-└──────────────────────────────┬─────────────────────────────┘
-                               │
-┌──────────────────────────────▼─────────────────────────────┐
-│ 业务与基础设施层                                            │
-│ auth, answering, extraction, cloud_exam, certification      │
-│ requests, Playwright, certifi, filesystem                   │
-└────────────────────────────────────────────────────────────┘
+Flet 主工作台（src/main_gui.py）
+  ├─ 内置视图（src/ui/views/）
+  │    └─ 登录 / 学生评估 / 题库提取等业务模块
+  └─ 插件中心
+       └─ PluginManager + PluginContext + open_plugin_ui
+            └─ plugins/<id>/ui.py → 插件视图与业务服务
+
+两条路径按需复用：
+  ├─ APIClient → HTTP 请求、限速与重试
+  ├─ BrowserManager → 专用工作线程 → 单浏览器、多上下文
+  ├─ SettingsManager / TokenManager → 配置与会话缓存
+  └─ 题库导入、答案匹配、进度对话框与后台任务组件
 ```
 
 ### 主要目录
@@ -98,8 +110,8 @@ main.py
 | `src/certification/` | 课程认证工作流和 API 答题逻辑 |
 | `src/utils/` | 通用工具函数 |
 | `plugins/` | 内置与外部插件目录，云考试等插件的 UI 与业务逻辑都位于各自插件目录 |
-| `docs/` | 浏览器、SSL、Flet、构建和系统浏览器等专题文档 |
-| `tests/` | 配置、插件和 API 客户端相关测试 |
+| `docs/` | 架构设计、API 实现手记，以及浏览器、SSL、Flet、构建等专题文档 |
+| `tests/` | API 客户端、题库匹配/导入、插件、UI 组件与发布流程等测试 |
 
 ## 工作台页面
 
@@ -117,9 +129,9 @@ main.py
 
 | 插件目录 | 显示名称 | 入口 | 说明 |
 | --- | --- | --- | --- |
-| `plugins/cloud_exam` | 云考试助手 | `ui.create_view`, `core.Workflow` | 云考试试卷获取、题库匹配和答案注入 |
-| `plugins/course_certification` | 课程认证助手 | `ui.create_view`, `core.Workflow` | 教师课程认证答题流程 |
-| `plugins/evaluation` | 评估出题助手 | `ui.create_view`, `core.Workflow` | 评估出题、试题生成和编辑入口 |
+| `plugins/cloud_exam` | 云考试助手 | `ui.create_view` | 云考试试卷获取、题库匹配和答案注入 |
+| `plugins/course_certification` | 课程认证助手 | `ui.create_view` | 教师课程认证答题流程 |
+| `plugins/evaluation` | 评估出题助手 | `ui.create_view` | AI 生成课程评估题，并按平台模板导出 Word/Excel |
 | `plugins/one_click_rating_for_projects` | 摸鱼速评助手 | `ui.create_view` | 产教融合项目一键评分、批语生成与成绩 Excel 导出 |
 | `plugins/weban_plugin` | 安全微伴 | `ui.create_view` | 安全微伴学习、考试和外部 WeBan 模块接入（默认禁用，需手动启用） |
 | `plugins/warning_alert` | 警告提示器 | `ui.create_view` | 自定义警告窗口和循环提醒 |
@@ -180,6 +192,34 @@ python main.py
 python -m playwright install chromium
 ```
 
+### 第一次打开，先做什么？
+
+1. 在「系统设置」确认浏览器与账号配置。默认浏览器通道是 Chrome，没有 Chrome 时可选 Edge 或安装 Chromium。
+2. 进入「评估答题」，登录自己的学生账号，选择课程。
+3. 导入有权使用、且与课程对应的 JSON 题库，检查导入预览；单课程题库在双方课程 ID 均存在时会校验是否一致。
+4. 选择处理方式，观察日志和进度；不要把“请求已发送”当成“平台已通过”。
+5. 完成后回到平台核对状态。缺题、保存失败或交卷失败，都需要单独处理。
+
+| 界面中的模式 | 实际做什么 | 依赖什么 |
+| --- | --- | --- |
+| 兼容模式 | 通过浏览器查找页面控件、选择选项并提交 | 登录页面、DOM 结构、题库匹配 |
+| 暴力模式 | 用 API 获取题目、匹配选项 ID、生成签名并提交 | 有效 token、正确题库、接口协议 |
+
+“暴力模式”是沿用的界面名称，**不是密码破解，也不是无限并发请求**。API 路径同样受限速、权限和评估次数限制；登录阶段仍会使用浏览器。
+
+需要教师端提取题库时，从「答案提取」进入，并使用有相应权限的教师账号。学生登录不会自动获得教师权限。
+
+### 可选：启用安全微伴
+
+该插件默认禁用，并依赖 WeBan 子模块。源码环境先执行：
+
+```bash
+git submodule update --init -- plugins/weban_plugin/modules/WeBan
+python -m pip install -r plugins/weban_plugin/requirements.txt
+```
+
+再到插件中心启用。具体依赖与用法见 [安全微伴说明](plugins/weban_plugin/README.md)。
+
 ## 配置说明
 
 配置由 `src/core/config.py` 中的 `SettingsManager` 管理。默认配置文件不会写入仓库，而是保存在当前用户配置目录：
@@ -206,7 +246,11 @@ ZX_ASSISTANT_CONFIG_FILE=/path/to/cli_config.json python main.py
 | `gui_settings` | 最小化到托盘、关闭到托盘 |
 | `plugins` | 禁用插件列表和插件私有配置 |
 
-请不要将真实账号、密码或个人配置提交到仓库。
+**保存的账号密码写入本地 JSON，不是加密保险箱。** 请不要将个人配置、token、Cookie、HAR 抓包文件或未脱敏日志提交到仓库。
+
+默认限速为 `very_high`（请求间隔 10 秒），其余等级为 `low` / `medium` / `medium_high` / `high`（1 / 2 / 3 / 5 秒）。名字表示延迟档位，不是“越高越快”。当前学生评估引擎还保留题间与知识点间等待，因此实际耗时不只取决于这个配置。
+
+`max_retries` 当前实现表示**总尝试次数**（默认 5），不是“首次之外再试 5 次”；设置为 0 仍会尝试一次。旧配置加载时还有自动迁移逻辑，详见 [配置与请求治理设计](docs/ARCHITECTURE.md#配置与请求治理)。
 
 ## 浏览器策略
 
@@ -230,7 +274,7 @@ plugins/<plugin_id>/manifest.json
        ├─ 校验插件 ID、名称和入口格式
        ├─ 合并用户启用/禁用状态
        ├─ 提示缺失的 requirements.txt 依赖
-       └─ 按需加载 UI 或核心类
+       └─ 用户打开插件时，按需加载 entry_ui
 ```
 
 ### 插件目录结构
@@ -241,7 +285,7 @@ plugins/
    ├─ manifest.json      # 必需，插件元数据
    ├─ __init__.py        # 必需，Python 包标识
    ├─ ui.py              # 必需，提供 create_view(page, context)
-   ├─ core.py            # 可选，提供业务工作流类
+   ├─ workflow.py        # 可选，由插件 UI 显式调用的业务逻辑
    └─ requirements.txt   # 可选，声明额外 Python 依赖
 ```
 
@@ -262,6 +306,8 @@ plugins/
   "enabled": true
 }
 ```
+
+插件是 **UI-only 入口模型**：`entry_core` 已废弃，应为 `null`，宿主不会加载它。业务逻辑可以拆到 `workflow.py`、`service.py` 等模块，但由插件自己调用。声明 `settings_schema` 的插件还可以复用插件中心的通用设置弹窗。
 
 ### 插件可用服务
 
@@ -302,8 +348,11 @@ python main.py
 运行测试：
 
 ```bash
-python -m pytest
+python -m pip install pytest
+python -m pytest tests/ -v
 ```
+
+测试依赖需另行安装。发布工作流中的构建任务依赖测试任务通过；本地测试不等于线上接口可用性验证。
 
 查看当前版本：
 
@@ -404,12 +453,14 @@ python -m pip install --upgrade certifi
 
 | 文档 | 内容 |
 | --- | --- |
+| [docs/IMPLEMENTATION_NOTES.md](docs/IMPLEMENTATION_NOTES.md) | 开发手记：从浏览器 Network、网页 JS 到学生评估签名与请求流程 |
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | 当前架构、设计取舍、数据流、线程边界与已知限制 |
 | [docs/PLUGIN_DEVELOPMENT.md](docs/PLUGIN_DEVELOPMENT.md) | 插件开发完整指南 |
 | [plugins/README.md](plugins/README.md) | 插件目录、安装和依赖说明 |
 | [docs/BROWSER_SETUP.md](docs/BROWSER_SETUP.md) | 浏览器安装、系统浏览器支持与排障 |
 | [docs/FLET_SETUP.md](docs/FLET_SETUP.md) | Flet 安装、运行时和常见问题 |
 | [docs/SSL_SETUP.md](docs/SSL_SETUP.md) | SSL 证书配置说明 |
-| [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | Windows 打包完整指南 |
+| [docs/BUILD_GUIDE.md](docs/BUILD_GUIDE.md) | Windows 打包专题（当前跨平台构建入口见本页「构建发布」） |
 | [docs/SYSTEM_TRAY_README.md](docs/SYSTEM_TRAY_README.md) | 系统托盘功能说明 |
 | [CHANGELOG.md](CHANGELOG.md) | 版本更新记录 |
 
@@ -419,4 +470,4 @@ python -m pip install --upgrade certifi
 
 ## 致谢
 
-感谢 Flet、Playwright、Requests、certifi、pystray、Pillow、ddddocr、DrissionPage、loguru 和 pycryptodome 等开源项目提供的基础能力。
+感谢 Flet、Playwright、Requests、certifi、pystray、Pillow、openpyxl、python-docx，以及 WeBan 和各插件所依赖的开源项目。这个项目也是我边学边做、借助 AI 不断理解和修改代码的过程；如果它对你有帮助，欢迎反馈问题或点个 Star。

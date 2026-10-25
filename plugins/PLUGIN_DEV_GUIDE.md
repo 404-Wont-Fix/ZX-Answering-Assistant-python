@@ -11,7 +11,7 @@ plugins/
 └── your_plugin/
     ├── manifest.json
     ├── requirements.txt
-    ├── core.py
+    ├── workflow.py  # 可选业务模块，由 UI 显式调用
     └── ui.py
 ```
 
@@ -22,7 +22,7 @@ requests>=2.31.0
 beautifulsoup4>=4.12.0
 ```
 
-`manifest.json` 的 `dependencies` 字段用于声明其他插件依赖，不用于声明 Python 包。
+`manifest.json` 的 `dependencies` 字段用于声明其他插件依赖，不用于声明 Python 包。宿主只加载 `entry_ui`，`entry_core` 已废弃，应为 `null`；`workflow.py` 不是另一个自动加载入口。
 
 ## 安装流程
 

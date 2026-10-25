@@ -1,6 +1,8 @@
 # 插件开发指南
 
-本文档详细说明如何为 ZX Answering Assistant 开发自定义插件。
+本文档说明当前 UI-only 插件模型。宿主只加载 `entry_ui`；`entry_core` 已废弃，`load_plugin_core()` 仅为返回 `None` 的兼容桩。下文的 Workflow 是插件内部组织业务的一种选择，不是宿主要求实现或自动调用的接口。
+
+整体设计见 [架构文档](ARCHITECTURE.md)。
 
 ---
 
@@ -50,7 +52,7 @@
 ┌─────────────────────────────────────────────────────────────┐
 │                      插件实例                                │
 │  ui.py: create_view(page, context)                          │
-│  core.py: Workflow(context)                                 │
+│  workflow.py / service.py：由插件内部调用                   │
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -78,7 +80,7 @@ plugins/
     ├── manifest.json     # 必需：插件元数据
     ├── __init__.py       # 必需：Python 包标识
     ├── ui.py             # 必需：UI 入口
-    └── core.py           # 可选：业务逻辑
+    └── workflow.py       # 可选：业务逻辑，由 UI 显式调用
 ```
 
 ### 2. 编写 manifest.json
@@ -131,7 +133,7 @@ def create_view(page: ft.Page, context):
 ### 4. 实现业务逻辑（可选）
 
 ```python
-# plugins/my_plugin/core.py
+# plugins/my_plugin/workflow.py
 
 class Workflow:
     """插件工作流"""
@@ -169,7 +171,7 @@ plugins/
     ├── manifest.json          # 必需：插件元数据
     ├── __init__.py            # 必需：Python 包标识（可以为空）
     ├── ui.py                  # 必需：UI 入口
-    ├── core.py                # 可选：业务逻辑
+    ├── workflow.py            # 可选：业务逻辑
     ├── utils.py               # 可选：工具函数
     ├── models.py              # 可选：数据模型
     └── assets/                # 可选：资源文件
@@ -184,7 +186,7 @@ plugins/
 | `manifest.json` | ✅ | 插件元数据，定义插件的基本信息 |
 | `__init__.py` | ✅ | Python 包标识，可以为空文件 |
 | `ui.py` | ✅ | UI 入口，必须实现 `create_view(page, context)` 函数 |
-| `core.py` | ❌ | 业务逻辑，实现 `Workflow` 类 |
+| `workflow.py` / `service.py` | ❌ | 插件内部业务逻辑，模块名与类名不属于宿主入口契约 |
 | `utils.py` | ❌ | 工具函数和辅助方法 |
 | `models.py` | ❌ | 数据模型和类型定义 |
 | `assets/` | ❌ | 资源文件（图标、数据等） |
@@ -222,10 +224,10 @@ plugins/
 | `icon` | string | ❌ | Material Design 图标名称，默认 "extension" |
 | `author` | string | ❌ | 插件作者 |
 | `entry_ui` | string | ✅ | UI 入口点，格式：`模块名.函数名` |
-| `entry_core` | string | ❌ | ⚠️ 已废弃，始终为 null（保留字段仅为向后兼容，不再加载 core 入口） |
+| `entry_core` | null | ❌ | ⚠️ 已废弃，始终为 null（保留字段仅为向后兼容，不再加载 core 入口） |
 | `min_app_version` | string | ❌ | 最低兼容的应用版本 |
 | `dependencies` | array | ❌ | 依赖的其他插件 ID 列表 |
-| `enabled` | boolean | ❌ | 默认是否启用，默认 true |
+| `enabled` | boolean | ❌ | 元数据中的启用值，默认 true；当前启动扫描会用用户配置 `plugins.disabled_plugins` 覆盖它 |
 | `settings_schema` | array | ❌ | 声明插件可配置项；填写后插件中心卡片上的设置齿轮会自动打开通用设置弹窗（见下） |
 
 ### 插件设置（`settings_schema`）
@@ -314,17 +316,18 @@ page.show_dialog(dialog)
 
 ### 状态流转
 
-```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Discovered │────▶│   Loaded    │────▶│ Initialized │
-│  (已发现)   │     │  (已加载)   │     │  (已初始化) │
-└─────────────┘     └─────────────┘     └─────────────┘
-                                              │
-                                              ▼
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Unloaded   │◀────│  Disabled   │◀────│   Enabled   │
-│  (已卸载)   │     │  (已禁用)   │     │  (已启用)   │
-└─────────────┘     └─────────────┘     └─────────────┘
+这里描述操作顺序，不是一套代码中已定义的六状态枚举。扫描、启用与加载是不同的事情：
+
+```text
+扫描 manifest → 校验元数据 → 按用户配置确定启用状态 → 展示插件卡片
+                                                      │
+                                               用户打开已启用插件
+                                                      ↓
+                              检查插件依赖 → 创建 PluginContext
+                                                      ↓
+                                 加载 entry_ui → 缓存 UI / 注册资源
+                                                      ↓
+                                返回插件中心或禁用 → 卸载并清理资源
 ```
 
 ### 生命周期说明
@@ -332,7 +335,7 @@ page.show_dialog(dialog)
 | 状态 | 说明 | 触发时机 |
 |------|------|----------|
 | **Discovered** | 插件被扫描发现 | 应用启动时扫描 `plugins/` 目录 |
-| **Loaded** | 插件模块已导入 | 读取 `manifest.json` 并导入模块 |
+| **Loaded** | 插件 UI 已按需加载 | 用户打开插件时导入入口模块并创建 UI |
 | **Initialized** | 插件已初始化 | 创建 `PluginContext` 并注入依赖 |
 | **Enabled** | 插件已启用 | 用户启用插件或默认启用 |
 | **Disabled** | 插件已禁用 | 用户禁用插件 |
@@ -348,7 +351,7 @@ def cleanup(self):
     ...
 ```
 
-插件禁用或从插件页面返回插件中心时，`PluginManager` 会调用已加载对象上的 `cleanup()`、`dispose()` 或 `close()`。
+插件禁用或从插件页面返回插件中心时，`PluginManager` 会清理已加载对象及上下文登记的资源，尝试调用 `cleanup()`、`dispose()` 或 `close()`。业务对象若不作为 UI 返回，请用 `context.register_resource()` 登记；仅定义清理方法，不代表宿主能自动发现这个对象。
 
 ---
 
@@ -497,7 +500,9 @@ def create_view(page: ft.Page, context):
 
 ## 核心业务开发
 
-### Workflow 类规范
+### 可选的 Workflow 组织方式
+
+下面仅示意业务类结构。由插件 UI 或其他内部模块实例化并调用，不需要添加 `entry_core`，也不要求一定使用 `Workflow` 这个类名。
 
 ```python
 class Workflow:
@@ -582,7 +587,7 @@ def create_view(page: ft.Page, context):
 plugins/
 └── my_plugin/
     ├── ui.py           # UI 层
-    ├── core.py         # 业务逻辑层
+    ├── workflow.py     # 业务逻辑层
     ├── utils.py        # 工具函数
     └── models.py       # 数据模型
 ```
@@ -677,7 +682,7 @@ class MockContext:
 context = MockContext()
 
 from plugins.my_plugin.ui import create_view
-from plugins.my_plugin.core import Workflow
+from plugins.my_plugin.workflow import Workflow
 
 workflow = Workflow(context)
 result = workflow.execute()
@@ -718,33 +723,7 @@ def create_view(page, context):
     return view.get_content()
 ```
 
-**core.py**
-```python
-from src.certification.workflow import get_access_token, start_answering
-
-
-class Workflow:
-    def __init__(self, context):
-        self.context = context
-        self.api_client = context.api_client
-        self.browser_manager = context.browser_manager
-
-    def execute(self, question_bank_path=None):
-        result = {'success': False, 'message': ''}
-
-        try:
-            token = get_access_token()
-            if token:
-                result['success'] = True
-                result['message'] = '成功获取访问令牌'
-            else:
-                result['message'] = '获取访问令牌失败'
-
-        except Exception as e:
-            result['message'] = f'执行失败: {str(e)}'
-
-        return result
-```
+当前课程认证插件没有 `core.py` 入口。其 UI 复用 `src/ui/views/course_certification_view.py`，业务实现仍在 `src/certification/`。不要照旧文档重新创建一个只转调函数的 `core.Workflow` 外壳。
 
 ---
 
@@ -763,7 +742,7 @@ class Workflow:
 **解决方案**: 确保 `entry_ui` 指向插件包内存在的模块和对象（`entry_core` 已废弃，应为 null），例如：
 
 ```python
-from .core import Workflow
+from .workflow import Workflow
 ```
 
 可选第三方模块应在实际使用时懒加载，并捕获 `Exception` 返回“不可用”状态，避免插件入口导入失败导致整个插件中心无法加载。
@@ -788,7 +767,8 @@ self.api_client = context.api_client
 
 ## 更多资源
 
-- [README.md](README.md) - 项目概述
-- [CLAUDE.md](CLAUDE.md) - Claude Code 指导文档
+- [README.md](../README.md) - 项目概述
+- [ARCHITECTURE.md](ARCHITECTURE.md) - 当前架构与设计取舍
+- [CLAUDE.md](../CLAUDE.md) - Claude Code 指导文档
 - [Flet 文档](https://flet.dev/docs/) - Flet UI 框架文档
 - [Material Design Icons](https://fonts.google.com/icons) - 图标参考
