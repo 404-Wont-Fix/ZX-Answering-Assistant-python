@@ -11,7 +11,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE.txt)
 [![Version](https://img.shields.io/badge/Version-v4.1.0-green.svg)](version.py)
 
-一个基于 Flet、Playwright 和插件化架构构建的在线学习平台自动化辅助工具。
+面向 **足下教育平台（cqzuxia.com）** 的自动化辅助工具，基于 Flet、Playwright 和插件化架构，提供桌面图形界面。
 
 [快速开始](#快速开始) · [实现原理手记](docs/IMPLEMENTATION_NOTES.md) · [架构设计](docs/ARCHITECTURE.md) · [插件系统](#插件系统) · [配置说明](#配置说明) · [常见问题](#常见问题) · [免责声明](#disclaimer)
 
@@ -20,6 +20,16 @@
 ---
 
 ## 项目定位
+
+**这是足下教育平台的辅助脚本/桌面工具，不是通用于所有网课网站的脚本，也不是平台官方软件。** 当前主要对接以下入口：
+
+| 平台入口 | 对应功能 |
+| --- | --- |
+| 学生端：<https://ai.cqzuxia.com/> | 学生课程评估答题；云考试由独立插件提供 |
+| 教师端：<https://admin.cqzuxia.com/> | 在教师账号授权范围内提取课程题库 |
+| 课程认证端：<https://zxsz.cqzuxia.com/> | 课程认证相关流程，由课程认证插件提供入口 |
+
+安全微伴属于额外的可选插件，不是足下教育主流程的一部分。本文的“学生评估 API”和实现手记中的签名分析，均指足下教育学生端的课程评估接口，不适用于所有插件或其他学习平台。
 
 说白了，这个项目想做的事情很朴素：把登录、选课、导入题库、处理评估这些来回点鼠标的操作，收进一个桌面工作台。页面交互交给 Playwright，适合直接请求的流程交给 HTTP 客户端，扩展功能则放进插件。
 
