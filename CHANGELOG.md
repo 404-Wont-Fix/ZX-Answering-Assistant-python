@@ -1,5 +1,39 @@
 # 更新日志
 
+## [v4.2.0] - 2026-11-20
+
+本版本更新安全微伴（WeBan）子模块到最新版本并修复插件停止按钮失效的问题，同时修复插件系统在特定条件下加载失败的隐藏 bug。
+
+### 第三方依赖更新
+
+- **安全微伴（WeBan）子模块**：从 v3.8.2 升级到 v3.11.1（跨越 462 个提交），涵盖以下重要变更：
+  - 对齐官网请求流程并统一账号限制处理（PR #166）
+  - 修复代理环境导致浏览器启动失败（PR #162）
+  - 重构课程解析与请求头的重复逻辑
+  - 补齐页面分支与完课后补发的轨迹解析
+  - 更新 captcha 模块：硬依赖 `opencv-python-headless`（`captcha.py` 第 25 行 `import cv2`）
+  - 新增 `nodriver==0.50.3`、`websockets`、`mss` 等运行时依赖
+
+### Bug 修复
+
+- **插件停止按钮无响应**（`plugins/weban_plugin/weban_adapter.py`）：
+  - `stop()` 方法被 `if self.is_running` 条件 gate 拦截，`is_running=False` 时根本不会调用 `_stop_event.set()`。修复：无条件 set stop_event，移除 `is_running` gate。
+  - 原 Monkey Patch 只在 `run_study`/`run_exam` 的**函数入口**检查一次 `stop_event`，一旦进入 WeBan 内部多层嵌套循环（项目→课程→题目→每题还可能有长 sleep），停止信号就被忽略，直到当前长 sleep 自然结束（最长可达 300 秒）。修复：将停止检查注入 adapter 的 `_log` 方法，拦截 WeBan 内部每步都会调用的 `self.log.info()`/`self.log.success()`（`client.py` 内共 124 处），下一次进度日志即触发 RuntimeError 跳出循环，响应时间 < 0.5 秒。
+  - RuntimeError 被 `captcha.py` 的验证码识别异常处理捕获后，内部的 `log.error(...)` 又被同一 stop 检查拦截抛新 RuntimeError，形成"异常处理链无限膨胀"的 Traceback 链爆。修复：stop 检查只拦截 **info/success**（正常"前进"的进度日志），放行 warning/error（异常处理链必经的日志）。
+  - 尝试过全局 patch `time.sleep` 作为兜底，但 Python import 机制决定了 `client.time` 和 `sys.modules['time']` 是同一对象，patch 它会影响整个进程（`main_gui.py` 的 `_watch` 线程 sleep 被误杀）。最终方案改为纯 adapter 内部的 log 检查点，零全局副作用。
+
+- **插件系统加载失败（双模块冲突）**（`src/core/plugin_manager.py`）：
+  - `load_plugin_ui` 使用 `_temporary_import_path` 把 `plugins/` 临时插入 `sys.path`，然后用短名 `import weban_plugin.ui` 做 `importlib`。Python 因此把同一份目录注册为**两个独立的包**：`weban_plugin`（从 sys.path hack 来）和 `plugins.weban_plugin`（从 main.py 初始 sys.path 来）。两个包虽然指向同一份文件，但 Python 视它们为完全独立的模块，各自有独立的全局变量空间。
+  - `_apply_stop_patch` 在短名包路径下成功加载了 `WeBanClient`，但 GUI 后续 import 用的完整路径 `plugins.weban_plugin.weban_adapter` 的 `WEBAN_AVAILABLE` 始终为 False——"程序找不到 WeBan 模块"的真实原因。
+  - 修复：改用完整包路径 `importlib.import_module(f"plugins.{plugin_id}.{module_name}")`，不再需要临时 sys.path 操作。所有插件只会以 `plugins.{id}.*` 形式存在于 `sys.modules` 中，全局状态唯一。
+
+### 已知注意事项
+
+- WeBan 更新后运行时依赖新增：`opencv-python-headless`、`nodriver`、`mss`、`websockets`。首次运行前请确保虚拟环境已安装：
+  ```
+  pip install -r plugins/weban_plugin/modules/WeBan/requirements.txt
+  ```
+
 ## [v4.1.0] - 2026-09-20
 
 本版本把「评估出题助手」完整迁移为独立插件并修复其可用性问题，同时修正生成流程的正确性缺陷。

@@ -161,8 +161,26 @@ class WeBanAdapter:
         """默认输入回调（CLI 模式）"""
         return input(prompt)
 
-    def _log(self, message: str, level: str = "info"):
-        """发送日志到回调"""
+    # 正常进度日志级别：这些是 WeBan 循环"前进"的标志，在 stop_event 已 set
+    # 时应该被中断抛 RuntimeError。warning/error 放行——它们大多在异常处理
+    # 路径里调用，拦截会导致"异常处理中又抛异常"的链爆掉。
+    _STOP_CHECK_LEVELS = {"info", "success"}
+
+    def _log(self, message: str, level: str = "info", _skip_stop_check: bool = False):
+        """发送日志到回调。
+
+        正常进度日志（info/success）会先检查 _stop_event，若已 set 则抛
+        RuntimeError 让 WeBan 循环在下一次前进时立即退出。warning/error/debug
+        放行——它们要么是异常处理链必经的，要么是可忽略的。
+        _skip_stop_check 用于 adapter 自身的 stop() / force_stop() 内部日志，
+        避免因为自己刚 set 了 stop_event 就自杀。
+        """
+        if (
+            not _skip_stop_check
+            and level in self._STOP_CHECK_LEVELS
+            and self._stop_event.is_set()
+        ):
+            raise RuntimeError("用户主动停止任务")
         try:
             self.progress_callback(message, level)
         except Exception as e:
@@ -184,42 +202,62 @@ class WeBanAdapter:
 
     def _apply_stop_patch(self):
         """
-        应用 Monkey Patch 添加停止功能
+        应用 Monkey Patch：入口检查 + adapter log 注入 stop 检查点。
 
-        通过动态替换 WeBanClient 的方法，在关键循环点注入停止检查
+        两层防御：
+        1. 入口检查 — run_study / run_exam 函数入口处检查一次
+        2. 日志检查 — WeBan 每步都会调用 self.log.*（client.py 内 124 次），
+           adapter 实现了 loguru 接口（info/success/warning/error/debug），
+           在这些方法里检查 _stop_event，若被设置则抛 RuntimeError。
+           这让 WeBan 内部无论在哪个循环层次（项目→课程→题目）都能在
+           下一次日志调用时及时响应停止信号。
+
+        不 patch time.sleep：Python import 机制决定了 client.time 就是全局
+        time 模块的同一对象，patch 它会影响整个进程（如 main_gui._watch）。
+        改用 log 检查点方案，完全隔离在 adapter 内。纯 sleep（无 log 调用）
+        的盲点由入口检查覆盖。
         """
         if not _load_weban_classes():
             return
 
-        # 使用类级别标志确保 Monkey Patch 只应用一次
-        if not hasattr(WeBanClient, '_weban_patch_applied'):
-            # 保存原始方法（只保存一次）
+        # --- 第 1 层：入口检查（只保存原始方法一次） ---
+        if not hasattr(WeBanClient, '_weban_stop_patched'):
             WeBanClient._original_run_study = WeBanClient.run_study
             WeBanClient._original_run_exam = WeBanClient.run_exam
+            WeBanClient._weban_stop_patched = True
 
-            # 创建带停止检查的薄包装（*args/**kwargs 转发给原始实现，版本无关）
-            def run_study_with_stop(self, *args, **kwargs):
-                """带停止检查的 run_study（入口检查 + 委托原始实现）"""
-                if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
-                    if self._adapter._stop_event.is_set():
-                        self._adapter._log("用户中断：学习阶段", "warning")
-                        return
-                return WeBanClient._original_run_study(self, *args, **kwargs)
+        # --- 第 2 层：每次创建 adapter 时绑定当前 adapter ---
+        # WeBanClient._adapter 在 run_account 中赋值，这里提前存一个 ref
+        # 让后续 log 检查能通过 adapter 访问 stop_event
+        try:
+            WeBanClient._adapter_ref = self
+        except Exception:
+            pass
 
-            def run_exam_with_stop(self, *args, **kwargs):
-                """带停止检查的 run_exam（入口检查 + 委托原始实现）"""
-                if hasattr(self, '_adapter') and hasattr(self._adapter, '_stop_event'):
-                    if self._adapter._stop_event.is_set():
-                        self._adapter._log("用户中断：考试阶段", "warning")
-                        return
-                return WeBanClient._original_run_exam(self, *args, **kwargs)
+        def _check_stop(weban_client):
+            """通用 stop 检查，供所有包装器复用"""
+            adapter = getattr(weban_client, '_adapter', None)
+            if adapter is None:
+                return False
+            stop_event = getattr(adapter, '_stop_event', None)
+            if stop_event is None or not stop_event.is_set():
+                return False
+            adapter._log("用户主动停止任务", "warning")
+            return True
 
-            # 替换方法
-            WeBanClient.run_study = run_study_with_stop
-            WeBanClient.run_exam = run_exam_with_stop
+        def run_study_with_stop(self, *args, **kwargs):
+            if _check_stop(self):
+                return
+            return WeBanClient._original_run_study(self, *args, **kwargs)
 
-            # 标记已应用
-            WeBanClient._weban_patch_applied = True
+        def run_exam_with_stop(self, *args, **kwargs):
+            if _check_stop(self):
+                return
+            return WeBanClient._original_run_exam(self, *args, **kwargs)
+
+        # 替换方法
+        WeBanClient.run_study = run_study_with_stop
+        WeBanClient.run_exam = run_exam_with_stop
 
     def _apply_input_patch(self):
         """
@@ -579,21 +617,24 @@ class WeBanAdapter:
         return {"success": success_count, "failed": failed_count}
 
     def stop(self):
-        """优雅停止执行"""
-        if self.is_running:
-            self._log("正在停止执行...", "warning")
-            self._stop_event.set()
-            self.is_running = False
+        """优雅停止执行
+
+        无论 is_running 状态如何都强制设置 _stop_event，因为停止信号可能在任何
+        时刻被触发（包括 run_account 尚未进入循环时）。WeBan 内部的下一次
+        self.log.* 调用就会响应停止（adapter 的 _log 会检查 stop_event）。
+        """
+        self._stop_event.set()
+        self.is_running = False
+        # 内部日志必须跳过 stop 检查，否则会自杀
+        self._log("正在停止执行...", "warning", _skip_stop_check=True)
 
     def force_stop(self):
         """强行停止执行"""
         self._log("⚠️ 正在强行停止...", "warning")
-
-        # 设置停止标志
         self._stop_event.set()
         self.is_running = False
-
-        self._log("✅ 已强行停止任务", "success")
+        # 内部日志必须跳过 stop 检查
+        self._log("✅ 已强行停止任务", "success", _skip_stop_check=True)
 
     # 实现 loguru logger 的接口，使 WeBanClient 可以使用
     def info(self, msg: str, *args, **kwargs):
