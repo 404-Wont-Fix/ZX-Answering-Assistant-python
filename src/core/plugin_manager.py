@@ -337,12 +337,25 @@ class PluginManager:
             # 解析入口点
             module_name, func_name = plugin_info.entry_ui.split('.')
 
-            # 使用完整包路径 import（plugins.{plugin_id}.{module_name}）。
+            # 优先用完整包路径 import（plugins.{plugin_id}.{module_name}）。
             # project_root 已在 main.py 中加入 sys.path，所以 plugins/ 作为顶级包
-            # 可被正确解析。必须用完整路径，避免在 sys.path 里临时加入 plugins/
+            # 可被正确解析。必须优先完整路径，避免在 sys.path 里临时加入 plugins/
             # 后导致同一目录被注册为两个独立包（weban_plugin vs plugins.weban_plugin），
             # 进而使模块级全局状态在两个"平行宇宙"里各自独立。
-            module = importlib.import_module(f"plugins.{plugin_id}.{module_name}")
+            #
+            # 兜底：若完整路径找不到（例如测试里在临时目录创建的独立插件），
+            # 临时把插件目录父级加入 sys.path 用短名 import。这是隔离场景，
+            # 不会和真正的 plugins/ 包发生双模块冲突。
+            module = None
+            try:
+                module = importlib.import_module(f"plugins.{plugin_id}.{module_name}")
+            except ModuleNotFoundError:
+                plugin_path = plugin_info.path.parent
+                sys.path.insert(0, str(plugin_path))
+                try:
+                    module = importlib.import_module(f"{plugin_id}.{module_name}")
+                finally:
+                    sys.path.remove(str(plugin_path))
 
             # 获取 UI 创建函数
             create_func = getattr(module, func_name)
