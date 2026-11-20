@@ -337,12 +337,12 @@ class PluginManager:
             # 解析入口点
             module_name, func_name = plugin_info.entry_ui.split('.')
 
-            # 添加插件父目录到 Python 路径
-            plugin_path = plugin_info.path
-
-            # 导入插件模块
-            with self._temporary_import_path(plugin_path.parent):
-                module = importlib.import_module(f"{plugin_id}.{module_name}")
+            # 使用完整包路径 import（plugins.{plugin_id}.{module_name}）。
+            # project_root 已在 main.py 中加入 sys.path，所以 plugins/ 作为顶级包
+            # 可被正确解析。必须用完整路径，避免在 sys.path 里临时加入 plugins/
+            # 后导致同一目录被注册为两个独立包（weban_plugin vs plugins.weban_plugin），
+            # 进而使模块级全局状态在两个"平行宇宙"里各自独立。
+            module = importlib.import_module(f"plugins.{plugin_id}.{module_name}")
 
             # 获取 UI 创建函数
             create_func = getattr(module, func_name)
