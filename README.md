@@ -165,6 +165,10 @@ GitHub Release 工作流会构建并上传以下桌面包：
 | macOS Intel | `ZX-Answering-Assistant-<version>-macos-x86_64.zip` |
 | macOS Apple Silicon | `ZX-Answering-Assistant-<version>-macos-arm64.zip` |
 
+> **⚠️ 重要：应用目录不能包含中文**
+>
+> 请将发布包解压到**不含中文的路径**（推荐纯英文与数字，例如 `D:\Apps\ZX-Answering-Assistant`）。应用所在目录包含中文（如 `D:\下载\`、`D:\软件\`）时，双击启动会窗口一闪而过、无法正常打开。遇到这种情况，把整个应用目录移动到纯英文路径下重新打开即可。
+
 macOS 包内包含 `ZX Answering Assistant.app`。如遇到 macOS 首次打开的安全提示，请在系统设置中允许该应用；确认包来源可信时，也可以对解压后的 `.app` 移除 quarantine 标记：
 
 ```bash
@@ -413,6 +417,10 @@ release-assets/ZX-Answering-Assistant-<version>-macos-arm64.zip
 - [Flet 安装与运行时指南](docs/FLET_SETUP.md)
 
 ## 常见问题
+
+### 双击后窗口一闪而过（打包版）
+
+应用目录路径包含中文会导致此问题。将应用解压或移动到不含中文的路径（如 `D:\Apps\ZX-Answering-Assistant`）后重新打开，详见上方「预构建发布包」的说明。
 
 ### Flet 无法启动或缺少 `flet_desktop`
 
