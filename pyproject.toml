@@ -1,6 +1,6 @@
 [project]
 name = "zx-answering-assistant"
-version = "4.1.0"
+version = "4.3.0"
 description = "Intelligent Answering Assistant System"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -20,6 +20,12 @@ dependencies = [
     "DrissionPage>=4.1.0",
     "pystray>=0.19.5",
     "Pillow>=10.0.0",
+    # WeBan 插件运行时依赖（client→api/captcha 顶层导入链）
+    # flet build 打包时只读取 [project].dependencies，缺了会导致打包后的应用无法识别 WeBan
+    "nodriver>=0.50.0",
+    "opencv-python-headless>=4.13.0",
+    "numpy>=1.26.4",
+    "pyaes>=1.6.1",
 ]
 
 

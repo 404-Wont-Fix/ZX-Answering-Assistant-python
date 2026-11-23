@@ -20,7 +20,6 @@ env:
   PYTHONIOENCODING: utf-8
   PYTHONUTF8: "1"
   WEBAN_REPOSITORY: https://github.com/hangone/WeBan.git
-  WEBAN_REF: ${{ vars.WEBAN_REF || '78665365406465514f85137df1ebcbee8cb6c103' }}
 
 jobs:
   metadata:
@@ -140,6 +139,25 @@ jobs:
             echo "PROCESSOR_ARCHITECTURE=${PROCESSOR_ARCHITECTURE:-unknown}"
             echo "PROCESSOR_ARCHITEW6432=${PROCESSOR_ARCHITEW6432:-unknown}"
           fi
+
+      - name: Resolve WeBan ref
+        shell: bash
+        env:
+          OVERRIDE_WEBAN_REF: ${{ vars.WEBAN_REF }}
+        run: |
+          set -euo pipefail
+
+          ref="${OVERRIDE_WEBAN_REF}"
+          if [[ -z "${ref}" ]]; then
+            # 以 submodule gitlink 为唯一事实来源，避免 CI 与本地子模块版本漂移
+            ref="$(git ls-tree HEAD plugins/weban_plugin/modules/WeBan | awk '{print $3}')"
+          fi
+          if [[ -z "${ref}" ]]; then
+            ref="92c77a6d06da144d000549b73bba41c64fd343a9"
+          fi
+
+          echo "WEBAN_REF=${ref}" >> "${GITHUB_ENV}"
+          echo "Resolved WeBan ref: ${ref}"
 
       - name: Cache WeBan module
         uses: actions/cache@v6
