@@ -21,6 +21,54 @@ LEVEL_EMOJI = {
     "error": "❌",
 }
 
+
+class _StdoutTee:
+    """将 stdout 写入同时转发到原始流并缓存最近内容。
+
+    WeBan client 在手动答题前会把题目/选项 print 到 stdout（不走 loguru），
+    GUI 模式下需要捕获这些输出作为弹窗的题目上下文。
+    """
+
+    __slots__ = ("_original", "_chunks", "_size", "_max_size")
+
+    def __init__(self, original, max_size: int = 8000):
+        object.__setattr__(self, "_original", original)
+        object.__setattr__(self, "_chunks", [])
+        object.__setattr__(self, "_size", 0)
+        object.__setattr__(self, "_max_size", max_size)
+
+    def write(self, text) -> int:
+        try:
+            self._original.write(text)
+        except Exception:
+            pass
+        if text and text.strip():
+            self._chunks.append(text)
+            self._size += len(text)
+            while self._size > self._max_size and self._chunks:
+                self._size -= len(self._chunks.pop(0))
+        return len(text) if text else 0
+
+    def flush(self) -> None:
+        try:
+            self._original.flush()
+        except Exception:
+            pass
+
+    def drain(self) -> str:
+        """取出并清空已缓存的内容。"""
+        text = "".join(self._chunks)
+        self._chunks.clear()
+        self._size = 0
+        return text
+
+    @property
+    def original(self):
+        return self._original
+
+    def __getattr__(self, name):
+        return getattr(self._original, name)
+
 def _find_weban_path() -> Optional[Path]:
     """
     查找 WeBan 模块路径
@@ -122,6 +170,9 @@ class WeBanAdapter:
         self.is_running = False
         self._stop_event = threading.Event()
         self._config: List[Dict[str, Any]] = []
+        # GUI 弹窗用的最近 stdout 上下文（题目文本），由 _prompt 补丁写入
+        self.pending_context = ""
+        self._stdout_tee: Optional[_StdoutTee] = None
 
         # 检查 WeBan 是否可用
         if not self._ensure_weban_available():
@@ -275,9 +326,18 @@ class WeBanAdapter:
 
             # 创建支持 GUI 的 _prompt 方法
             def _prompt_with_gui(self, message: str) -> str:
-                """支持 GUI 输入的 _prompt 方法"""
+                """支持 GUI 输入的 _prompt 方法
+
+                手动答题前 client 会 print 题目到 stdout，这里取出最近的
+                stdout 捕获内容作为题目上下文传给 GUI 弹窗。
+                """
                 if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
-                    return self._adapter.input_callback(message).strip()
+                    adapter = self._adapter
+                    try:
+                        adapter.pending_context = adapter._drain_stdout_context()
+                    except Exception:
+                        adapter.pending_context = ""
+                    return adapter.input_callback(message).strip()
                 else:
                     return self._original_prompt(message)
 
@@ -320,6 +380,12 @@ class WeBanAdapter:
 
                             # 使用回调函数获取输入（支持 GUI）
                             if hasattr(self, '_adapter') and hasattr(self._adapter, 'input_callback'):
+                                # 验证码场景无题目上下文，清空避免弹窗显示无关内容
+                                try:
+                                    self._adapter.pending_context = ""
+                                    self._adapter._drain_stdout_context()
+                                except Exception:
+                                    pass
                                 verify_code = self._adapter.input_callback(
                                     f"请查看 {captcha_filename} 输入验证码："
                                 )
@@ -551,6 +617,48 @@ class WeBanAdapter:
             self._log(f"错误详情: {traceback.format_exc()}", "error")
             return False
 
+    def _install_stdout_tee(self) -> None:
+        """安装 stdout 捕获（转发原流的同时缓存最近输出）。"""
+        import sys
+        if self._stdout_tee is not None:
+            return
+        try:
+            self._stdout_tee = _StdoutTee(sys.stdout)
+            sys.stdout = self._stdout_tee
+        except Exception:
+            self._stdout_tee = None
+
+    def _restore_stdout(self) -> None:
+        """卸载 stdout 捕获，恢复原始 sys.stdout。"""
+        import sys
+        tee = self._stdout_tee
+        if tee is None:
+            return
+        try:
+            if sys.stdout is tee:
+                sys.stdout = tee.original
+        except Exception:
+            pass
+        finally:
+            self._stdout_tee = None
+            self.pending_context = ""
+
+    def _drain_stdout_context(self) -> str:
+        """提取"手动答题"的题目上下文。
+
+        client 在 _prompt 前会 print 题目类型/标题/选项到 stdout；
+        从包含"题目类型/题目标题"的行开始截取，其余输出（噪音）丢弃。
+        """
+        tee = self._stdout_tee
+        if tee is None:
+            return ""
+        raw = tee.drain()
+        lines = [line for line in raw.splitlines() if line.strip()]
+        for idx, line in enumerate(lines):
+            if "题目类型" in line or "题目标题" in line:
+                return "\n".join(lines[idx:])
+        return ""
+
     def start(self, use_multithread: bool = True) -> Dict[str, int]:
         """
         开始执行所有账号任务
@@ -567,54 +675,58 @@ class WeBanAdapter:
 
         self.is_running = True
         self._stop_event.clear()
+        self._install_stdout_tee()
 
-        self._log(f"开始执行，共 {len(self._config)} 个账号", "info")
+        try:
+            self._log(f"开始执行，共 {len(self._config)} 个账号", "info")
 
-        success_count = 0
-        failed_count = 0
+            success_count = 0
+            failed_count = 0
 
-        if use_multithread and len(self._config) > 1:
-            # 多线程执行
-            from concurrent.futures import as_completed, ThreadPoolExecutor
+            if use_multithread and len(self._config) > 1:
+                # 多线程执行
+                from concurrent.futures import as_completed, ThreadPoolExecutor
 
-            max_workers = min(len(self._config), 5)  # 限制最大线程数为5
-            self._log(f"使用多线程模式，最大并发数: {max_workers}", "info")
+                max_workers = min(len(self._config), 5)  # 限制最大线程数为5
+                self._log(f"使用多线程模式，最大并发数: {max_workers}", "info")
 
-            with ThreadPoolExecutor(max_workers=max_workers) as executor:
-                future_to_account = {
-                    executor.submit(self.run_account, config, i): (config, i)
-                    for i, config in enumerate(self._config)
-                }
+                with ThreadPoolExecutor(max_workers=max_workers) as executor:
+                    future_to_account = {
+                        executor.submit(self.run_account, config, i): (config, i)
+                        for i, config in enumerate(self._config)
+                    }
 
-                for future in as_completed(future_to_account):
-                    config, account_index = future_to_account[future]
-                    try:
-                        success = future.result()
-                        if success:
-                            success_count += 1
-                        else:
+                    for future in as_completed(future_to_account):
+                        config, account_index = future_to_account[future]
+                        try:
+                            success = future.result()
+                            if success:
+                                success_count += 1
+                            else:
+                                failed_count += 1
+                        except Exception as e:
+                            self._log(f"[账号 {account_index+1}] 线程执行异常: {e}", "error")
                             failed_count += 1
-                    except Exception as e:
-                        self._log(f"[账号 {account_index+1}] 线程执行异常: {e}", "error")
+
+            else:
+                # 单线程执行
+                self._log("使用单线程模式，逐个执行", "info")
+                for i, config in enumerate(self._config):
+                    if self._stop_event.is_set():
+                        break
+                    success = self.run_account(config, i)
+                    if success:
+                        success_count += 1
+                    else:
                         failed_count += 1
 
-        else:
-            # 单线程执行
-            self._log("使用单线程模式，逐个执行", "info")
-            for i, config in enumerate(self._config):
-                if self._stop_event.is_set():
-                    break
-                success = self.run_account(config, i)
-                if success:
-                    success_count += 1
-                else:
-                    failed_count += 1
+            self._log(f"所有账号执行完成！成功: {success_count}，失败: {failed_count}",
+                      "success" if failed_count == 0 else "warning")
 
-        self.is_running = False
-        self._log(f"所有账号执行完成！成功: {success_count}，失败: {failed_count}",
-                  "success" if failed_count == 0 else "warning")
-
-        return {"success": success_count, "failed": failed_count}
+            return {"success": success_count, "failed": failed_count}
+        finally:
+            self._restore_stdout()
+            self.is_running = False
 
     def stop(self):
         """优雅停止执行

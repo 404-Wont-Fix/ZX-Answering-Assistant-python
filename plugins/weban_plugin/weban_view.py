@@ -5,10 +5,14 @@ WeBan 模块的 GUI 视图，提供安全微伴课程的自动化学习界面。
 采用简洁的三页面设计：简介 → 登录 → 控制台
 """
 
-import flet as ft
 import threading
-from typing import Optional
-from src.ui.components import run_background_task, show_snack
+from collections import deque
+from datetime import datetime
+
+import flet as ft
+
+from src.ui.components import run_background_task, show_snack, surface_card
+from src.ui.theme import Fonts, Palette, Radius
 
 from . import weban_adapter
 
@@ -25,6 +29,19 @@ from src.core.config import get_settings_manager
 
 class WeBanView:
     """WeBan 视图类"""
+
+    # 日志级别 → (深色终端面板中的文字颜色, emoji 前缀)
+    _LOG_LEVEL_STYLE = {
+        "info": ("#C9D4E8", "ℹ️"),
+        "success": ("#3DDC97", "✅"),
+        "warning": ("#FBBF24", "⚠️"),
+        "error": ("#FF7B72", "❌"),
+    }
+    # 终端面板背景 / 顶部圆点颜色
+    _TERM_BG = "#0F1724"
+    _TERM_DOTS = ("#FF5F57", "#FEBC2E", "#28C840")
+    # 日志面板最大行数（超出后丢弃最旧日志）
+    _LOG_MAX_LINES = 400
 
     def __init__(self, page: ft.Page, settings_manager=None, context=None):
         """
@@ -68,10 +85,19 @@ class WeBanView:
 
         # 控制台UI控件
         self.console_dialog = None
-        self.log_text = None
+        self.log_list = None          # 日志 ListView（auto_scroll 自动跟随底部）
+        self.log_count_text = None    # 终端面板右上角行数
         self.start_button = None
         self.stop_button = None
-        self.status_text = None
+        self.clear_button = None
+        self.status_chip = None       # 状态 chip（准备就绪/正在执行/…）
+
+        # UI 并发保护：WeBan 工作线程日志密集，所有面板变更/刷新必须串行化，
+        # 避免多个 executor 线程并发 page.update() 触发 Flet diff 竞态
+        # （"list index out of range"）
+        self._ui_lock = threading.Lock()
+        self._log_pending = deque()
+        self._log_flush_scheduled = False
 
         # 待输入的答案（用于手动作答）
         self.pending_answer = None
@@ -97,12 +123,19 @@ class WeBanView:
             expand=True,
         )
 
-        return ft.Column(
+        # 外层包装：简介/登录页可滚动；控制台页切换为不可滚动
+        # （可滚动容器主轴无界，会让内部 expand 全部失效、日志面板无限变长）
+        self.content_wrapper = ft.Column(
             [self.current_content],
             scroll=ft.ScrollMode.AUTO,
             expand=True,
             spacing=0,
         )
+        return self.content_wrapper
+
+    def _set_wrapper_scroll(self, auto_scroll: bool):
+        """切换外层包装的滚动模式（True=可滚动，False=固定布局撑满）"""
+        self.content_wrapper.scroll = ft.ScrollMode.AUTO if auto_scroll else None
 
     def _get_intro_content(self) -> ft.Column:
         """获取简介页面内容"""
@@ -363,54 +396,168 @@ class WeBanView:
         )
 
     def _get_console_content(self) -> ft.Column:
-        """获取控制台页面内容"""
-        # 创建日志显示区域
-        self.log_text = ft.TextField(
-            value="",
-            multiline=True,
-            width=700,
-            height=350,
-            read_only=True,
-            bgcolor=ft.Colors.GREY_100,
-            border_color=ft.Colors.GREY_300,
-            border_radius=8,
+        """获取控制台页面内容（深色终端风格日志面板 + 状态 chip）"""
+        # 日志列表：auto_scroll=True 让新日志自动滚动到底部
+        self.log_list = ft.ListView(
+            expand=True,
+            auto_scroll=True,
+            spacing=3,
+            padding=ft.Padding.symmetric(horizontal=14, vertical=10),
+        )
+        self.log_count_text = ft.Text(
+            "0 行", size=11, color="#7C8AA5", font_family=Fonts.get_system_font()
         )
 
-        # 创建控制按钮
-        self.start_button = ft.ElevatedButton(
+        # 终端面板顶栏：交通灯圆点 + 标题 + 行数
+        term_header = ft.Container(
+            content=ft.Row(
+                [
+                    *(
+                        ft.Container(
+                            width=9,
+                            height=9,
+                            bgcolor=dot_color,
+                            border_radius=9,
+                        )
+                        for dot_color in self._TERM_DOTS
+                    ),
+                    ft.Container(width=8),
+                    ft.Text(
+                        "执行日志",
+                        size=12,
+                        weight=ft.FontWeight.W_600,
+                        color="#AEB9CE",
+                        font_family=Fonts.get_system_font(),
+                    ),
+                    ft.Container(expand=True),
+                    self.log_count_text,
+                ],
+                spacing=0,
+                vertical_alignment=ft.CrossAxisAlignment.CENTER,
+            ),
+            padding=ft.Padding.only(left=14, right=14, top=10),
+            bgcolor=self._TERM_BG,
+            border_radius=ft.BorderRadius(14, 14, 0, 0),
+        )
+
+        # 深色终端日志面板（顶栏 + 日志区）
+        log_panel = ft.Container(
+            content=ft.Column(
+                [term_header, self.log_list],
+                spacing=0,
+                expand=True,
+            ),
+            bgcolor=self._TERM_BG,
+            border_radius=Radius.MEDIUM,
+            clip_behavior=ft.ClipBehavior.ANTI_ALIAS,
+            expand=True,
+        )
+
+        # 控制按钮
+        self.start_button = ft.FilledButton(
             "开始执行",
             icon=ft.Icons.PLAY_ARROW,
-            bgcolor=ft.Colors.GREEN,
-            color=ft.Colors.WHITE,
+            bgcolor=Palette.ACCENT,
+            color="#FFFFFF",
+            disabled=self.is_running,
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=30, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+                text_style=Fonts.text(size=13, weight=ft.FontWeight.W_600),
             ),
+            on_click=self._on_console_start,
         )
 
-        self.stop_button = ft.ElevatedButton(
+        self.stop_button = ft.FilledButton(
             "停止执行",
             icon=ft.Icons.STOP,
-            bgcolor=ft.Colors.RED,
-            color=ft.Colors.WHITE,
-            disabled=True,
+            bgcolor=Palette.DANGER,
+            color="#FFFFFF",
+            disabled=not self.is_running,
             style=ft.ButtonStyle(
-                shape=ft.RoundedRectangleBorder(radius=8),
-                padding=ft.padding.symmetric(horizontal=30, vertical=12),
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=24, vertical=14),
+                text_style=Fonts.text(size=13, weight=ft.FontWeight.W_600),
             ),
+            on_click=self._on_console_stop,
         )
 
-        # 绑定按钮事件
-        self.start_button.on_click = self._on_console_start
-        self.stop_button.on_click = self._on_console_stop
-
-        # 状态文本
-        self.status_text = ft.Text(
-            "准备就绪",
-            color=ft.Colors.GREY_600,
-            size=14,
-            italic=True,
+        self.clear_button = ft.OutlinedButton(
+            "清空日志",
+            icon=ft.Icons.DELETE_OUTLINE,
+            style=ft.ButtonStyle(
+                color=Palette.TEXT_MUTED,
+                side=ft.BorderSide(1, Palette.BORDER_STRONG),
+                shape=ft.RoundedRectangleBorder(radius=Radius.SMALL),
+                padding=ft.Padding.symmetric(horizontal=16, vertical=13),
+            ),
+            on_click=self._on_clear_log,
         )
+
+        # 状态 chip
+        self.status_chip = ft.Container(
+            content=ft.Text(
+                "正在执行..." if self.is_running else "准备就绪",
+                size=12,
+                weight=ft.FontWeight.W_600,
+                color=Palette.PRIMARY if self.is_running else Palette.TEXT_MUTED,
+                font_family=Fonts.get_system_font(),
+            ),
+            bgcolor=Palette.PRIMARY_SOFT if self.is_running else Palette.SURFACE_ALT,
+            border=ft.Border.all(1, Palette.BORDER),
+            border_radius=30,
+            padding=ft.Padding.symmetric(horizontal=12, vertical=6),
+        )
+
+        # 登录信息 chip（学校 / 账号）
+        def info_chip(icon, text: str) -> ft.Container:
+            return ft.Container(
+                content=ft.Row(
+                    [
+                        ft.Icon(icon, size=14, color=Palette.PRIMARY),
+                        ft.Text(
+                            text,
+                            size=12,
+                            color=Palette.TEXT_MUTED,
+                            font_family=Fonts.get_system_font(),
+                        ),
+                    ],
+                    spacing=5,
+                    tight=True,
+                ),
+                bgcolor=Palette.SURFACE_ALT,
+                border=ft.Border.all(1, Palette.BORDER),
+                border_radius=20,
+                padding=ft.Padding.symmetric(horizontal=10, vertical=5),
+            )
+
+        console_card = surface_card(
+            ft.Column(
+                [
+                    # 登录信息 + 状态
+                    ft.Row(
+                        [
+                            info_chip(ft.Icons.SCHOOL, self.school_name or "未知学校"),
+                            ft.Container(width=4),
+                            info_chip(ft.Icons.PERSON, self.account or "未登录"),
+                            ft.Container(expand=True),
+                        ],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    # 控制按钮行
+                    ft.Row(
+                        [self.start_button, self.stop_button, ft.Container(expand=True), self.clear_button],
+                        vertical_alignment=ft.CrossAxisAlignment.CENTER,
+                    ),
+                    # 日志面板（撑满剩余高度）
+                    log_panel,
+                ],
+                spacing=14,
+                expand=True,
+            ),
+            padding=18,
+        )
+        console_card.expand = True
 
         return ft.Column(
             [
@@ -419,58 +566,48 @@ class WeBanView:
                     [
                         ft.IconButton(
                             icon=ft.Icons.ARROW_BACK,
-                            icon_color=ft.Colors.BLUE,
+                            icon_color=Palette.PRIMARY,
                             on_click=self._on_back_to_login,
                         ),
-                        ft.Text(
-                            "执行控制台",
-                            size=28,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_800,
-                            expand=True,
+                        ft.Column(
+                            [
+                                ft.Text(
+                                    "执行控制台",
+                                    size=20,
+                                    weight=ft.FontWeight.BOLD,
+                                    color=Palette.TEXT,
+                                ),
+                                ft.Text(
+                                    "自动学习与答题任务将在这里运行",
+                                    size=12,
+                                    color=Palette.TEXT_MUTED,
+                                ),
+                            ],
+                            spacing=2,
+                            tight=True,
                         ),
-                        ft.Container(width=20),
-                        self.status_text,
+                        ft.Container(expand=True),
+                        self.status_chip,
                     ],
+                    vertical_alignment=ft.CrossAxisAlignment.CENTER,
                 ),
-
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                # 控制按钮
-                ft.Row(
-                    [self.start_button, self.stop_button],
-                    spacing=20,
-                ),
-                ft.Divider(height=20, color=ft.Colors.TRANSPARENT),
-
-                # 日志标题
-                ft.Row(
-                    [
-                        ft.Icon(ft.Icons.ARTICLE, color=ft.Colors.BLUE),
-                        ft.Text(
-                            "执行日志",
-                            size=18,
-                            weight=ft.FontWeight.BOLD,
-                            color=ft.Colors.BLUE_800,
-                        ),
-                    ],
-                ),
-                ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-
-                # 日志显示
-                self.log_text,
+                console_card,
             ],
+            spacing=14,
+            expand=True,
         )
 
     def _on_start_click(self, e):
         """开始按钮点击事件 - 切换到登录页面"""
         login_content = self._get_login_content()
+        self._set_wrapper_scroll(True)
         self.current_content.content = login_content
         self.page.update()
 
     def _on_back_click(self, e):
         """返回按钮点击事件 - 返回简介页面"""
         intro_content = self._get_intro_content()
+        self._set_wrapper_scroll(True)
         self.current_content.content = intro_content
         self.page.update()
 
@@ -605,8 +742,9 @@ class WeBanView:
             self._show_snackbar("配置加载失败", ft.Colors.RED)
             return
 
-        # 切换到控制台页面
+        # 切换到控制台页面（外层停止滚动，让日志面板撑满剩余高度）
         console_content = self._get_console_content()
+        self._set_wrapper_scroll(False)
         self.current_content.content = console_content
         self.page.update()
 
@@ -617,47 +755,57 @@ class WeBanView:
     def _on_back_to_login(self, e):
         """返回登录页面"""
         login_content = self._get_login_content()
+        self._set_wrapper_scroll(True)
         self.current_content.content = login_content
         self.page.update()
 
     def _on_console_start(self, e):
         """控制台开始按钮点击事件"""
         if self.is_running:
+            show_snack(self.page, "任务正在执行中，请先停止", color=ft.Colors.ORANGE)
             return
 
         self.is_running = True
-        self.start_button.disabled = True
-        self.stop_button.disabled = False
-        self.status_text.value = "正在执行..."
-        self.status_text.color = ft.Colors.BLUE
-        self.log_text.value = ""
-        self.page.update()
+        with self._ui_lock:
+            self.start_button.disabled = True
+            self.stop_button.disabled = False
+            self._clear_log_items()
+        self._set_status("正在执行", Palette.PRIMARY, Palette.PRIMARY_SOFT)
+        self._log(f"开始执行任务: {self.school_name}", "info")
+        self._log(f"账号: {self.account}", "info")
+        self._log("-" * 46, "info")
 
         # 在后台线程执行任务
         def run_task():
             try:
-                self._log(f"开始执行任务: {self.school_name}", "info")
-                self._log(f"账号: {self.account}", "info")
-                self._log("-" * 50, "info")
-
                 result = self.adapter.start(use_multithread=False)
-
-                self._log("-" * 50, "info")
-                self._log(f"执行完成！成功: {result['success']}, 失败: {result['failed']}", "success")
-
+                self._log("-" * 46, "info")
+                self._log(
+                    f"执行完成！成功: {result['success']}，失败: {result['failed']}",
+                    "success",
+                )
             except Exception as ex:
-                self._log(f"执行失败: {str(ex)}", "error")
-                import traceback
-                self._log(f"错误详情: {traceback.format_exc()}", "error")
+                stopped = bool(self.adapter) and self.adapter._stop_event.is_set()
+                if stopped or "停止" in str(ex) or "取消" in str(ex):
+                    # 用户主动停止 / 取消输入，不算错误
+                    self._log(f"任务已中止: {ex}", "warning")
+                else:
+                    self._log(f"执行失败: {str(ex)}", "error")
+                    import traceback
+                    self._log(f"错误详情: {traceback.format_exc()}", "error")
             finally:
                 # 线程安全的UI更新
                 def update_final_state():
                     self.is_running = False
-                    self.start_button.disabled = False
-                    self.stop_button.disabled = True
-                    self.status_text.value = "执行完成"
-                    self.status_text.color = ft.Colors.GREEN
-                    self.page.update()
+                    with self._ui_lock:
+                        if self.start_button:
+                            self.start_button.disabled = False
+                        if self.stop_button:
+                            self.stop_button.disabled = True
+                    if bool(self.adapter) and self.adapter._stop_event.is_set():
+                        self._set_status("已停止", Palette.WARNING, Palette.WARNING_SOFT)
+                    else:
+                        self._set_status("执行完成", Palette.ACCENT, Palette.ACCENT_SOFT)
 
                 self.page.run_thread(update_final_state)
 
@@ -668,36 +816,98 @@ class WeBanView:
         if not self.is_running:
             return
 
+        with self._ui_lock:
+            self.stop_button.disabled = True
+            self.page.update()
         self._log("正在停止任务...", "warning")
+        self._set_status("正在停止", Palette.WARNING, Palette.WARNING_SOFT)
         self.adapter.stop()
 
+    def _on_clear_log(self, e):
+        """清空日志按钮点击事件"""
+        with self._ui_lock:
+            self._clear_log_items()
+            self.page.update()
+
+    def _clear_log_items(self):
+        """清空日志列表与行数（纯变更，调用方需持有 _ui_lock 并负责刷新）"""
+        if self.log_list:
+            self.log_list.controls.clear()
+        if self.log_count_text:
+            self.log_count_text.value = "0 行"
+
+    def _set_status(self, label: str, color: str, bgcolor: str):
+        """更新状态 chip 的文字与配色（与日志刷新共用 UI 锁）"""
+        if not self.status_chip:
+            return
+
+        def update_ui():
+            try:
+                with self._ui_lock:
+                    self.status_chip.content.value = label
+                    self.status_chip.content.color = color
+                    self.status_chip.bgcolor = bgcolor
+                    self.page.update()
+            except Exception as ex:
+                print(f"[WeBan] 状态UI更新失败: {ex}")
+
+        self.page.run_thread(update_ui)
+
     def _log(self, message: str, level: str = "info"):
-        """日志输出函数"""
-        # 如果 log_text 还未初始化，输出到控制台
-        if not hasattr(self, 'log_text') or self.log_text is None:
+        """日志输出函数（写入深色终端面板，自动滚动到底部）。
+
+        WeBan 日志密集且来自工作线程：不再每条日志单独调度 update
+        （多线程并发 page.update() 会触发 Flet diff 竞态，报
+        "list index out of range"），而是先入队，由单个刷新任务
+        批量写入并一次性 update。
+        """
+        # 如果日志面板还未初始化，输出到控制台
+        if not self.log_list:
             print(f"[WeBan] {message}")
             return
 
-        # 添加时间戳
-        from datetime import datetime
+        color, prefix = self._LOG_LEVEL_STYLE.get(level, self._LOG_LEVEL_STYLE["info"])
         timestamp = datetime.now().strftime("%H:%M:%S")
+        self._log_pending.append((f"[{timestamp}] {prefix} {message}", color))
+        self._schedule_log_flush()
 
-        # 根据日志级别设置颜色和图标
-        color_map = {
-            "info": ft.Colors.BLACK,
-            "success": ft.Colors.GREEN,
-            "warning": ft.Colors.ORANGE,
-            "error": ft.Colors.RED,
-        }
-        prefix = weban_adapter.LEVEL_EMOJI.get(level, "ℹ️")
+    def _schedule_log_flush(self):
+        """确保同一时刻只有一个日志刷新任务在排队（防止 update 风暴）"""
+        with self._ui_lock:
+            if self._log_flush_scheduled:
+                return
+            self._log_flush_scheduled = True
+        self.page.run_thread(self._flush_log_entries)
 
-        # 线程安全的UI更新
-        def update_ui():
-            self.log_text.value += f"[{timestamp}] {prefix} {message}\n"
-            self.page.update()
-
-        # 使用 run_thread 确保在主线程中更新UI
-        self.page.run_thread(update_ui)
+    def _flush_log_entries(self):
+        """把队列中的日志批量写入面板（持锁串行化所有 UI 变更与刷新）"""
+        try:
+            with self._ui_lock:
+                self._log_flush_scheduled = False
+                entries = []
+                while self._log_pending:
+                    entries.append(self._log_pending.popleft())
+                if not entries:
+                    return
+                for line, color in entries:
+                    self.log_list.controls.append(
+                        ft.Text(
+                            line,
+                            size=12,
+                            color=color,
+                            selectable=True,
+                            font_family=Fonts.get_system_font(),
+                        )
+                    )
+                if len(self.log_list.controls) > self._LOG_MAX_LINES:
+                    del self.log_list.controls[
+                        : len(self.log_list.controls) - self._LOG_MAX_LINES
+                    ]
+                if self.log_count_text:
+                    self.log_count_text.value = f"{len(self.log_list.controls)} 行"
+                self.page.update()
+        except Exception as ex:
+            print(f"[WeBan] 日志UI更新失败: {ex}")
 
     def _show_snackbar(self, message: str, bgcolor = None):
         """
@@ -715,74 +925,42 @@ class WeBanView:
             print(f"[SnackBar Error] {e}")
 
     def _handle_input(self, prompt: str) -> str:
-        """处理用户输入（用于验证码、手动作答等）"""
-        # 创建一个事件来等待输入
-        import threading
-        input_event = threading.Event()
-        input_result = [""]
+        """处理用户输入（用于验证码、手动作答等），由 WeBan 后台线程调用。
 
-        def show_input_dialog():
-            """显示输入对话框"""
-            # 创建对话框
-            dialog = ft.AlertDialog(
-                title=ft.Text("需要输入"),
-                content=ft.Column(
-                    [ft.Text(prompt)],
-                    tight=True,
-                    scroll=ft.ScrollMode.AUTO,
-                    width=500,
-                ),
-                actions=[],
-            )
+        旧实现使用 Flet 0.7 的 page.dialog API（0.8+ 已移除），弹窗永远
+        不会显示且 input_event 永久阻塞。现在改用 WeBanInputDialog。
+        """
+        # 取出 adapter 捕获的题目上下文（手动答题时为题目+选项文本）
+        context = ""
+        try:
+            context = (getattr(self.adapter, "pending_context", "") or "").strip()
+            self.adapter.pending_context = ""
+        except Exception:
+            context = ""
 
-            # 创建输入框
-            input_field = ft.TextField(
-                label="请输入",
-                hint_text="请输入答案或验证码",
-                width=400,
-                autofocus=True,
-            )
+        # 题目上下文写入日志面板留档（用户关闭弹窗后仍可回看）
+        if context and "答案序号" in prompt:
+            for line in context.splitlines():
+                if line.strip():
+                    self._log(line, "info")
 
-            # 更新对话框内容
-            dialog.content = ft.Column(
-                [
-                    ft.Text(prompt),
-                    ft.Divider(height=10, color=ft.Colors.TRANSPARENT),
-                    input_field,
-                ],
-                tight=True,
-                scroll=ft.ScrollMode.AUTO,
-                width=500,
-            )
+        if not self.input_dialog:
+            self._log("GUI 输入组件不可用，无法完成交互", "error")
+            raise RuntimeError("GUI 输入组件不可用")
 
-            def on_confirm(e):
-                input_result[0] = input_field.value
-                dialog.open = False
-                input_event.set()
-                self.page.update()
+        # 根据提示内容选择标题
+        if "验证码" in prompt:
+            title = "验证码输入"
+        elif "答案序号" in prompt:
+            title = "手动答题"
+        else:
+            title = "需要输入"
 
-            def on_cancel(e):
-                input_result[0] = ""
-                dialog.open = False
-                input_event.set()
-                self.page.update()
-
-            # 添加按钮
-            dialog.actions = [
-                ft.TextButton("取消", on_click=on_cancel),
-                ft.TextButton("确定", on_click=on_confirm),
-            ]
-
-            self.page.dialog = dialog
-            dialog.open = True
-            self.page.update()
-
-        # 在主线程中显示对话框
-        self.page.run_thread(show_input_dialog)
-
-        # 等待用户输入
-        input_event.wait()
-        return input_result[0]
+        result = self.input_dialog.show_input_dialog(title, prompt, context=context or None)
+        if result is None:
+            # 用户取消 / 超时：抛异常让 WeBan 中止当前账号，避免死循环重试
+            raise RuntimeError("用户取消了输入")
+        return result
 
     def _run_background(self, target, *args, **kwargs):
         """在后台线程安全执行耗时任务（委托 run_background_task）。"""
