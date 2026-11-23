@@ -34,6 +34,7 @@ class PluginInfo:
     dependencies: List[str]
     enabled: bool
     path: Path
+    fills_space: bool = False
 
     @classmethod
     def from_manifest(cls, manifest_path: Path) -> 'PluginInfo':
@@ -61,7 +62,8 @@ class PluginInfo:
             min_app_version=data.get('min_app_version'),
             dependencies=data.get('dependencies', []),
             enabled=data.get('enabled', True),
-            path=manifest_path.parent
+            path=manifest_path.parent,
+            fills_space=data.get('fills_space', False)
         )
 
 

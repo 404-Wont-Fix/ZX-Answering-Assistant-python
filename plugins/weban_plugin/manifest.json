@@ -7,7 +7,8 @@
   "author": "hangone",
   "entry_ui": "ui.create_view",
   "entry_core": null,
-  "min_app_version": "3.0.0",
+  "min_app_version": "3.1.0",
   "dependencies": [],
-  "enabled": true
+  "enabled": true,
+  "fills_space": true
 }

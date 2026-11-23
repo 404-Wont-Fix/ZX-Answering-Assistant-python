@@ -676,6 +676,10 @@ class PluginCenterView:
                     if hasattr(self.main_app, "header_title"):
                         self.main_app.header_title.value = plugin_info.name
                         self.main_app.header_subtitle.value = plugin_info.description
+                    # fills_space 插件需要撑满工作区做内部布局/滚动：
+                    # content_area 可滚动会让主轴无界，插件内部 expand 全部失效
+                    if getattr(plugin_info, "fills_space", False):
+                        self.main_app.content_area.scroll = None
                     self.main_app.content_area.controls[0].content = plugin_page
                     self.page.update()
 
@@ -693,7 +697,12 @@ class PluginCenterView:
             show_snack(self.page, f"打开插件失败: {str(e)}", color=ft.Colors.RED)
 
     def _build_plugin_page(self, plugin_info, plugin_ui) -> ft.Control:
-        """构建插件显示页面（带返回按钮）"""
+        """构建插件显示页面（带返回按钮）。
+
+        fills_space 插件（如安全微伴的控制台）需要撑满工作区做内部
+        布局/滚动，此时外层不能加 scroll（可滚动容器主轴无界，会让
+        插件内部所有 expand 失效、内容无限变长）。
+        """
         return ft.Column(
             [
                 ft.Row(
@@ -711,7 +720,7 @@ class PluginCenterView:
                     expand=True,
                 ),
             ],
-            scroll=ft.ScrollMode.AUTO,
+            scroll=None if getattr(plugin_info, "fills_space", False) else ft.ScrollMode.AUTO,
             expand=True,
             spacing=18,
         )
@@ -736,6 +745,8 @@ class PluginCenterView:
             if hasattr(self.main_app, "header_title"):
                 self.main_app.header_title.value = "插件中心"
                 self.main_app.header_subtitle.value = "管理扩展能力与插件入口"
+            # 离开 fills_space 插件，恢复工作区滚动
+            self.main_app.content_area.scroll = ft.ScrollMode.AUTO
             self.main_app.content_area.controls[0].content = plugin_center_content
             self.page.update()
 

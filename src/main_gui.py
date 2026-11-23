@@ -714,6 +714,9 @@ class MainApp:
             # 缓存新创建的内容
             self.cached_contents[self.current_destination] = cached_content
 
+        # 离开 fills_space 插件（如安全微伴控制台）时恢复工作区滚动；
+        # 该类插件运行期间 content_area.scroll 被置为 None 以获得有界高度
+        self.content_area.scroll = ft.ScrollMode.AUTO
         # 更新 Column 中第一个 Container 的 content
         self.content_area.controls[0].content = cached_content
         self.page.update()
