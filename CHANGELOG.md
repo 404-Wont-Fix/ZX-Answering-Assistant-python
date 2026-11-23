@@ -1,5 +1,32 @@
 # 更新日志
 
+## [v4.3.0] - 2026-11-23
+
+本版本对 WeBan 插件控制台进行终端化改造，修复日志并发崩溃与弹窗兼容性问题，并修复打包后的应用无法识别 WeBan 插件的关键缺陷。
+
+### 新功能
+
+- **WeBan 控制台终端化改造**（`plugins/weban_plugin/weban_view.py`）：
+  - 深色终端风格日志面板（红黄绿圆点、级别配色 info/success/warning/error、状态色 chip、行数统计），新日志自动滚动到底部。
+  - 新增「开始 / 停止 / 清空」操作按钮与运行状态指示；控制台页日志区固定铺满工作区剩余空间并内部滚动，不再把整页撑长。
+  - WeBan 运行日志（stdout 捕获）按「题目类型 / 题目标题」行智能截取；验证码、答案序号输入改用统一的 `WeBanInputDialog` 弹窗，取消/超时返回 None。
+
+- **fills_space 插件铺满布局机制**（`src/core/plugin_manager.py`、`src/ui/views/plugin_center_view.py`、`src/main_gui.py`）：
+  - manifest 新增 `fills_space` 声明位。声明后插件页以「内容自撑满 + 内部滚动」方式嵌入，主框架不再强制整页滚动，供终端式布局的插件使用；其余插件行为不变。
+
+### Bug 修复
+
+- **日志并发崩溃 `list index out of range`**（`plugins/weban_plugin/weban_view.py`）：Flet executor 多线程并发 `page.update()` 存在 diff 竞态。修复：日志改为 `deque` 入队 + `_ui_lock` 串行化的批量刷新（批量 drain、单次 update），状态 chip、清空、开始/停止按钮等全部 UI 变更纳入同一把锁。8 线程 × 50 条并发冒烟零丢失、顺序完好。
+
+- **弹窗不兼容 Flet 0.8x**（`src/ui/dialogs/input_dialog.py`）：`page.dialog` 已在 Flet 0.8.0 移除。三处弹窗（通用输入 / 重考确认 / 图片验证码）迁移到 `page.show_dialog()` / `page.pop_dialog()`。
+
+- **打包后的应用无法识别 WeBan 插件（关键）**（`pyproject.toml`、`requirements.txt`、`plugins/weban_plugin/requirements.txt`、`.github/workflows/release.yml`）：
+  - 根因：`flet build` 打包 site-packages **只读取 `pyproject.toml [project].dependencies`**（requirements.txt 仅在 pyproject 依赖为空时才生效，装到构建机的包对产物无效），而 WeBan 导入链 `client → api(import pyaes) + captcha(import cv2/nodriver/numpy)` 全为顶层导入——这四个包均不在声明中。打包后 `import client` 直接 `ModuleNotFoundError: No module named 'pyaes'`，`WEBAN_AVAILABLE=False`，插件中心显示 WeBan 不可用。
+  - 修复：`[project].dependencies` 与 requirements.txt 补齐 `nodriver` / `opencv-python-headless` / `numpy` / `pyaes`；插件 requirements.txt 补上真正缺失的 `pyaes` 与 `numpy`，移除实际无任何代码导入的 `onnxruntime`（当前验证码为纯 OpenCV 模板匹配）。
+  - CI 打包的 WeBan 版本不再硬编码：`release.yml` 改为优先读仓库变量 `vars.WEBAN_REF`，否则从 submodule gitlink（`git ls-tree`）解析，消除 CI 与本地子模块的版本漂移（此前 CI 锁定在 7 月旧分叉 `7866536`，与 gitlink 记录的 `92c77a6` 互不为祖先）。
+  - 实证：pip `--target` 沙盒模拟 CI 产物依赖集，修复前 `ModuleNotFoundError: No module named 'pyaes'`，修复后 `IMPORT_OK WeBanClient WeBanAPI`。
+  - 体积影响：Windows 安装包 276 MB → 约 335 MB（opencv + numpy 压缩后约 +58 MB）。
+
 ## [v4.2.0] - 2026-11-20
 
 本版本更新安全微伴（WeBan）子模块到最新版本并修复插件停止按钮失效的问题，同时修复插件系统在特定条件下加载失败的隐藏 bug。
